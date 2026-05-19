@@ -230,7 +230,11 @@ describe("AttachmentPreviewModal — dispatch", () => {
       // (MUL-2330). The combination with `allow-same-origin` would defeat
       // the sandbox, so this assertion must stay exact.
       expect(frame?.getAttribute("sandbox")).toBe("allow-scripts");
-      expect(frame?.getAttribute("srcdoc")).toBe("<p>hi</p>");
+      // srcdoc carries the original HTML plus the fragment-nav shim
+      // appended at the end (see utils/iframe-fragment-nav.ts).
+      const srcdoc = frame?.getAttribute("srcdoc") ?? "";
+      expect(srcdoc.startsWith("<p>hi</p>")).toBe(true);
+      expect(srcdoc).toContain("scrollIntoView");
     });
   });
 

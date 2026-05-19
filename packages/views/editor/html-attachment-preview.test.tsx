@@ -117,7 +117,11 @@ describe("HtmlAttachmentPreview — visual shell (does not use file-card chrome)
       // Critical: sandbox must not include allow-same-origin, otherwise the
       // sandbox is defeated per the HTML spec.
       expect(frame?.getAttribute("sandbox")).toBe("allow-scripts");
-      expect(frame?.getAttribute("srcdoc")).toBe("<p>chart goes here</p>");
+      // srcdoc carries the original HTML plus the fragment-nav shim
+      // appended at the end (see utils/iframe-fragment-nav.ts).
+      const srcdoc = frame?.getAttribute("srcdoc") ?? "";
+      expect(srcdoc.startsWith("<p>chart goes here</p>")).toBe(true);
+      expect(srcdoc).toContain("scrollIntoView");
     });
   });
 });

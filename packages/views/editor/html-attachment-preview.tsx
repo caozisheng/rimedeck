@@ -32,6 +32,7 @@ import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { useT } from "../i18n";
 import { useNavigation } from "../navigation";
 import { useAttachmentHtmlText } from "./hooks/use-attachment-html-text";
+import { withFragmentNavShim } from "./utils/iframe-fragment-nav";
 
 const PREVIEW_HEIGHT = "h-[480px]";
 const ERROR_PLACEHOLDER_HEIGHT = "h-20";
@@ -105,7 +106,7 @@ export function HtmlAttachmentPreview({
         </div>
       ) : (
         <iframe
-          srcDoc={text}
+          srcDoc={withFragmentNavShim(text)}
           sandbox="allow-scripts"
           title={filename}
           className={cn(

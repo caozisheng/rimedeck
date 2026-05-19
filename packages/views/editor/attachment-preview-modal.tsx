@@ -56,6 +56,7 @@ import {
 } from "./utils/preview";
 import { useDownloadAttachment } from "./use-download-attachment";
 import { useAttachmentHtmlText } from "./hooks/use-attachment-html-text";
+import { withFragmentNavShim } from "./utils/iframe-fragment-nav";
 import { CodeBlockStatic } from "./code-block-static";
 
 // ---------------------------------------------------------------------------
@@ -399,7 +400,7 @@ function PreviewContent({
           onDownload={onDownload}
           render={(text) => (
             <iframe
-              srcDoc={text}
+              srcDoc={withFragmentNavShim(text)}
               // `allow-scripts` without `allow-same-origin` — scripts run
               // in an opaque origin and cannot read cookies / localStorage
               // / parent state, nor escape via top-nav / popups / forms.
