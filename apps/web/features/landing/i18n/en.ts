@@ -5,10 +5,14 @@ export function createEnDict(allowSignup: boolean): LandingDict {
   return {
   header: {
     github: "GitHub",
-    login: "Log in",
+    cta: "Get started",
     dashboard: "Dashboard",
+    docs: "Docs",
     changelog: "Changelog",
     useCases: "Use cases",
+    navigation: "Primary navigation",
+    openMenu: "Open navigation menu",
+    closeMenu: "Close navigation menu",
   },
 
   hero: {
