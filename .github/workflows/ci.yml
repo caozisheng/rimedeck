@@ -29,5 +29,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build, type check, lint, and test
-        run: pnpm exec turbo build typecheck lint test --filter='!@multica/docs' --filter='!@multica/mobile' --filter='!@multica/web'
+      - name: Build shared packages
+        run: pnpm exec turbo build --filter='!@multica/docs' --filter='!@multica/mobile' --filter='!@multica/web' --filter='!@multica/desktop'
+
+      - name: Type check, lint, and test
+        run: pnpm exec turbo typecheck lint test --filter='!@multica/docs' --filter='!@multica/mobile' --filter='!@multica/web'
