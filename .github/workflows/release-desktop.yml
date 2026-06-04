@@ -36,7 +36,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Package Desktop (macOS x64 + arm64)
+      - name: Bundle PostgreSQL via Homebrew
+        run: |
+          brew install postgresql@17
+          PG_PREFIX=$(brew --prefix postgresql@17)
+          mkdir -p apps/desktop/resources/pgsql
+          cp -R "$PG_PREFIX"/* apps/desktop/resources/pgsql/
+
+      - name: Package Desktop (macOS arm64)
         working-directory: apps/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,7 +52,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: node scripts/package.mjs --mac --x64 --arm64 --publish always
+        run: node scripts/package.mjs --mac --arm64 --publish always
 
   build-windows:
     runs-on: windows-latest
@@ -73,12 +80,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Package Desktop (Windows x64 + arm64)
+      - name: Bundle PostgreSQL via EDB
+        shell: bash
+        run: |
+          PG_URL="https://get.enterprisedb.com/postgresql/postgresql-17.5-1-windows-x64-binaries.zip"
+          curl -fSL -o pg.zip -A "Mozilla/5.0" "$PG_URL"
+          mkdir -p apps/desktop/resources/pgsql
+          unzip -qo pg.zip -d pg-tmp
+          cp -R pg-tmp/pgsql/* apps/desktop/resources/pgsql/
+          rm -rf pg.zip pg-tmp
+
+      - name: Package Desktop (Windows x64)
         working-directory: apps/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: node scripts/package.mjs --win --x64 --arm64 --publish always
+        run: node scripts/package.mjs --win --x64 --publish always
 
   build-linux:
     runs-on: ubuntu-latest
@@ -109,9 +126,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Package Desktop (Linux x64 + arm64)
+      - name: Bundle PostgreSQL via apt
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-17
+          mkdir -p apps/desktop/resources/pgsql
+          cp -R /usr/lib/postgresql/17/* apps/desktop/resources/pgsql/
+
+      - name: Package Desktop (Linux x64)
         working-directory: apps/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: node scripts/package.mjs --linux --x64 --arm64 --publish always
+        run: node scripts/package.mjs --linux --x64 --publish always

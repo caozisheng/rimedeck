@@ -31,7 +31,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(here, "..");
 const bundleCliScript = resolve(here, "bundle-cli.mjs");
-const bundlePgScript = resolve(here, "bundle-pg.mjs");
 
 const PLATFORM_CONFIG = {
   mac: {
@@ -386,23 +385,6 @@ function main() {
         PLATFORM_CONFIG[target.platform].runtimePlatform,
         "--target-arch",
         target.arch,
-      ],
-      {
-        stdio: "inherit",
-        cwd: desktopRoot,
-      },
-    );
-
-    console.log(`[package] bundling PostgreSQL → ${formatTarget(target)}`);
-    execFileSync(
-      "node",
-      [
-        bundlePgScript,
-        "--target-platform",
-        PLATFORM_CONFIG[target.platform].runtimePlatform,
-        "--target-arch",
-        target.arch,
-        "--force",
       ],
       {
         stdio: "inherit",
