@@ -31,6 +31,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(here, "..");
 const bundleCliScript = resolve(here, "bundle-cli.mjs");
+const bundlePgScript = resolve(here, "bundle-pg.mjs");
 
 const PLATFORM_CONFIG = {
   mac: {
@@ -373,8 +374,8 @@ function main() {
 
   const useScopedOutputDir = buildMatrix.length > 1;
 
-  // Step 3: for each requested target, build the matching CLI into
-  // resources/bin/ and package that target in isolation.
+  // Step 3: for each requested target, build the matching CLI and PG into
+  // resources/ and package that target in isolation.
   for (const target of buildMatrix) {
     console.log(`[package] bundling CLI → ${formatTarget(target)}`);
     execFileSync(
@@ -385,6 +386,23 @@ function main() {
         PLATFORM_CONFIG[target.platform].runtimePlatform,
         "--target-arch",
         target.arch,
+      ],
+      {
+        stdio: "inherit",
+        cwd: desktopRoot,
+      },
+    );
+
+    console.log(`[package] bundling PostgreSQL → ${formatTarget(target)}`);
+    execFileSync(
+      "node",
+      [
+        bundlePgScript,
+        "--target-platform",
+        PLATFORM_CONFIG[target.platform].runtimePlatform,
+        "--target-arch",
+        target.arch,
+        "--force",
       ],
       {
         stdio: "inherit",

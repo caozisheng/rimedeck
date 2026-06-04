@@ -55,7 +55,7 @@ const downloadUrl = `https://get.enterprisedb.com/postgresql/postgresql-${PG_VER
 const pgCtlName = targetPlatform === "win32" ? "pg_ctl.exe" : "pg_ctl";
 const pgCtlExpected = join(destDir, "bin", pgCtlName);
 
-if (existsSync(pgCtlExpected)) {
+if (existsSync(pgCtlExpected) && !process.argv.includes("--force")) {
   console.log(`[bundle-pg] PostgreSQL already bundled at ${destDir} — skipping download.`);
   process.exit(0);
 }
@@ -70,7 +70,10 @@ try {
   const archivePath = join(workDir, `postgresql.${ext}`);
 
   // Download
-  const res = await fetch(downloadUrl, { redirect: "follow" });
+  const res = await fetch(downloadUrl, {
+    redirect: "follow",
+    headers: { "User-Agent": "RimeDeck-Desktop-Build/1.0" },
+  });
   if (!res.ok || !res.body) {
     throw new Error(`download failed: ${res.status} ${res.statusText}`);
   }

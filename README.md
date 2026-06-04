@@ -1,3 +1,5 @@
+<img title="" src="file:///C:/Users/zisheng/Documents/cao/00_code/github/rimedeck/rimedeck-icon.png" alt="rimedeck-icon.png" data-align="center" width="153">
+
 # RimeDeck
 
 RimeDeck is a local-first AI agent workbench — organize a productive group of agents on your desktop, with zero Docker and zero cloud dependency. Forked from [Multica](https://github.com/cjzzz/multica).
@@ -10,14 +12,14 @@ Multica's desktop app connects to a cloud backend. RimeDeck removes that depende
 
 RimeDeck is an **upstream-mergeable fork**. To minimize merge conflicts, internal code keeps its original names:
 
-| Layer | Name |
-|-------|------|
-| Product surface (window title, about dialog, installer) | **RimeDeck** |
-| Go server binary | `multica-server` |
-| CLI / migration binary | `multica` |
-| Environment variables | `MULTICA_*` |
-| Database name | `multica` |
-| TypeScript packages | `@multica/*` |
+| Layer                                                   | Name             |
+| ------------------------------------------------------- | ---------------- |
+| Product surface (window title, about dialog, installer) | **RimeDeck**     |
+| Go server binary                                        | `multica-server` |
+| CLI / migration binary                                  | `multica`        |
+| Environment variables                                   | `MULTICA_*`      |
+| Database name                                           | `multica`        |
+| TypeScript packages                                     | `@multica/*`     |
 
 The Go backend is consumed as a black box — zero changes to SQL, migrations, or server business logic. Rebranding touches only string literals in ~30 files. A merge conflict is always "our string vs their string," never "our architecture vs their architecture."
 
@@ -59,27 +61,30 @@ RimeDeck App Launch
 
 ### Comparison with Upstream
 
-| Step | Upstream Multica Desktop | RimeDeck |
-|------|--------------------------|----------|
-| PostgreSQL | External (Docker or remote) | Embedded subprocess |
-| Go backend | Remote cloud API | Embedded subprocess |
-| Daemon (CLI) | Subprocess (existing) | Subprocess (unchanged) |
-| Migrations | Manual (`make migrate-up`) | Auto on launch |
-| Auth | Cloud email/OAuth | Local fixed verification code |
-| Runtime config | Points to cloud | Hardcoded localhost URLs |
+| Step           | Upstream Multica Desktop    | RimeDeck                      |
+| -------------- | --------------------------- | ----------------------------- |
+| PostgreSQL     | External (Docker or remote) | Embedded subprocess           |
+| Go backend     | Remote cloud API            | Embedded subprocess           |
+| Daemon (CLI)   | Subprocess (existing)       | Subprocess (unchanged)        |
+| Migrations     | Manual (`make migrate-up`)  | Auto on launch                |
+| Auth           | Cloud email/OAuth           | Local fixed verification code |
+| Runtime config | Points to cloud             | Hardcoded localhost URLs      |
 
 ### Key Components
 
 **PostgresManager** (`apps/desktop/src/main/local-backend/postgres-manager.ts`)
+
 - Binary resolution: bundled with app → managed (auto-downloaded on first run) → system PATH
 - Data directory: `~/.rimedeck/pg/data/`
 - Localhost-only, auto port allocation, graceful shutdown via `pg_ctl stop`
 
 **MigrationRunner** (`apps/desktop/src/main/local-backend/migration-runner.ts`)
+
 - Reuses the bundled `multica` CLI binary (same one DaemonManager resolves)
 - Runs `multica migrate up` with the local `DATABASE_URL`
 
 **BackendManager** (`apps/desktop/src/main/local-backend/backend-manager.ts`)
+
 - Spawns the Go server with `MULTICA_*` env vars (names kept because the Go binary reads them)
 - SIGTERM → 5s grace → SIGKILL on quit
 
