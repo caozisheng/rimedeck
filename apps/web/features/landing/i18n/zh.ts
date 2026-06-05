@@ -136,7 +136,7 @@ export function createZhDict(allowSignup: boolean): LandingDict {
       {
         title: "\u5b89\u88c5 CLI \u5e76\u8fde\u63a5\u4f60\u7684\u673a\u5668",
         description:
-          "运行 multica setup——它会引导你完成 OAuth 登录、启动守护进程、并扫描 12 款支持的 AI 编程工具（Antigravity、Claude Code、Codex、Cursor、Copilot、Gemini、Hermes、Kimi、Kiro CLI、OpenCode、OpenClaw、Pi）。本机已安装的工具会被自动注册成运行时。",
+          "运行 multica setup——它会引导你完成 OAuth 登录、启动守护进程、并扫描 13 款支持的 AI 编程工具（Antigravity、Claude Code、Codex、Cursor、Copilot、Gemini、Hermes、Kimi、Kiro CLI、OpenCode、OpenClaw、OMP (oh-my-pi)、Pi）。本机已安装的工具会被自动注册成运行时。",
       },
       {
         title: "\u521b\u5efa\u4f60\u7684\u7b2c\u4e00\u4e2a 智能体",
@@ -192,7 +192,7 @@ export function createZhDict(allowSignup: boolean): LandingDict {
       {
         question: "RimeDeck \u652f\u6301\u54ea\u4e9b\u7f16\u7801 智能体\uff1f",
         answer:
-          "RimeDeck \u5f00\u7bb1\u5373\u7528\u652f\u6301 12 \u6b3e AI \u7f16\u7a0b\u5de5\u5177\uff1aAntigravity\u3001Claude Code\u3001Codex\u3001Cursor\u3001Copilot\u3001Gemini\u3001Hermes\u3001Kimi\u3001Kiro CLI\u3001OpenCode\u3001OpenClaw\u3001Pi\u3002\u5b88\u62a4\u8fdb\u7a0b\u4f1a\u81ea\u52a8\u68c0\u6d4b\u672c\u673a\u5df2\u5b89\u88c5\u7684 CLI \u5e76\u4e3a\u6bcf\u6b3e\u6ce8\u518c\u4e00\u4e2a\u8fd0\u884c\u65f6\u3002\u56e0\u4e3a\u5f00\u6e90\uff0c\u4f60\u4e5f\u53ef\u4ee5\u81ea\u5df1\u6dfb\u52a0\u540e\u7aef\u3002",
+          "RimeDeck \u5f00\u7bb1\u5373\u7528\u652f\u6301 13 \u6b3e AI \u7f16\u7a0b\u5de5\u5177\uff1aAntigravity\u3001Claude Code\u3001Codex\u3001Cursor\u3001Copilot\u3001Gemini\u3001Hermes\u3001Kimi\u3001Kiro CLI\u3001OMP (oh-my-pi)\u3001OpenCode\u3001OpenClaw\u3001Pi\u3002\u5b88\u62a4\u8fdb\u7a0b\u4f1a\u81ea\u52a8\u68c0\u6d4b\u672c\u673a\u5df2\u5b89\u88c5\u7684 CLI \u5e76\u4e3a\u6bcf\u6b3e\u6ce8\u518c\u4e00\u4e2a\u8fd0\u884c\u65f6\u3002\u56e0\u4e3a\u5f00\u6e90\uff0c\u4f60\u4e5f\u53ef\u4ee5\u81ea\u5df1\u6dfb\u52a0\u540e\u7aef\u3002",
       },
       {
         question: "\u9700\u8981\u81ea\u6258\u7ba1\u5417\uff0c\u8fd8\u662f\u6709\u4e91\u7248\u672c\uff1f",

@@ -14,7 +14,7 @@ Multica's desktop app connects to a cloud backend. RimeDeck removes that depende
 
 ## Supported Runtimes
 
-RimeDeck supports 12 AI coding tools as agent runtimes. The daemon auto-detects installed tools on your machine during setup.
+RimeDeck supports 13 AI coding tools as agent runtimes. The daemon auto-detects installed tools on your machine during setup.
 
 | Runtime | CLI | Provider |
 |---------|-----|----------|
@@ -28,6 +28,7 @@ RimeDeck supports 12 AI coding tools as agent runtimes. The daemon auto-detects 
 | Kimi | `kimi` | Moonshot AI |
 | Kiro CLI | `kiro` | Amazon |
 | OpenCode | `opencode` | — |
+| OMP (oh-my-pi) | `omp` | — |
 | OpenClaw | `openclaw` | — |
 | Pi | `pi` | — |
 

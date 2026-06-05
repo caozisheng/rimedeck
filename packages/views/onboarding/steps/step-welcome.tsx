@@ -282,6 +282,7 @@ type ProviderName =
   | "kimi"
   | "kiro"
   | "pi"
+  | "omp"
   | "copilot"
   | "cursor";
 

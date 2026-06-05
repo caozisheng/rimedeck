@@ -89,6 +89,22 @@ function PiLogo({ className }: { className: string }) {
   );
 }
 
+// OMP (oh-my-pi) — variant of the Pi wordmark with an accent color to
+// distinguish it from the original Pi logo while preserving brand lineage.
+function OmpLogo({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 800 800" fill="none" className={className}>
+      <rect width="800" height="800" rx="150" fill="#1a1a2e" />
+      <path
+        fill="#e94560"
+        fillRule="evenodd"
+        d="M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29ZM282.65 282.65V400H400V282.65Z"
+      />
+      <path fill="#e94560" d="M517.36 400H634.72V634.72H517.36Z" />
+    </svg>
+  );
+}
+
 // GitHub Copilot — GitHub mark (Invertocat)
 function CopilotLogo({ className }: { className: string }) {
   return (
@@ -212,6 +228,8 @@ export function ProviderLogo({
       return <HermesLogo className={className} />;
     case "pi":
       return <PiLogo className={className} />;
+    case "omp":
+      return <OmpLogo className={className} />;
     case "copilot":
       return <CopilotLogo className={className} />;
     case "cursor":

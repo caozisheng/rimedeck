@@ -20,6 +20,7 @@ import (
 // OpenCode:    skills → {workDir}/.opencode/skills/{name}/SKILL.md  (native discovery)
 // OpenClaw:    skills → {workDir}/skills/{name}/SKILL.md  (native discovery — paired with a per-task synthesized openclaw-config.json that pins agents.defaults.workspace to workDir; see openclaw_config.go)
 // Pi:          skills → {workDir}/.pi/skills/{name}/SKILL.md  (native discovery)
+// OMP:         skills → {workDir}/.omp/skills/{name}/SKILL.md  (native discovery)
 // Cursor:      skills → {workDir}/.cursor/skills/{name}/SKILL.md  (native discovery)
 // Kimi:        skills → {workDir}/.kimi/skills/{name}/SKILL.md  (native discovery)
 // Kiro:        skills → {workDir}/.kiro/skills/{name}/SKILL.md  (native discovery)
@@ -188,6 +189,9 @@ func resolveSkillsDir(workDir, provider string, manifest *sidecarManifest) (stri
 	case "pi":
 		// Pi natively discovers skills from .pi/skills/ in the workdir.
 		skillsDir = filepath.Join(workDir, ".pi", "skills")
+	case "omp":
+		// OMP (oh-my-pi) natively discovers skills from .omp/skills/ in the workdir.
+		skillsDir = filepath.Join(workDir, ".omp", "skills")
 	case "cursor":
 		// Cursor natively discovers skills from .cursor/skills/ in the workdir.
 		skillsDir = filepath.Join(workDir, ".cursor", "skills")

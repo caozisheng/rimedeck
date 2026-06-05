@@ -150,6 +150,7 @@ var allFileBasedProviders = []string{
 	"openclaw",
 	"hermes",
 	"pi",
+	"omp",
 	"cursor",
 	"kimi",
 	"kiro",

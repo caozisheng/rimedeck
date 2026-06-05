@@ -137,6 +137,10 @@ func ListModels(ctx context.Context, providerType, executablePath string) ([]Mod
 		return cachedDiscovery(providerType, func() ([]Model, error) {
 			return discoverPiModels(ctx, executablePath)
 		})
+	case "omp":
+		return cachedDiscovery(providerType, func() ([]Model, error) {
+			return discoverOmpModels(ctx, executablePath)
+		})
 	case "openclaw":
 		return cachedDiscovery(providerType, func() ([]Model, error) {
 			return discoverOpenclawAgents(ctx, executablePath)
@@ -613,6 +617,33 @@ func parsePiModels(output string) []Model {
 		models = append(models, Model{ID: id, Label: id, Provider: provider})
 	}
 	return models
+}
+
+// discoverOmpModels runs `omp --list-models` and parses its output.
+// OMP is a fork of Pi and uses the same output format, so we reuse
+// parsePiModels for the actual parsing.
+func discoverOmpModels(ctx context.Context, executablePath string) ([]Model, error) {
+	if executablePath == "" {
+		executablePath = "omp"
+	}
+	if _, err := exec.LookPath(executablePath); err != nil {
+		return []Model{}, nil
+	}
+	runCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(runCtx, executablePath, "--list-models")
+	hideAgentWindow(cmd)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	stdout, err := cmd.Output()
+	if err != nil {
+		return []Model{}, nil
+	}
+	text := string(stdout)
+	if strings.TrimSpace(text) == "" {
+		text = stderr.String()
+	}
+	return parsePiModels(text), nil
 }
 
 // discoverHermesModels spins up a throwaway `hermes acp` process,
