@@ -110,7 +110,7 @@ jobs:
           fetch-depth: 0
 
       - name: Create local tag for version
-        run: git tag "${{ needs.create-release.outputs.tag }}" 2>$null; exit 0
+        run: git tag "${{ needs.create-release.outputs.tag }}" 2>/dev/null || true
         shell: bash
 
       - name: Setup Go
