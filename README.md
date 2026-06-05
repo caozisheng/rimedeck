@@ -8,6 +8,9 @@ RimeDeck is a local-first AI agent workbench — organize a productive group of 
 
 Multica's desktop app connects to a cloud backend. RimeDeck removes that dependency: it embeds PostgreSQL and the Go server as child processes inside the Electron app. Double-click to launch — the app starts the database, runs migrations, spawns the server, and opens the UI. No Docker, no remote API, no manual setup.
 
+<img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/116bf358-e8bb-4b0a-a3dd-c553a5a86222" />
+
+
 ## Naming Convention
 
 RimeDeck is forked from Multica. The Go binary names and some environment variables retain their original names to minimize changes to the Go backend:
