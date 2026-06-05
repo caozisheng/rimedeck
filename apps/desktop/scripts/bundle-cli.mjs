@@ -15,7 +15,7 @@
 // skip the build and fall through to auto-install at runtime. A genuine
 // Go compile error is fatal — you want that to block dev, not hide.
 
-import { access, chmod, copyFile, mkdir, rm } from "node:fs/promises";
+import { access, chmod, copyFile, cp, mkdir, rm } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFileSync, execSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
@@ -177,4 +177,14 @@ if (!bundledAny) {
       "auto-installing at runtime.",
   );
   await rm(destDir, { recursive: true, force: true });
+}
+
+// Bundle migration SQL files alongside the binaries so multica-migrate
+// can find them at runtime (it searches relative to os.Executable()).
+const migrationsSource = join(serverDir, "migrations");
+const migrationsDest = join(destDir, "migrations");
+if (await exists(migrationsSource)) {
+  await rm(migrationsDest, { recursive: true, force: true });
+  await cp(migrationsSource, migrationsDest, { recursive: true });
+  console.log(`[bundle-cli] bundled migrations → ${migrationsDest}`);
 }
