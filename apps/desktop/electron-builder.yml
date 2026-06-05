@@ -21,7 +21,7 @@ mac:
     - zip
   # Hardcoded name avoids the `@multica/desktop-*` subdirectory that
   # `${name}` produces for scoped package names.
-  # Naming scheme: multica-desktop-<version>-<platform>-<arch>.<ext>
+  # Naming scheme: rimedeck-<version>-<platform>-<arch>.<ext>
   # so the filename alone surfaces kind, version, platform, and CPU arch.
   artifactName: rimedeck-${version}-mac-${arch}.${ext}
   # Notarize via notarytool. Requires APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD
@@ -43,8 +43,8 @@ linux:
   # violates the freedesktop desktop-entry naming guidance, so GNOME /
   # Ubuntu fail to associate the running window with the `.desktop` entry
   # and fall back to the theme's default app icon (the Settings gear on
-  # Yaru). Forcing `multica` makes every Linux identity slot agree and
-  # matches `StartupWMClass=Multica` (productName-derived).
+  # Forcing `rimedeck` makes every Linux identity slot agree and
+  # matches `StartupWMClass=RimeDeck` (productName-derived).
   executableName: rimedeck
   # Pin StartupWMClass to the WM_CLASS Electron emits on X11. Electron
   # derives WM_CLASS from `app.getName()`, which reads the *packaged*
@@ -54,13 +54,13 @@ linux:
   # `name: "@multica/desktop"`, packaged Electron emitted
   # `WM_CLASS=@multica/desktop`, which broke association with this entry
   # and reproduced #2515 on Ubuntu 0.2.31. The fix lives in two places
-  # outside this file — `productName: "Multica"` on the source
-  # package.json (so the ASAR carries it) and `app.setName("Multica")`
+  # outside this file — `productName: "RimeDeck"` on the source
+  # package.json (so the ASAR carries it) and `app.setName("RimeDeck")`
   # in the production branch of `src/main/index.ts` (belt-and-braces).
-  # Keep `StartupWMClass: Multica` pinned here so any future drift in
+  # Keep `StartupWMClass: RimeDeck` pinned here so any future drift in
   # those two anchors shows up as a diff against this declaration.
   # Verification on a real Ubuntu install: `xprop WM_CLASS` on a running
-  # window prints `Multica` for both fields.
+  # window prints `RimeDeck` for both fields.
   desktop:
     entry:
       StartupWMClass: RimeDeck

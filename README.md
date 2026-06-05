@@ -8,6 +8,23 @@ RimeDeck is a local-first AI agent workbench — organize a productive group of 
 
 Multica's desktop app connects to a cloud backend. RimeDeck removes that dependency: it embeds PostgreSQL and the Go server as child processes inside the Electron app. Double-click to launch — the app starts the database, runs migrations, spawns the server, and opens the UI. No Docker, no remote API, no manual setup.
 
+## Naming Convention
+
+RimeDeck is forked from Multica. The Go binary names and some environment variables retain their original names to minimize changes to the Go backend:
+
+| Item | Name | Reason |
+| --- | --- | --- |
+| Product name | **RimeDeck** | Rebranded |
+| Go server binary | `multica-server` | Go backend unchanged |
+| CLI binary | `multica` | Go backend unchanged |
+| Migration binary | `multica-migrate` | Go backend unchanged |
+| Go env vars | `MULTICA_DEV_VERIFICATION_CODE`, `MULTICA_PUBLIC_URL`, `MULTICA_APP_URL` | Read by Go server |
+| TypeScript packages | `@multica/*` | Too many internal references |
+| Config directory | `~/.rimedeck/` | Rebranded |
+| Workspaces | `~/.rimedeck/workspaces/` | Rebranded |
+| Protocol handler | `rimedeck://` | Rebranded |
+| App ID | `ai.rimedeck.app` | Rebranded |
+
 ## Architecture
 
 ### Launch Sequence
