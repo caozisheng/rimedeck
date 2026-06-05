@@ -8,21 +8,6 @@ RimeDeck is a local-first AI agent workbench — organize a productive group of 
 
 Multica's desktop app connects to a cloud backend. RimeDeck removes that dependency: it embeds PostgreSQL and the Go server as child processes inside the Electron app. Double-click to launch — the app starts the database, runs migrations, spawns the server, and opens the UI. No Docker, no remote API, no manual setup.
 
-## Naming Convention
-
-RimeDeck is an **upstream-mergeable fork**. To minimize merge conflicts, internal code keeps its original names:
-
-| Layer                                                   | Name             |
-| ------------------------------------------------------- | ---------------- |
-| Product surface (window title, about dialog, installer) | **RimeDeck**     |
-| Go server binary                                        | `multica-server` |
-| CLI / migration binary                                  | `multica`        |
-| Environment variables                                   | `MULTICA_*`      |
-| Database name                                           | `multica`        |
-| TypeScript packages                                     | `@multica/*`     |
-
-The Go backend is consumed as a black box — zero changes to SQL, migrations, or server business logic. Rebranding touches only string literals in ~30 files. A merge conflict is always "our string vs their string," never "our architecture vs their architecture."
-
 ## Architecture
 
 ### Launch Sequence
@@ -43,7 +28,7 @@ RimeDeck App Launch
   │
   ▼
 [MigrationRunner]
-  │  Shell out: `multica migrate up` with DATABASE_URL
+  │  Shell out: `multica-migrate up` with DATABASE_URL
   │
   ▼
 [BackendManager]
@@ -59,16 +44,15 @@ RimeDeck App Launch
 [Renderer loads] — API URL injected via runtime config IPC
 ```
 
-### Comparison with Upstream
+### Data Directories
 
-| Step           | Upstream Multica Desktop    | RimeDeck                      |
-| -------------- | --------------------------- | ----------------------------- |
-| PostgreSQL     | External (Docker or remote) | Embedded subprocess           |
-| Go backend     | Remote cloud API            | Embedded subprocess           |
-| Daemon (CLI)   | Subprocess (existing)       | Subprocess (unchanged)        |
-| Migrations     | Manual (`make migrate-up`)  | Auto on launch                |
-| Auth           | Cloud email/OAuth           | Local fixed verification code |
-| Runtime config | Points to cloud             | Hardcoded localhost URLs      |
+All user data lives under `~/.rimedeck/`:
+
+| Directory | Content |
+| --- | --- |
+| `~/.rimedeck/config.json` | CLI configuration |
+| `~/.rimedeck/pg/data/` | PostgreSQL data |
+| `~/.rimedeck/workspaces/` | Agent execution environments |
 
 ### Key Components
 
@@ -80,22 +64,15 @@ RimeDeck App Launch
 
 **MigrationRunner** (`apps/desktop/src/main/local-backend/migration-runner.ts`)
 
-- Reuses the bundled `multica` CLI binary (same one DaemonManager resolves)
-- Runs `multica migrate up` with the local `DATABASE_URL`
+- Reuses the bundled `multica-migrate` binary
+- Runs `multica-migrate up` with the local `DATABASE_URL`
 
 **BackendManager** (`apps/desktop/src/main/local-backend/backend-manager.ts`)
 
-- Spawns the Go server with `MULTICA_*` env vars (names kept because the Go binary reads them)
+- Spawns the Go server as a child process
 - SIGTERM → 5s grace → SIGKILL on quit
 
 **Shutdown chain** (on `before-quit`): stop daemon → stop Go backend → stop PostgreSQL.
-
-### Design Principles
-
-- **Zero changes to Go/SQL backend.** The server is consumed as-is — highest-churn upstream files stay untouched.
-- **New code in new directories.** All local-backend code lives in `apps/desktop/src/main/local-backend/`. Upstream additions never collide.
-- **String-literal-only rebranding.** ~30 files with string changes, ~10 new files. Merge conflict rate: ~10-15% of upstream merges, always trivial.
-- **Local-only by default.** No cloud mode, no runtime mode detection. The app always starts the full local stack.
 
 ## Prerequisites
 
@@ -137,9 +114,6 @@ The desktop build bundles the Go CLI (`multica`) and an embedded PostgreSQL, so 
 ```
 apps/
   desktop/    — Electron desktop app (electron-vite)
-  web/        — Next.js web frontend
-  mobile/     — Expo / React Native iOS app
-  docs/       — Documentation site
 packages/
   core/       — Headless business logic (zero react-dom)
   ui/         — Atomic UI components (shadcn/Base UI)
@@ -147,7 +121,6 @@ packages/
   tsconfig/   — Shared TypeScript configuration
   eslint-config/ — Shared ESLint configuration
 server/       — Go backend (Chi router, sqlc, gorilla/websocket)
-e2e/          — Playwright end-to-end tests
 scripts/      — Monorepo tooling (version bump, etc.)
 ```
 
@@ -161,14 +134,11 @@ make test             # Go tests
 make migrate-up       # Run database migrations
 
 # Frontend
-pnpm dev:web          # Next.js dev server (port 3000)
+pnpm dev:desktop      # Electron dev server (with HMR)
 pnpm build            # Build all frontend apps
 pnpm typecheck        # TypeScript check across all packages
 pnpm test             # Unit tests (Vitest)
 pnpm lint             # ESLint
-
-# Full verification
-make check            # Typecheck + unit tests + Go tests + E2E
 ```
 
 ## Versioning & Release
@@ -184,7 +154,7 @@ git add -A && git commit -m "chore: bump version to X.Y.Z"
 git push && git push --tags
 ```
 
-Pushing a `v*.*.*` tag triggers the GitHub Actions workflow that builds and publishes desktop installers (macOS dmg/zip, Windows exe, Linux AppImage/deb/rpm) to GitHub Releases.
+Pushing a `v*.*.*` tag triggers the GitHub Actions workflow that builds and publishes desktop installers (macOS dmg/zip, Windows exe, Linux AppImage/deb/rpm) to GitHub Releases. You can also manually trigger the release from Actions → Release Desktop → Run workflow.
 
 The desktop app checks for updates automatically via GitHub Releases. Users can also manually check in Settings → Updates.
 

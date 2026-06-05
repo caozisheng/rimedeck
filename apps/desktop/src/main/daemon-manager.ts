@@ -64,8 +64,8 @@ function healthPortForProfile(profile: string): number {
 
 function profileDir(profile: string): string {
   return profile
-    ? join(homedir(), ".multica", "profiles", profile)
-    : join(homedir(), ".multica");
+    ? join(homedir(), ".rimedeck", "profiles", profile)
+    : join(homedir(), ".rimedeck");
 }
 
 function profileConfigPath(profile: string): string {
@@ -163,7 +163,7 @@ async function fetchHealthAtPort(
 
 // Desktop owns a dedicated CLI profile named after the target API host, so it
 // never reads or writes the user's hand-configured profiles. Profile dir:
-//   ~/.multica/profiles/desktop-<host>/
+//   ~/.rimedeck/profiles/desktop-<host>/
 function deriveProfileName(targetUrl: string): string {
   try {
     const url = new URL(targetUrl);

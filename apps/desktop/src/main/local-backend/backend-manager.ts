@@ -34,7 +34,7 @@ export async function startBackend(
     DATABASE_URL: databaseUrl,
     PORT: String(port),
     JWT_SECRET: config.jwtSecret,
-    CORS_ALLOWED_ORIGINS: `http://127.0.0.1:${port}`,
+    CORS_ALLOWED_ORIGINS: `http://127.0.0.1:${port},http://localhost:${port},http://localhost:5173`,
     LOCAL_UPLOAD_DIR: uploadDir,
     MULTICA_DEV_VERIFICATION_CODE: "000000",
     APP_ENV: "local",
@@ -57,7 +57,7 @@ export async function startBackend(
   await waitForHealth(port);
 
   const apiUrl = `http://127.0.0.1:${port}`;
-  const wsUrl = `ws://127.0.0.1:${port}`;
+  const wsUrl = `ws://127.0.0.1:${port}/ws`;
   console.log(`[local-backend] API server ready: ${apiUrl}`);
   return { apiUrl, wsUrl };
 }

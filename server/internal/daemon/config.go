@@ -62,7 +62,7 @@ type Config struct {
 	LaunchedBy                     string                // "desktop" when spawned by the Electron app, empty for standalone
 	Profile                        string                // profile name (empty = default)
 	Agents                         map[string]AgentEntry // keyed by provider: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, cursor, kimi, kiro, antigravity
-	WorkspacesRoot                 string                // base path for execution envs (default: ~/multica_workspaces)
+	WorkspacesRoot                 string                // base path for execution envs (default: ~/.rimedeck/workspaces)
 	KeepEnvAfterTask               bool                  // preserve env after task for debugging
 	HealthPort                     int                   // local HTTP port for health checks (default: 19514)
 	MaxConcurrentTasks             int                   // max tasks running in parallel (default: 20)
@@ -336,7 +336,7 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		runtimeName = overrides.RuntimeName
 	}
 
-	// Workspaces root: override > env > default (~/multica_workspaces or ~/multica_workspaces_<profile>)
+	// Workspaces root: override > env > default (~/.rimedeck/workspaces or ~/.rimedeck/workspaces_<profile>)
 	workspacesRoot, err := ResolveWorkspacesRoot(profile, overrides.WorkspacesRoot)
 	if err != nil {
 		return Config{}, err
@@ -457,24 +457,24 @@ func NormalizeServerBaseURL(raw string) (string, error) {
 
 // ResolveWorkspacesRoot returns the absolute path that the daemon and CLI
 // should treat as the workspaces root. Resolution order: explicit override >
-// MULTICA_WORKSPACES_ROOT env > default ($HOME/multica_workspaces, or
-// $HOME/multica_workspaces_<profile> for a named profile). Read-only callers
+// RIMEDECK_WORKSPACES_ROOT env > default (~/.rimedeck/workspaces, or
+// ~/.rimedeck/workspaces_<profile> for a named profile). Read-only callers
 // (e.g. `multica daemon disk-usage`) use this directly so they pick the same
 // directory the running daemon would have picked.
 func ResolveWorkspacesRoot(profile, override string) (string, error) {
-	root := strings.TrimSpace(os.Getenv("MULTICA_WORKSPACES_ROOT"))
+	root := strings.TrimSpace(os.Getenv("RIMEDECK_WORKSPACES_ROOT"))
 	if override != "" {
 		root = override
 	}
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", fmt.Errorf("resolve home directory: %w (set MULTICA_WORKSPACES_ROOT to override)", err)
+			return "", fmt.Errorf("resolve home directory: %w (set RIMEDECK_WORKSPACES_ROOT to override)", err)
 		}
 		if profile != "" {
-			root = filepath.Join(home, "multica_workspaces_"+profile)
+			root = filepath.Join(home, ".rimedeck", "workspaces_"+profile)
 		} else {
-			root = filepath.Join(home, "multica_workspaces")
+			root = filepath.Join(home, ".rimedeck", "workspaces")
 		}
 	}
 	abs, err := filepath.Abs(root)
