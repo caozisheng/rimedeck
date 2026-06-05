@@ -2,7 +2,7 @@
 
 # RimeDeck
 
-RimeDeck is a local-first AI agent workbench — organize a productive group of agents on your desktop, with zero Docker and zero cloud dependency. Forked from [Multica](https://github.com/cjzzz/multica).
+RimeDeck is a local-first AI agent workbench — organize a productive group of agents on your desktop, with zero Docker and zero cloud dependency. Forked from [Multica](https://github.com/multica-ai/multica).
 
 ## Why RimeDeck
 
