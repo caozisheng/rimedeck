@@ -10,8 +10,8 @@ import {
 import { useModalStore } from "@multica/core/modals";
 import { useT } from "../i18n";
 
-const DOCS_URL = "https://multica.ai/docs";
-const CHANGELOG_URL = "https://multica.ai/changelog";
+const DOCS_URL = "https://github.com/caozisheng/rimedeck";
+const CHANGELOG_URL = "https://github.com/caozisheng/rimedeck/releases";
 
 export function HelpLauncher() {
   const { t } = useT("layout");

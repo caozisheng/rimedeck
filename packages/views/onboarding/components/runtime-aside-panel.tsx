@@ -12,9 +12,7 @@ import { useT } from "../../i18n";
  */
 export function RuntimeAsidePanel() {
   const { t, i18n } = useT("onboarding");
-  const installDocHref = i18n.language?.startsWith("zh")
-    ? "https://multica.ai/docs/zh/install-agent-runtime"
-    : "https://multica.ai/docs/install-agent-runtime";
+  const installDocHref = "https://github.com/caozisheng/rimedeck";
   return (
     <div className="flex flex-col gap-6">
       <section>
