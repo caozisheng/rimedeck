@@ -12,23 +12,6 @@ Multica's desktop app connects to a cloud backend. RimeDeck removes that depende
 <img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/98bd1ca2-6708-41a5-8722-7424aba97463" />
 <img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/fafabdd9-b4f3-4ebc-807a-c184ec1a58a3" />
 
-## Naming Convention
-
-RimeDeck is forked from Multica. The Go binary names and some environment variables retain their original names to minimize changes to the Go backend:
-
-| Item | Name | Reason |
-| --- | --- | --- |
-| Product name | **RimeDeck** | Rebranded |
-| Go server binary | `multica-server` | Go backend unchanged |
-| CLI binary | `multica` | Go backend unchanged |
-| Migration binary | `multica-migrate` | Go backend unchanged |
-| Go env vars | `MULTICA_DEV_VERIFICATION_CODE`, `MULTICA_PUBLIC_URL`, `MULTICA_APP_URL` | Read by Go server |
-| TypeScript packages | `@multica/*` | Too many internal references |
-| Config directory | `~/.rimedeck/` | Rebranded |
-| Workspaces | `~/.rimedeck/workspaces/` | Rebranded |
-| Protocol handler | `rimedeck://` | Rebranded |
-| App ID | `ai.rimedeck.app` | Rebranded |
-
 ## Architecture
 
 ### Launch Sequence
