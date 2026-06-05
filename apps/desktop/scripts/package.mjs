@@ -105,8 +105,7 @@ export function stripLeadingSeparator(argv) {
 export function normalizeGitVersion(raw) {
   if (!raw) return null;
   const stripped = raw.replace(/^v/, "");
-  if (!/^\d/.test(stripped)) {
-    // No reachable tag — `git describe` fell back to just the commit hash.
+  if (!/^\d+\.\d+\.\d+/.test(stripped)) {
     return `0.0.0-${stripped}`;
   }
   return stripped;

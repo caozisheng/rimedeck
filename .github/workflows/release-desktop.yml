@@ -5,21 +5,65 @@ on:
     tags:
       - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.3.17)"
+        required: true
 
 permissions:
   contents: write
 
 env:
   PG_RELEASE_TAG: pg-binaries
+  RELEASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "tag=v${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "version=${{ github.ref_name }}" | sed 's/^v//' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or find release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          # Create tag if manual trigger
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            git tag "$TAG" || true
+            git push origin "$TAG" || true
+          fi
+          # Create release if it doesn't exist
+          gh release view "$TAG" --repo ${{ github.repository }} 2>/dev/null || \
+            gh release create "$TAG" --repo ${{ github.repository }} --title "RimeDeck $TAG" --generate-notes
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+
   build-macos:
+    needs: create-release
     runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Create local tag for version
+        run: |
+          git tag "${{ needs.create-release.outputs.tag }}" 2>/dev/null || true
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -57,12 +101,17 @@ jobs:
         run: node scripts/package.mjs --mac --arm64 --publish always
 
   build-windows:
+    needs: create-release
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Create local tag for version
+        run: git tag "${{ needs.create-release.outputs.tag }}" 2>$null; exit 0
+        shell: bash
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -101,12 +150,16 @@ jobs:
         run: node scripts/package.mjs --win --x64 --publish always
 
   build-linux:
+    needs: create-release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Create local tag for version
+        run: git tag "${{ needs.create-release.outputs.tag }}" 2>/dev/null || true
 
       - name: Install rpmbuild
         run: sudo apt-get update && sudo apt-get install -y rpm
