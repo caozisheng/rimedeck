@@ -1,0 +1,73 @@
+name: Upload PG Binaries
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  upload-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Install PostgreSQL via Homebrew
+        run: brew install postgresql@17
+
+      - name: Package
+        run: |
+          PG_PREFIX=$(brew --prefix postgresql@17)
+          mkdir -p pgsql
+          cp -RH "$PG_PREFIX"/* pgsql/
+          tar czf pg-17-darwin-arm64.tar.gz pgsql
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload pg-binaries pg-17-darwin-arm64.tar.gz --clobber --repo ${{ github.repository }}
+
+  upload-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Install PostgreSQL via Chocolatey
+        shell: pwsh
+        run: choco install postgresql17 --params '/Password:postgres' -y --no-progress
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p pgsql
+          cp -R "/c/Program Files/PostgreSQL/17/bin" pgsql/
+          cp -R "/c/Program Files/PostgreSQL/17/lib" pgsql/
+          cp -R "/c/Program Files/PostgreSQL/17/share" pgsql/
+          7z a pg-17-windows-x64.zip pgsql
+
+      - name: Upload to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload pg-binaries pg-17-windows-x64.zip --clobber --repo ${{ github.repository }}
+
+  upload-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL via apt
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-17
+
+      - name: Package
+        run: |
+          mkdir -p pgsql
+          cp -R /usr/lib/postgresql/17/* pgsql/
+          tar czf pg-17-linux-x64.tar.gz pgsql
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload pg-binaries pg-17-linux-x64.tar.gz --clobber --repo ${{ github.repository }}
