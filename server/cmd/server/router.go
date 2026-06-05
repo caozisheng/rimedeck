@@ -467,6 +467,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 
+			// Backup & Restore (owner/admin only)
+			r.Route("/api/backup", func(r chi.Router) {
+				r.Use(middleware.RequireWorkspaceRole(queries, "owner", "admin"))
+				r.Get("/export", h.ExportBackup)
+				r.Post("/import", h.ImportBackup)
+			})
+
 			// Squad leader evaluation (writes to activity_log)
 			r.Post("/api/issues/{id}/squad-evaluated", h.RecordSquadLeaderEvaluation)
 

@@ -134,3 +134,14 @@ export type {
   SquadMemberStatus,
   SquadMemberStatusListResponse,
 } from "./squad";
+export type {
+  BackupData,
+  BackupSkill,
+  BackupSkillFile,
+  BackupAgent,
+  BackupSquad,
+  BackupSquadMember,
+  ImportResult,
+  ImportResultCounts,
+  ImportRequest,
+} from "./backup";

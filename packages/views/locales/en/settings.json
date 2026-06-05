@@ -35,7 +35,8 @@
       "github": "GitHub",
       "integrations": "Integrations",
       "labs": "Labs",
-      "members": "Members"
+      "members": "Members",
+      "backup": "Backup"
     }
   },
   "account": {
@@ -299,5 +300,32 @@
         "description": "Create and work on issues"
       }
     }
+  },
+  "backup": {
+    "section_title": "Backup & Restore",
+    "section_description": "Export your workspace's agents, skills, and squads as a JSON file, or import from a previous backup.",
+    "export_title": "Export",
+    "export_description": "Download all agents, skills, and squads as a single JSON file.",
+    "export_button": "Export",
+    "exporting": "Exporting...",
+    "toast_export_failed": "Failed to export workspace data",
+    "import_title": "Import",
+    "import_description": "Upload a previously exported JSON file to restore agents, skills, and squads.",
+    "import_button": "Import",
+    "importing": "Importing...",
+    "import_choose_file": "Choose file",
+    "import_preview_title": "Import preview",
+    "import_preview_description": "The following resources will be created:",
+    "import_preview_skills": "{{count}} skills",
+    "import_preview_agents": "{{count}} agents",
+    "import_preview_squads": "{{count}} squads",
+    "import_overwrite_label": "Overwrite existing resources with the same name",
+    "import_runtime_label": "Target runtime",
+    "import_confirm": "Confirm import",
+    "import_cancel": "Cancel",
+    "toast_import_success": "Import complete: {{created}} created, {{skipped}} skipped",
+    "toast_import_failed": "Failed to import workspace data",
+    "toast_import_warnings": "Import completed with {{count}} warnings",
+    "manage_hint": "Only admins and owners can backup and restore workspace data."
   }
 }

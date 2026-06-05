@@ -35,7 +35,8 @@
       "github": "GitHub",
       "integrations": "連携",
       "labs": "ラボ",
-      "members": "メンバー"
+      "members": "メンバー",
+      "backup": "バックアップ"
     }
   },
   "account": {
@@ -299,5 +300,32 @@
         "description": "イシューの作成と作業"
       }
     }
+  },
+  "backup": {
+    "section_title": "バックアップと復元",
+    "section_description": "ワークスペースのエージェント、スキル、スクワッドを JSON ファイルとしてエクスポートするか、バックアップからインポートして復元します。",
+    "export_title": "エクスポート",
+    "export_description": "すべてのエージェント、スキル、スクワッドを 1 つの JSON ファイルとしてダウンロードします。",
+    "export_button": "エクスポート",
+    "exporting": "エクスポート中...",
+    "toast_export_failed": "ワークスペースデータのエクスポートに失敗しました",
+    "import_title": "インポート",
+    "import_description": "以前にエクスポートした JSON ファイルをアップロードして、エージェント、スキル、スクワッドを復元します。",
+    "import_button": "インポート",
+    "importing": "インポート中...",
+    "import_choose_file": "ファイルを選択",
+    "import_preview_title": "インポートプレビュー",
+    "import_preview_description": "以下のリソースが作成されます：",
+    "import_preview_skills": "{{count}} 個のスキル",
+    "import_preview_agents": "{{count}} 個のエージェント",
+    "import_preview_squads": "{{count}} 個のスクワッド",
+    "import_overwrite_label": "同名の既存リソースを上書きする",
+    "import_runtime_label": "ターゲットランタイム",
+    "import_confirm": "インポートを確認",
+    "import_cancel": "キャンセル",
+    "toast_import_success": "インポート完了：{{created}} 件作成、{{skipped}} 件スキップ",
+    "toast_import_failed": "ワークスペースデータのインポートに失敗しました",
+    "toast_import_warnings": "インポート完了、{{count}} 件の警告あり",
+    "manage_hint": "管理者とオーナーのみがワークスペースデータのバックアップと復元を行えます。"
   }
 }

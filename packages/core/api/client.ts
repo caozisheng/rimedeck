@@ -102,6 +102,8 @@ import type {
   Squad,
   SquadMember,
   SquadMemberStatusListResponse,
+  BackupData,
+  ImportResult,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import { type Logger, noopLogger } from "../logger";
@@ -1788,5 +1790,26 @@ export class ApiClient {
 
   async listIssuePullRequests(issueId: string): Promise<{ pull_requests: GitHubPullRequest[] }> {
     return this.fetch(`/api/issues/${issueId}/pull-requests`);
+  }
+
+  // Backup & Restore
+  async exportBackup(params?: {
+    agents?: string[];
+    skills?: string[];
+    squads?: string[];
+  }): Promise<BackupData> {
+    const query = new URLSearchParams();
+    if (params?.agents?.length) query.set("agents", params.agents.join(","));
+    if (params?.skills?.length) query.set("skills", params.skills.join(","));
+    if (params?.squads?.length) query.set("squads", params.squads.join(","));
+    const qs = query.toString();
+    return this.fetch(`/api/backup/export${qs ? `?${qs}` : ""}`);
+  }
+
+  async importBackup(data: BackupData, runtimeId: string, overwrite = false): Promise<ImportResult> {
+    return this.fetch("/api/backup/import", {
+      method: "POST",
+      body: JSON.stringify({ ...data, runtime_id: runtimeId, overwrite }),
+    });
   }
 }

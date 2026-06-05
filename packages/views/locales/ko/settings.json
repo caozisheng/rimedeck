@@ -35,7 +35,8 @@
       "github": "GitHub",
       "integrations": "연동",
       "labs": "실험실",
-      "members": "멤버"
+      "members": "멤버",
+      "backup": "백업"
     }
   },
   "account": {
@@ -299,5 +300,32 @@
         "description": "이슈 생성 및 작업"
       }
     }
+  },
+  "backup": {
+    "section_title": "백업 및 복원",
+    "section_description": "워크스페이스의 에이전트, 스킬, 스쿼드를 JSON 파일로 내보내거나, 이전 백업에서 가져올 수 있습니다.",
+    "export_title": "내보내기",
+    "export_description": "모든 에이전트, 스킬, 스쿼드를 하나의 JSON 파일로 다운로드합니다.",
+    "export_button": "내보내기",
+    "exporting": "내보내는 중...",
+    "toast_export_failed": "워크스페이스 데이터 내보내기에 실패했습니다",
+    "import_title": "가져오기",
+    "import_description": "이전에 내보낸 JSON 파일을 업로드하여 에이전트, 스킬, 스쿼드를 복원합니다.",
+    "import_button": "가져오기",
+    "importing": "가져오는 중...",
+    "import_choose_file": "파일 선택",
+    "import_preview_title": "가져오기 미리보기",
+    "import_preview_description": "다음 리소스가 생성됩니다:",
+    "import_preview_skills": "스킬 {{count}}개",
+    "import_preview_agents": "에이전트 {{count}}개",
+    "import_preview_squads": "스쿼드 {{count}}개",
+    "import_overwrite_label": "같은 이름의 기존 리소스 덮어쓰기",
+    "import_runtime_label": "대상 런타임",
+    "import_confirm": "가져오기 확인",
+    "import_cancel": "취소",
+    "toast_import_success": "가져오기 완료: {{created}}개 생성, {{skipped}}개 건너뜀",
+    "toast_import_failed": "워크스페이스 데이터 가져오기에 실패했습니다",
+    "toast_import_warnings": "가져오기 완료, 경고 {{count}}건",
+    "manage_hint": "관리자와 소유자만 워크스페이스 데이터를 백업하고 복원할 수 있습니다."
   }
 }

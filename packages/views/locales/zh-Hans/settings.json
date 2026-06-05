@@ -35,7 +35,8 @@
       "github": "GitHub",
       "integrations": "集成",
       "labs": "实验室",
-      "members": "成员"
+      "members": "成员",
+      "backup": "备份"
     }
   },
   "account": {
@@ -299,5 +300,32 @@
         "description": "创建并处理 issue"
       }
     }
+  },
+  "backup": {
+    "section_title": "备份与恢复",
+    "section_description": "将工作区的智能体、技能和小队导出为 JSON 文件，或从备份文件导入恢复。",
+    "export_title": "导出",
+    "export_description": "将所有智能体、技能和小队下载为一个 JSON 文件。",
+    "export_button": "导出",
+    "exporting": "导出中...",
+    "toast_export_failed": "导出工作区数据失败",
+    "import_title": "导入",
+    "import_description": "上传之前导出的 JSON 文件以恢复智能体、技能和小队。",
+    "import_button": "导入",
+    "importing": "导入中...",
+    "import_choose_file": "选择文件",
+    "import_preview_title": "导入预览",
+    "import_preview_description": "以下资源将被创建：",
+    "import_preview_skills": "{{count}} 个技能",
+    "import_preview_agents": "{{count}} 个智能体",
+    "import_preview_squads": "{{count}} 个小队",
+    "import_overwrite_label": "覆盖同名的已有资源",
+    "import_runtime_label": "目标运行时",
+    "import_confirm": "确认导入",
+    "import_cancel": "取消",
+    "toast_import_success": "导入完成：创建 {{created}} 个，跳过 {{skipped}} 个",
+    "toast_import_failed": "导入工作区数据失败",
+    "toast_import_warnings": "导入完成，有 {{count}} 条警告",
+    "manage_hint": "只有管理员和所有者可以备份和恢复工作区数据。"
   }
 }
