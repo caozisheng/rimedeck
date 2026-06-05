@@ -1,6 +1,6 @@
 {
   "name": "@multica/eslint-config",
-  "version": "0.3.15",
+  "version": "0.3.17",
   "private": true,
   "type": "module",
   "exports": {

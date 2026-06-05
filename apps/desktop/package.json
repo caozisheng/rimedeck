@@ -1,7 +1,7 @@
 {
   "name": "@multica/desktop",
   "productName": "RimeDeck",
-  "version": "0.3.15",
+  "version": "0.3.17",
   "private": true,
   "description": "RimeDeck — local-first AI task management desktop app.",
   "author": {
