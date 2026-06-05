@@ -22,8 +22,6 @@ RimeDeck includes a full-featured issue tracker designed for human-agent collabo
 - **Filters & Sort** — filter by status, priority, assignee, project, label; sort by creation date, update date, priority, or manual order
 
 <img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/116bf358-e8bb-4b0a-a3dd-c553a5a86222" /> 
-<img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/98bd1ca2-6708-41a5-8722-7424aba97463" />
-<img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/fafabdd9-b4f3-4ebc-807a-c184ec1a58a3" />
 
 ## Supported Runtimes
 
