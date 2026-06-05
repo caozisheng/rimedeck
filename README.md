@@ -145,21 +145,6 @@ pnpm test             # Unit tests (Vitest)
 pnpm lint             # ESLint
 ```
 
-## Versioning & Release
-
-```bash
-# Bump version across all packages + create git tag
-node scripts/bump-version.mjs patch    # 0.2.0 → 0.2.1
-node scripts/bump-version.mjs minor    # 0.2.0 → 0.3.0
-node scripts/bump-version.mjs 1.0.0    # explicit version
-
-# Push tag to trigger CI release
-git add -A && git commit -m "chore: bump version to X.Y.Z"
-git push && git push --tags
-```
-
-Pushing a `v*.*.*` tag triggers the GitHub Actions workflow that builds and publishes desktop installers (macOS dmg/zip, Windows exe, Linux AppImage/deb/rpm) to GitHub Releases. You can also manually trigger the release from Actions → Release Desktop → Run workflow.
-
 The desktop app checks for updates automatically via GitHub Releases. Users can also manually check in Settings → Updates.
 
 ## License
