@@ -57,7 +57,7 @@ function lessThan(a: [number, number, number], b: [number, number, number]) {
  */
 export function checkQuickCreateCliVersion(detected: string | undefined | null): CliVersionCheck {
   const current = (detected ?? "").trim();
-  if (DEV_DESCRIBE_RE.test(current) || BARE_COMMIT_RE.test(current)) {
+  if (current === "dev" || DEV_DESCRIBE_RE.test(current) || BARE_COMMIT_RE.test(current)) {
     return { state: "ok", current, min: MIN_QUICK_CREATE_CLI_VERSION };
   }
   const parsed = current ? parseSemver(current) : null;
