@@ -34,6 +34,53 @@ RimeDeck supports 13 AI coding tools as agent runtimes. The daemon auto-detects 
 
 ## Architecture
 
+### Core Concepts
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        RimeDeck App                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────────┐   │
+│  │ Electron │  │ Go Server│  │PostgreSQL│  │    Daemon     │   │
+│  │   (UI)   │◄►│  (API)   │◄►│  (Data)  │  │ (Task Runner) │   │
+│  └──────────┘  └──────────┘  └──────────┘  └───────┬───────┘   │
+└─────────────────────────────────────────────────────┼───────────┘
+                                                      │
+                        ┌─────────────────────────────┼──────────────────┐
+                        │                             │                  │
+                        ▼                             ▼                  ▼
+               ┌────────────────┐            ┌──────────────┐   ┌──────────────┐
+               │     Squad      │            │    Agent      │   │    Agent      │
+               │  (Team Unit)   │            │  "Reviewer"   │   │  "Coder"      │
+               │                │            │               │   │               │
+               │  Leader: ──────┼───────────►│  Runtime: ────┼┐  │  Runtime: ────┼┐
+               │  Members: ─────┼───────────►│  claude CLI   ││  │  codex CLI    ││
+               └────────────────┘            │               ││  │               ││
+                                             │  Skills:      ││  │  Skills:      ││
+                                             │  ┌──────────┐ ││  │  ┌──────────┐ ││
+                                             │  │Go Review │ ││  │  │TS Expert │ ││
+                                             │  │Security  │ ││  │  │Test-TDD  │ ││
+                                             │  └──────────┘ ││  │  └──────────┘ ││
+                                             └───────────────┘│  └───────────────┘│
+                                              └───────────────┘   └───────────────┘
+                                                      │                  │
+                         ┌────────────────────────────┼──────────────────┘
+                         │  Daemon spawns CLI process  │
+                         ▼                             ▼
+               ┌──────────────────┐          ┌──────────────────┐
+               │  claude (CLI)    │          │  codex (CLI)     │
+               │  omp / gemini /  │          │  copilot / kiro  │
+               │  cursor-agent   │          │  hermes / ...    │
+               └──────────────────┘          └──────────────────┘
+```
+
+**Squad** — A team unit with one leader agent and member agents/users. When an issue is assigned to a squad, the leader agent claims it, breaks the work down, and delegates sub-tasks to members via `@mention` links.
+
+**Agent** — A named AI entity with custom instructions, environment, and MCP config. Each agent is bound to an **AgentRuntime** — one of the 13 supported CLI tools (claude, codex, omp, etc.).
+
+**Skill** — Reusable instruction files (e.g. code review checklists, language conventions) attached to an agent. At task time, the daemon writes them into the workspace so the CLI discovers them natively (`.claude/skills/`, `.opencode/skills/`, etc.).
+
+**Daemon** — A background process that polls the task queue, prepares isolated workspaces, injects skills and runtime config, then spawns the agent CLI as a child process. It streams events back to the server via WebSocket.
+
 ### Launch Sequence
 
 ```
