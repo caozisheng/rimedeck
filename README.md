@@ -8,19 +8,6 @@ RimeDeck is a local-first AI agent workbench with a built-in Kanban board — ma
 
 Multica's desktop app connects to a cloud backend. RimeDeck removes that dependency: it embeds PostgreSQL and the Go server as child processes inside the Electron app. Double-click to launch — the app starts the database, runs migrations, spawns the server, and opens the UI. No Docker, no remote API, no manual setup.
 
-### Issue Tracking & Kanban
-
-RimeDeck includes a full-featured issue tracker designed for human-agent collaboration:
-
-- **Kanban Board** — drag-and-drop cards between status columns (Backlog / Todo / In Progress / In Review / Done / Blocked / Cancelled), group by status or assignee
-- **Swimlane View** — two-axis layout grouped by parent issue, project, or assignee with status columns
-- **List View** — flat sortable table with inline editing
-- **Gantt Chart** — project-level timeline view with due dates
-- **Drag-and-drop** — move issues across columns/swimlanes to update status, priority, or assignee in one gesture
-- **Sub-issues** — break work into hierarchical sub-tasks with progress tracking
-- **Projects** — group issues into projects with resource attachments (GitHub repos, docs, links)
-- **Filters & Sort** — filter by status, priority, assignee, project, label; sort by creation date, update date, priority, or manual order
-
 <img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/116bf358-e8bb-4b0a-a3dd-c553a5a86222" /> 
 
 ## Supported Runtimes
