@@ -58,6 +58,7 @@ import {
   DialogDescription,
 } from "@multica/ui/components/ui/dialog";
 import { useTheme } from "@multica/ui/components/common/theme-provider";
+import { copyText } from "@multica/ui/lib/clipboard";
 import { useNavigation } from "../navigation";
 import { useT } from "../i18n";
 import { matchesPinyin } from "../editor/extensions/pinyin-match";
@@ -265,8 +266,9 @@ export function SearchCommand() {
           icon: Link2,
           keywords: ["copy", "link", "share", "url", identifier.toLowerCase()],
           onSelect: () => {
-            void navigator.clipboard.writeText(getShareableUrl(pathname));
-            toast.success(t(($) => $.toast.link_copied));
+            void copyText(getShareableUrl(pathname)).then((ok) => {
+              if (ok) toast.success(t(($) => $.toast.link_copied));
+            });
             setOpen(false);
           },
         },
@@ -276,8 +278,9 @@ export function SearchCommand() {
           icon: Copy,
           keywords: ["copy", "id", "identifier", identifier.toLowerCase()],
           onSelect: () => {
-            void navigator.clipboard.writeText(identifier);
-            toast.success(t(($) => $.toast.copied_identifier, { identifier }));
+            void copyText(identifier).then((ok) => {
+              if (ok) toast.success(t(($) => $.toast.copied_identifier, { identifier }));
+            });
             setOpen(false);
           },
         },
