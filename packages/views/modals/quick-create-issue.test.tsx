@@ -98,6 +98,9 @@ vi.mock("@multica/core/workspace/queries", () => ({
 
 vi.mock("@multica/core/projects/queries", () => ({
   projectListOptions: () => ({ queryKey: ["projects"] }),
+  projectKeys: {
+    all: (wsId: string) => ["projects", wsId],
+  },
 }));
 
 vi.mock("@multica/core/issues/stores/quick-create-store", () => ({
@@ -373,7 +376,12 @@ describe("AgentCreatePanel", () => {
     expect(mockClearPrompt).toHaveBeenCalled();
     expect(mockSetLastMode).toHaveBeenCalledWith("agent");
     expect(mockQueryClient.setQueryData).toHaveBeenCalled();
+    expect(mockQueryClient.invalidateQueries).toHaveBeenCalled();
     expect(mockRecordRecentIssue).toHaveBeenCalledWith("ws-test", "issue-1");
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      expect.stringContaining("TST-1"),
+      expect.objectContaining({ duration: 4000 }),
+    );
     expect(onClose).toHaveBeenCalled();
   });
 
@@ -410,6 +418,9 @@ describe("AgentCreatePanel", () => {
       });
     });
     expect(mockSetLastActor).toHaveBeenCalledWith("squad", "squad-1");
+    expect(mockQueryClient.setQueryData).toHaveBeenCalled();
+    expect(mockQueryClient.invalidateQueries).toHaveBeenCalled();
+    expect(mockRecordRecentIssue).toHaveBeenCalledWith("ws-test", "issue-1");
   });
 
   // Squads whose leader agent isn't visible (archived, private, etc.) must

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Check, ChevronRight, Maximize2, Minimize2, X as XIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { DialogTitle } from "@multica/ui/components/ui/dialog";
 import { Button } from "@multica/ui/components/ui/button";
@@ -11,13 +11,17 @@ import { api, ApiError } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { agentListOptions, squadListOptions } from "@multica/core/workspace/queries";
-import { projectListOptions } from "@multica/core/projects/queries";
+import { projectListOptions, projectKeys } from "@multica/core/projects/queries";
 import {
   useQuickCreateStore,
   type QuickCreateActorType,
 } from "@multica/core/issues/stores/quick-create-store";
 import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
 import { useCreateModeStore } from "@multica/core/issues/stores/create-mode-store";
+import { useRecentIssuesStore } from "@multica/core/issues/stores";
+import { issueKeys } from "@multica/core/issues/queries";
+import { addIssueToBuckets } from "@multica/core/issues/cache-helpers";
+import type { ListIssuesCache } from "@multica/core/types";
 import {
   runtimeListOptions,
   checkQuickCreateCliVersion,
@@ -84,6 +88,7 @@ export function AgentCreatePanel({
   const { t } = useT("modals");
   const workspaceName = useCurrentWorkspace()?.name;
   const wsId = useWorkspaceId();
+  const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id);
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
@@ -292,6 +297,19 @@ export function AgentCreatePanel({
         project_id: projectId ?? undefined,
         parent_issue_id: parentIssueId,
       });
+      for (const [key, data] of queryClient.getQueriesData<ListIssuesCache>({ queryKey: issueKeys.list(wsId) })) {
+        if (data) queryClient.setQueryData<ListIssuesCache>(key, addIssueToBuckets(data, res.issue));
+      }
+      queryClient.invalidateQueries({ queryKey: issueKeys.list(wsId) });
+      queryClient.invalidateQueries({ queryKey: issueKeys.assigneeGroupsAll(wsId) });
+      queryClient.invalidateQueries({ queryKey: issueKeys.myAssigneeGroupsAll(wsId) });
+      queryClient.invalidateQueries({ queryKey: issueKeys.projectGanttAll(wsId) });
+      queryClient.invalidateQueries({ queryKey: projectKeys.all(wsId) });
+      if (res.issue.parent_issue_id) {
+        queryClient.invalidateQueries({ queryKey: issueKeys.children(wsId, res.issue.parent_issue_id) });
+        queryClient.invalidateQueries({ queryKey: issueKeys.childProgress(wsId) });
+      }
+      useRecentIssuesStore.getState().recordVisit(wsId, res.issue.id);
       setLastActor(actor.type, actor.id);
       setLastProjectId(projectId);
       clearPrompt();

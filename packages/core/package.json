@@ -27,6 +27,7 @@
     "./workspace/avatar-url": "./workspace/avatar-url.ts",
     "./issues": "./issues/index.ts",
     "./issues/queries": "./issues/queries.ts",
+    "./issues/cache-helpers": "./issues/cache-helpers.ts",
     "./issues/mutations": "./issues/mutations.ts",
     "./issues/timeline-sort": "./issues/timeline-sort.ts",
     "./issues/ws-updaters": "./issues/ws-updaters.ts",

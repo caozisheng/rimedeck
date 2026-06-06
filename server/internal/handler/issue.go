@@ -1928,10 +1928,16 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 	h.publish(protocol.EventIssueCreated, workspaceID, "member", requesterID, map[string]any{"issue": issueResp})
 
 	// === Enqueue the agent task to refine the issue ===
+	// The issue is already committed and broadcast at this point. If enqueue
+	// fails we degrade gracefully: return 202 with the issue (no task_id) so
+	// the frontend sees a consistent state. The user gets the issue on the
+	// kanban; the agent simply won't refine it.
 	task, err := h.TaskService.EnqueueQuickCreateTask(r.Context(), wsUUID, requesterUUID, agentUUID, squadUUID, prompt, issue.ID, projectUUID, parentIssueUUID)
 	if err != nil {
 		slog.Warn("quick-create enqueue failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to enqueue quick-create task")
+		writeJSON(w, http.StatusAccepted, QuickCreateIssueResponse{
+			Issue: issueResp,
+		})
 		return
 	}
 

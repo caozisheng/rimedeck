@@ -193,6 +193,7 @@ function createWindow(): void {
   );
 
   mainWindow.on("ready-to-show", () => {
+    closeSplash();
     mainWindow?.show();
   });
 
@@ -375,8 +376,6 @@ if (!gotTheLock) {
         },
       };
     }
-
-    closeSplash();
 
     app.on("browser-window-created", (_, window) => {
       optimizer.watchWindowShortcuts(window);
