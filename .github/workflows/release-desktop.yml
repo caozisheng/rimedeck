@@ -9,6 +9,10 @@ on:
       version:
         description: "Release version (e.g. 0.3.18)"
         required: true
+      force:
+        description: "Delete existing assets before uploading (overwrite)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -47,6 +51,20 @@ jobs:
           fi
           gh release view "$TAG" --repo ${{ github.repository }} 2>/dev/null || \
             gh release create "$TAG" --repo ${{ github.repository }} --title "RimeDeck $TAG" --generate-notes
+
+      - name: Delete existing assets (force overwrite)
+        if: ${{ github.event.inputs.force == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          echo "Force mode: deleting existing assets from release $TAG"
+          gh release view "$TAG" --repo ${{ github.repository }} --json assets -q '.assets[].name' | while read -r name; do
+            if [ -n "$name" ]; then
+              echo "  deleting $name"
+              gh release delete-asset "$TAG" "$name" --repo ${{ github.repository }} --yes
+            fi
+          done
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
