@@ -25,6 +25,7 @@ import {
   PRIORITY_CONFIG,
 } from "@multica/core/issues/config";
 import { issueKeys } from "@multica/core/issues/queries";
+import { todayDateOnly, addDaysDateOnly } from "@multica/core/issues/date";
 import { StatusIcon } from "../components/status-icon";
 import { PriorityIcon } from "../components/priority-icon";
 import {
@@ -107,12 +108,8 @@ export function IssueActionsMenuItems({
     openDeleteConfirm,
   } = actions;
 
-  const now = () => new Date();
-  const inDays = (days: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString();
-  };
+  const today = () => todayDateOnly();
+  const inDays = (days: number) => addDaysDateOnly(days);
 
   // Subscribe to the issue's task list so the cache is warm by the time the
   // user clicks "Copy local workdir path". The query only fires while the
@@ -206,7 +203,7 @@ export function IssueActionsMenuItems({
           {t(($) => $.actions.start_date)}
         </P.SubTrigger>
         <P.SubContent>
-          <P.Item onClick={() => updateField({ start_date: now().toISOString() })}>
+          <P.Item onClick={() => updateField({ start_date: today() })}>
             {t(($) => $.actions.start_today)}
           </P.Item>
           <P.Item onClick={() => updateField({ start_date: inDays(1) })}>
@@ -233,7 +230,7 @@ export function IssueActionsMenuItems({
           {t(($) => $.actions.due_date)}
         </P.SubTrigger>
         <P.SubContent>
-          <P.Item onClick={() => updateField({ due_date: now().toISOString() })}>
+          <P.Item onClick={() => updateField({ due_date: today() })}>
             {t(($) => $.actions.due_today)}
           </P.Item>
           <P.Item onClick={() => updateField({ due_date: inDays(1) })}>

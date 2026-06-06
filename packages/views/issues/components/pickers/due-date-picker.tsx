@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { CalendarDays } from "lucide-react";
 import type { UpdateIssueRequest } from "@multica/core/types";
+import {
+  dateOnlyToLocalDate,
+  formatDateOnly,
+  toDateOnly,
+} from "@multica/core/issues/date";
 import { Calendar } from "@multica/ui/components/ui/calendar";
 import {
   Popover,
@@ -31,7 +36,7 @@ export function DueDatePicker({
 }) {
   const { t } = useT("issues");
   const [open, setOpen] = useState(defaultOpen);
-  const date = dueDate ? new Date(dueDate) : undefined;
+  const date = dateOnlyToLocalDate(dueDate);
   const isOverdue = date ? date < new Date() : false;
 
   return (
@@ -45,7 +50,7 @@ export function DueDatePicker({
             <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
             {date ? (
               <span className={isOverdue ? "text-destructive" : ""}>
-                {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {formatDateOnly(dueDate)}
               </span>
             ) : (
               <span className="text-muted-foreground">{t(($) => $.pickers.due_date.trigger_label)}</span>
@@ -58,7 +63,7 @@ export function DueDatePicker({
           mode="single"
           selected={date}
           onSelect={(d: Date | undefined) => {
-            onUpdate({ due_date: d ? d.toISOString() : null });
+            onUpdate({ due_date: d ? toDateOnly(d) : null });
             setOpen(false);
           }}
         />
