@@ -8,6 +8,7 @@ import {
   ArrowUp,
   Calendar,
   CalendarClock,
+  Download,
   FolderOpen,
   Link2,
   MoreHorizontal,
@@ -44,6 +45,7 @@ import {
 } from "@multica/ui/components/ui/context-menu";
 import { copyText } from "@multica/ui/lib/clipboard";
 import type { UseIssueActionsResult } from "./use-issue-actions";
+import { useExportIssueMarkdown } from "../export/use-export-issue-markdown";
 import { useT } from "../../i18n";
 
 // Both Dropdown and Context menu wrappers expose an API-compatible surface
@@ -119,6 +121,8 @@ export function IssueActionsMenuItems({
   //
   // The query shares its key with ExecutionLogSection, so navigating from
   // the issue detail page is a free cache hit.
+  const { exportMarkdown, isExporting } = useExportIssueMarkdown(issue);
+
   const { data: tasks } = useQuery({
     queryKey: issueKeys.tasks(issue.id),
     queryFn: () => api.listTasksByIssue(issue.id),
@@ -267,6 +271,10 @@ export function IssueActionsMenuItems({
       <P.Item onClick={handleCopyWorkdirPath}>
         <FolderOpen className="h-3.5 w-3.5" />
         {t(($) => $.actions.copy_workdir_path)}
+      </P.Item>
+      <P.Item onClick={() => void exportMarkdown()} disabled={isExporting}>
+        <Download className="h-3.5 w-3.5" />
+        {t(($) => $.actions.export_markdown)}
       </P.Item>
 
       <P.Separator />

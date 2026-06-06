@@ -1,0 +1,1 @@
+-- no-op: the watermark will naturally advance forward on subsequent rollup ticks.

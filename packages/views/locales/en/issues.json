@@ -220,7 +220,9 @@
     "link_copy_failed": "Failed to copy link",
     "workdir_path_copied": "Workdir path copied",
     "workdir_path_copy_failed": "Failed to copy workdir path",
-    "workdir_path_unavailable": "No local workdir yet — issue has not been run by a local agent"
+    "workdir_path_unavailable": "No local workdir yet — issue has not been run by a local agent",
+    "export_success": "Markdown exported",
+    "export_failed": "Export failed"
   },
   "timeline": {
     "loading": "Loading..."
@@ -392,7 +394,8 @@
     "create_sub_issue": "Create sub-issue",
     "set_parent_issue": "Set parent issue...",
     "add_sub_issue": "Add sub-issue...",
-    "delete_issue": "Delete issue"
+    "delete_issue": "Delete issue",
+    "export_markdown": "Export as Markdown"
   },
   "pickers": {
     "filter_options_aria": "Filter options",

@@ -18,6 +18,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/logger"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/realtime"
+	"github.com/multica-ai/multica/server/internal/scheduler"
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/redis/go-redis/v9"
@@ -318,6 +319,42 @@ func main() {
 	go runAutopilotScheduler(autopilotCtx, queries, autopilotSvc)
 	go runAutopilotFailureMonitor(autopilotCtx, queries, bus, envFailureMonitorConfig())
 	go runDBStatsLogger(sweepCtx, pool)
+
+	// Fast-backfill: bypass the watermark mechanism and directly
+	// recompute task_usage_hourly from all raw task_usage data.
+	// The window function is idempotent — safe to overlap with the
+	// scheduler's incremental ticks.
+	go func() {
+		var rows int64
+		err := pool.QueryRow(sweepCtx,
+			`SELECT rollup_task_usage_hourly_window('-infinity'::timestamptz, 'infinity'::timestamptz)`,
+		).Scan(&rows)
+		if err != nil {
+			slog.Warn("usage backfill failed", "error", err)
+		} else {
+			slog.Info("usage backfill completed", "rows", rows)
+		}
+		// Advance the watermark to now so the scheduler only processes
+		// incremental updates from here on.
+		if _, err := pool.Exec(sweepCtx,
+			`UPDATE task_usage_hourly_rollup_state SET watermark_at = now() - interval '10 minutes' WHERE id = 1`,
+		); err != nil {
+			slog.Warn("usage backfill: advance watermark failed", "error", err)
+		}
+	}()
+
+	// DB-backed execution scheduler (MUL-2957). Replaces the
+	// operator-registered pg_cron entry for rollup_task_usage_hourly
+	// (still safe to run concurrently — the SQL function holds
+	// advisory lock 4246).
+	schedulerMgr := scheduler.NewManager(pool, scheduler.Options{})
+	if err := schedulerMgr.Register(scheduler.TaskUsageHourlyJob(pool)); err != nil {
+		slog.Warn("scheduler: failed to register task_usage_hourly rollup job", "error", err)
+	} else {
+		go func() {
+			_ = schedulerMgr.Run(sweepCtx)
+		}()
+	}
 
 	if metricsServer != nil {
 		go func() {

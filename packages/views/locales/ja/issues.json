@@ -217,7 +217,9 @@
     "link_copy_failed": "リンクをコピーできませんでした",
     "workdir_path_copied": "作業ディレクトリのパスをコピーしました",
     "workdir_path_copy_failed": "作業ディレクトリのパスをコピーできませんでした",
-    "workdir_path_unavailable": "まだローカルの作業ディレクトリがありません。ローカルエージェントがこのイシューを実行していません"
+    "workdir_path_unavailable": "まだローカルの作業ディレクトリがありません。ローカルエージェントがこのイシューを実行していません",
+    "export_success": "Markdownをエクスポートしました",
+    "export_failed": "エクスポートに失敗しました"
   },
   "timeline": {
     "loading": "読み込み中..."
@@ -376,7 +378,8 @@
     "create_sub_issue": "サブイシューを作成",
     "set_parent_issue": "親イシューを設定...",
     "add_sub_issue": "サブイシューを追加...",
-    "delete_issue": "イシューを削除"
+    "delete_issue": "イシューを削除",
+    "export_markdown": "Markdownとしてエクスポート"
   },
   "pickers": {
     "filter_options_aria": "フィルターオプション",

@@ -73,6 +73,14 @@ const (
 // When liveness is unavailable or errors, we fall back to trusting the DB
 // stale window — that is the original behavior.
 func runRuntimeSweeper(ctx context.Context, queries *db.Queries, liveness handler.LivenessStore, taskSvc *service.TaskService, bus *events.Bus) {
+	// Run immediately on startup so stale tasks from a previous daemon
+	// session are failed before the user's first interaction — otherwise a
+	// chat session with a stuck pending task blocks sends until the first
+	// ticker fires (30s) and the stale threshold elapses (150s).
+	sweepStaleRuntimes(ctx, queries, liveness, taskSvc, bus)
+	sweepStaleTasks(ctx, queries, taskSvc, bus)
+	sweepExpiredQueuedTasks(ctx, queries, taskSvc)
+
 	ticker := time.NewTicker(sweepInterval)
 	defer ticker.Stop()
 
