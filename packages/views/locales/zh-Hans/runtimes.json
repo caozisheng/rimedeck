@@ -4,6 +4,7 @@
     "tagline": "为智能体跑 CLI 会话的机器和云端 worker。",
     "learn_more": "了解更多 →",
     "connect_remote": "添加电脑",
+    "connect_to_server": "连接到服务器",
     "search_placeholder": "搜索运行时...",
     "scope_mine": "我的",
     "scope_all": "全部",
@@ -157,11 +158,16 @@
   "connect": {
     "title": "添加电脑",
     "description": "在要添加的电脑上运行这两条命令。守护进程一上线，这里就会自动识别。",
+    "description_desktop": "将下方地址和配对码告知另一台电脑，对方在 RimeDeck Desktop 中输入即可连接。",
     "step1_label": "安装 RimeDeck CLI",
-    "step2_label": "启动守护进程",
+    "step2_label": "配置守护进程",
     "step2_hint": "会打开浏览器登录，然后在后台保持守护进程运行。",
-    "live_listening": "等待你的电脑上线",
-    "live_listening_hint": "守护进程一启动就会被识别，通常不到一分钟。",
+    "desktop_steps": "在另一台电脑上：打开 RimeDeck → 运行时 → 连接到服务器 → 输入上方地址和配对码。",
+    "live_listening": "等待连接",
+    "live_listening_hint": "对方连接后会自动识别。",
+    "cli_fallback_title": "要连接没有 Desktop 的无头服务器？",
+    "cli_fallback_hint": "如果远程机器没有安装 RimeDeck Desktop（如无头 GPU 服务器），请在终端中运行以下命令。",
+    "cli_token_label": "备选：token 登录",
     "troubleshooting": "那台电脑打不开浏览器？",
     "trouble_intro": "改用 token 登录替代第 2 步，适用于任何有终端的环境。",
     "trouble_token_hint_prefix": "在 ",
@@ -169,6 +175,7 @@
     "trouble_token_hint_suffix": " 中创建 token。守护进程只使用出站连接 —— 无需开放入站端口。",
     "trouble_check_status": "检查状态",
     "trouble_view_logs": "查看日志",
+    "pairing_code_label": "配对码",
     "copy_aria": "复制",
     "cancel": "取消",
     "success_title": "电脑已连接",
@@ -215,6 +222,10 @@
       "instance_type_required": "实例规格不能为空",
       "disk_size_invalid": "磁盘大小必须是正整数"
     }
+  },
+  "server_address": {
+    "title": "本机服务器地址",
+    "tailscale_hint": "跨网络（不同 Wi-Fi / 远程）时使用 Tailscale 地址。"
   },
   "update": {
     "cli_version_label": "CLI 版本：",
@@ -311,5 +322,17 @@
     "table_cache_r": "缓存读",
     "table_cache_w": "缓存写",
     "no_data": "还没有使用数据"
+  },
+  "connect_to_server": {
+    "title": "连接到服务器",
+    "description": "输入另一台电脑 RimeDeck Desktop 上显示的地址和配对码。",
+    "server_url_label": "服务器地址",
+    "pairing_code_label": "配对码",
+    "connect": "连接",
+    "connecting": "连接中…",
+    "cancel": "取消",
+    "done": "完成",
+    "success_title": "已连接",
+    "success_description": "本机已连接到远程服务器，正在贡献算力。"
   }
 }

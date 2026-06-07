@@ -34,8 +34,10 @@ import {
   X,
   Zap,
   Users,
+  Link2,
 } from "lucide-react";
 import { WorkspaceAvatar } from "../workspace/workspace-avatar";
+import { JoinWorkspaceDialog } from "../workspace/join-workspace-dialog";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/ui/tooltip";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@multica/ui/components/ui/collapsible";
@@ -378,6 +380,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   // Follows TQ at rest; frozen during a drag gesture so a mid-drag cache
   // write (our own optimistic update, or a WS refetch) cannot reorder the
   // DOM under dnd-kit while its drop animation is still interpolating.
+  const [showJoinWorkspace, setShowJoinWorkspace] = useState(false);
   const [localPinned, setLocalPinned] = useState<PinnedItem[]>(pinnedItems);
   const isDraggingRef = useRef(false);
   useEffect(() => {
@@ -463,6 +466,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   }, [pathname]);
 
   return (
+      <>
       <Sidebar variant="inset">
         {topSlot}
         {/* Workspace Switcher */}
@@ -537,6 +541,10 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         {t(($) => $.sidebar.create_workspace)}
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem onClick={() => setShowJoinWorkspace(true)}>
+                      <Link2 className="h-3.5 w-3.5" />
+                      {t(($) => $.sidebar.join_workspace)}
+                    </DropdownMenuItem>
                   </DropdownMenuGroup>
                   {myInvitations.length > 0 && (
                     <>
@@ -733,5 +741,9 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
+      {showJoinWorkspace && (
+          <JoinWorkspaceDialog onClose={() => setShowJoinWorkspace(false)} />
+      )}
+      </>
   );
 }

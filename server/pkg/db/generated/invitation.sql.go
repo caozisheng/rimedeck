@@ -15,7 +15,7 @@ const acceptInvitation = `-- name: AcceptInvitation :one
 UPDATE workspace_invitation
 SET status = 'accepted', updated_at = now()
 WHERE id = $1 AND status = 'pending'
-RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at
+RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code
 `
 
 func (q *Queries) AcceptInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceInvitation, error) {
@@ -32,6 +32,7 @@ func (q *Queries) AcceptInvitation(ctx context.Context, id pgtype.UUID) (Workspa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.InviteCode,
 	)
 	return i, err
 }
@@ -39,7 +40,7 @@ func (q *Queries) AcceptInvitation(ctx context.Context, id pgtype.UUID) (Workspa
 const createInvitation = `-- name: CreateInvitation :one
 INSERT INTO workspace_invitation (workspace_id, inviter_id, invitee_email, invitee_user_id, role)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at
+RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code
 `
 
 type CreateInvitationParams struct {
@@ -70,6 +71,7 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.InviteCode,
 	)
 	return i, err
 }
@@ -78,7 +80,7 @@ const declineInvitation = `-- name: DeclineInvitation :one
 UPDATE workspace_invitation
 SET status = 'declined', updated_at = now()
 WHERE id = $1 AND status = 'pending'
-RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at
+RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code
 `
 
 func (q *Queries) DeclineInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceInvitation, error) {
@@ -95,6 +97,7 @@ func (q *Queries) DeclineInvitation(ctx context.Context, id pgtype.UUID) (Worksp
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.InviteCode,
 	)
 	return i, err
 }
@@ -123,7 +126,7 @@ func (q *Queries) ExpireStalePendingInvitations(ctx context.Context, arg ExpireS
 }
 
 const getInvitation = `-- name: GetInvitation :one
-SELECT id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at FROM workspace_invitation
+SELECT id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code FROM workspace_invitation
 WHERE id = $1
 `
 
@@ -141,12 +144,13 @@ func (q *Queries) GetInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.InviteCode,
 	)
 	return i, err
 }
 
 const getPendingInvitationByEmail = `-- name: GetPendingInvitationByEmail :one
-SELECT id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at FROM workspace_invitation
+SELECT id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code FROM workspace_invitation
 WHERE workspace_id = $1 AND invitee_email = $2 AND status = 'pending' AND expires_at > now()
 `
 
@@ -169,12 +173,13 @@ func (q *Queries) GetPendingInvitationByEmail(ctx context.Context, arg GetPendin
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.InviteCode,
 	)
 	return i, err
 }
 
 const listPendingInvitationsByWorkspace = `-- name: ListPendingInvitationsByWorkspace :many
-SELECT wi.id, wi.workspace_id, wi.inviter_id, wi.invitee_email, wi.invitee_user_id, wi.role, wi.status, wi.created_at, wi.updated_at, wi.expires_at,
+SELECT wi.id, wi.workspace_id, wi.inviter_id, wi.invitee_email, wi.invitee_user_id, wi.role, wi.status, wi.created_at, wi.updated_at, wi.expires_at, wi.invite_code,
        u.name  AS inviter_name,
        u.email AS inviter_email
 FROM workspace_invitation wi
@@ -194,6 +199,7 @@ type ListPendingInvitationsByWorkspaceRow struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	InviteCode    pgtype.Text        `json:"invite_code"`
 	InviterName   string             `json:"inviter_name"`
 	InviterEmail  string             `json:"inviter_email"`
 }
@@ -218,6 +224,7 @@ func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, workspa
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ExpiresAt,
+			&i.InviteCode,
 			&i.InviterName,
 			&i.InviterEmail,
 		); err != nil {
@@ -232,7 +239,7 @@ func (q *Queries) ListPendingInvitationsByWorkspace(ctx context.Context, workspa
 }
 
 const listPendingInvitationsForUser = `-- name: ListPendingInvitationsForUser :many
-SELECT wi.id, wi.workspace_id, wi.inviter_id, wi.invitee_email, wi.invitee_user_id, wi.role, wi.status, wi.created_at, wi.updated_at, wi.expires_at,
+SELECT wi.id, wi.workspace_id, wi.inviter_id, wi.invitee_email, wi.invitee_user_id, wi.role, wi.status, wi.created_at, wi.updated_at, wi.expires_at, wi.invite_code,
        w.name AS workspace_name,
        u.name AS inviter_name,
        u.email AS inviter_email
@@ -261,6 +268,7 @@ type ListPendingInvitationsForUserRow struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	InviteCode    pgtype.Text        `json:"invite_code"`
 	WorkspaceName string             `json:"workspace_name"`
 	InviterName   string             `json:"inviter_name"`
 	InviterEmail  string             `json:"inviter_email"`
@@ -286,6 +294,7 @@ func (q *Queries) ListPendingInvitationsForUser(ctx context.Context, arg ListPen
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ExpiresAt,
+			&i.InviteCode,
 			&i.WorkspaceName,
 			&i.InviterName,
 			&i.InviterEmail,
@@ -308,4 +317,69 @@ WHERE id = $1 AND status = 'pending'
 func (q *Queries) RevokeInvitation(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, revokeInvitation, id)
 	return err
+}
+
+const createInvitationWithCode = `-- name: CreateInvitationWithCode :one
+INSERT INTO workspace_invitation (workspace_id, inviter_id, invitee_email, invitee_user_id, role, invite_code)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code
+`
+
+type CreateInvitationWithCodeParams struct {
+	WorkspaceID   pgtype.UUID `json:"workspace_id"`
+	InviterID     pgtype.UUID `json:"inviter_id"`
+	InviteeEmail  string      `json:"invitee_email"`
+	InviteeUserID pgtype.UUID `json:"invitee_user_id"`
+	Role          string      `json:"role"`
+	InviteCode    pgtype.Text `json:"invite_code"`
+}
+
+func (q *Queries) CreateInvitationWithCode(ctx context.Context, arg CreateInvitationWithCodeParams) (WorkspaceInvitation, error) {
+	row := q.db.QueryRow(ctx, createInvitationWithCode,
+		arg.WorkspaceID,
+		arg.InviterID,
+		arg.InviteeEmail,
+		arg.InviteeUserID,
+		arg.Role,
+		arg.InviteCode,
+	)
+	var i WorkspaceInvitation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.InviterID,
+		&i.InviteeEmail,
+		&i.InviteeUserID,
+		&i.Role,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+		&i.InviteCode,
+	)
+	return i, err
+}
+
+const getPendingInvitationByCode = `-- name: GetPendingInvitationByCode :one
+SELECT id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code FROM workspace_invitation
+WHERE invite_code = $1 AND status = 'pending' AND expires_at > now()
+`
+
+func (q *Queries) GetPendingInvitationByCode(ctx context.Context, inviteCode string) (WorkspaceInvitation, error) {
+	row := q.db.QueryRow(ctx, getPendingInvitationByCode, inviteCode)
+	var i WorkspaceInvitation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.InviterID,
+		&i.InviteeEmail,
+		&i.InviteeUserID,
+		&i.Role,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+		&i.InviteCode,
+	)
+	return i, err
 }

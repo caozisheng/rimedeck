@@ -26,6 +26,7 @@
     "unpin_tooltip": "Unpin",
     "workspaces_label": "Workspaces",
     "create_workspace": "Create workspace",
+    "join_workspace": "Join workspace",
     "pending_invitations_label": "Pending invitations",
     "invitation_workspace_fallback": "Workspace",
     "invitation_join": "Join",

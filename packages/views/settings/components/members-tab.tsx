@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, Shield, User, Plus, MoreHorizontal, UserMinus, Users, Clock, X, Mail } from "lucide-react";
+import { Crown, Shield, User, Plus, MoreHorizontal, UserMinus, Users, Clock, X, Mail, Check, Copy } from "lucide-react";
+import { useEffect } from "react";
 import { ActorAvatar } from "../../common/actor-avatar";
+import { ServerAddressBar } from "../../common/server-address-bar";
 import type { MemberWithUser, MemberRole, Invitation } from "@multica/core/types";
-import { Input } from "@multica/ui/components/ui/input";
+import { copyText } from "@multica/ui/lib/clipboard";
+import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
+import { cn } from "@multica/ui/lib/utils";
 import { Button } from "@multica/ui/components/ui/button";
 import { Card, CardContent } from "@multica/ui/components/ui/card";
 import { Badge } from "@multica/ui/components/ui/badge";
@@ -226,6 +230,48 @@ function InvitationRow({
   );
 }
 
+function InviteCodeDisplay({ code }: { code: string }) {
+  const { t } = useT("settings");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/40 px-4 py-3">
+      <ServerAddressBar />
+      <div>
+        <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+          {t(($) => $.members.invite_code_label)}
+        </div>
+        <div className="flex items-center gap-3">
+          <code
+            className={cn(
+              "text-2xl font-semibold tracking-[0.25em] text-foreground",
+              CODE_LIGATURE_CLASS,
+            )}
+          >
+            {code}
+          </code>
+          <button
+            type="button"
+            onClick={() => void copyText(code).then((ok) => ok && setCopied(true))}
+            className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+      <p className="text-[11px] leading-[1.55] text-muted-foreground">
+        {t(($) => $.members.invite_code_steps)}
+      </p>
+    </div>
+  );
+}
+
 export function MembersTab() {
   const { t } = useT("settings");
   const roleConfig = useRoleLabels();
@@ -236,9 +282,9 @@ export function MembersTab() {
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: invitations = [] } = useQuery(invitationListOptions(wsId));
 
-  const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<MemberRole>("member");
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [memberActionId, setMemberActionId] = useState<string | null>(null);
   const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<{
@@ -253,16 +299,17 @@ export function MembersTab() {
   const isOwner = currentMember?.role === "owner";
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
-  const handleInviteMember = async () => {
+  const handleGenerateCode = async () => {
     if (!workspace) return;
     setInviteLoading(true);
+    setGeneratedCode(null);
     try {
-      await api.createMember(workspace.id, {
-        email: inviteEmail,
+      const result = await api.createMember(workspace.id, {
+        email: "",
         role: inviteRole,
       });
-      setInviteEmail("");
-      setInviteRole("member");
+      const code = (result as { invite_code?: string }).invite_code;
+      if (code) setGeneratedCode(code);
       qc.invalidateQueries({ queryKey: workspaceKeys.invitations(wsId) });
       toast.success(t(($) => $.members.toast_invitation_sent));
     } catch (e) {
@@ -345,18 +392,9 @@ export function MembersTab() {
                 <Plus className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">{t(($) => $.members.invite_title)}</h3>
               </div>
-              <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto]">
-                <Input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder={t(($) => $.members.invite_email_placeholder)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && inviteEmail.trim()) handleInviteMember();
-                  }}
-                />
+              <div className="flex items-center gap-3">
                 <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as MemberRole)}>
-                  <SelectTrigger size="sm">
+                  <SelectTrigger size="sm" className="w-[120px]">
                     <SelectValue>{() => roleConfig[inviteRole].label}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -365,12 +403,13 @@ export function MembersTab() {
                   </SelectContent>
                 </Select>
                 <Button
-                  onClick={handleInviteMember}
-                  disabled={inviteLoading || !inviteEmail.trim()}
+                  onClick={handleGenerateCode}
+                  disabled={inviteLoading}
                 >
-                  {inviteLoading ? t(($) => $.members.inviting) : t(($) => $.members.invite_button)}
+                  {inviteLoading ? t(($) => $.members.inviting) : t(($) => $.members.generate_code_button)}
                 </Button>
               </div>
+              {generatedCode && <InviteCodeDisplay code={generatedCode} />}
             </CardContent>
           </Card>
         )}

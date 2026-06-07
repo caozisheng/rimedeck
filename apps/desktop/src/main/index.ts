@@ -415,6 +415,46 @@ if (!gotTheLock) {
       event.returnValue = runtimeConfigResult;
     });
 
+    // IPC: switch the runtime config to a remote server or back to local.
+    let localBackendConfig: { apiUrl: string; wsUrl: string } | null = null;
+    if (runtimeConfigResult.ok) {
+      localBackendConfig = {
+        apiUrl: runtimeConfigResult.config.apiUrl,
+        wsUrl: runtimeConfigResult.config.wsUrl,
+      };
+    }
+
+    ipcMain.handle(
+      "runtime-config:switch",
+      (_event, config: { apiUrl: string; wsUrl: string }) => {
+        runtimeConfigResult = {
+          ok: true,
+          config: {
+            schemaVersion: 1,
+            apiUrl: config.apiUrl,
+            wsUrl: config.apiUrl.replace(/^http/, "ws") + "/ws",
+            appUrl: config.apiUrl,
+          },
+        };
+        mainWindow?.webContents.send("runtime-config:changed", runtimeConfigResult);
+      },
+    );
+
+    ipcMain.handle("runtime-config:disconnect", () => {
+      if (localBackendConfig) {
+        runtimeConfigResult = {
+          ok: true,
+          config: {
+            schemaVersion: 1,
+            apiUrl: localBackendConfig.apiUrl,
+            wsUrl: localBackendConfig.wsUrl,
+            appUrl: localBackendConfig.apiUrl,
+          },
+        };
+        mainWindow?.webContents.send("runtime-config:changed", runtimeConfigResult);
+      }
+    });
+
     // IPC: toggle immersive mode — hides the macOS traffic lights so full-screen
     // modals (e.g. create-workspace) can place UI in the top-left corner
     // without fighting the native window controls' hit-test.

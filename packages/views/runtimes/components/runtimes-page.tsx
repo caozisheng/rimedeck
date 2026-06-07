@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
+  Link2,
   Monitor,
   Plus,
   Search,
@@ -28,6 +29,7 @@ import { useIsMobile } from "@multica/ui/hooks/use-mobile";
 import { cn } from "@multica/ui/lib/utils";
 import { PageHeader } from "../../layout/page-header";
 import { ConnectRemoteDialog } from "./connect-remote-dialog";
+import { ConnectToServerDialog } from "./connect-to-server-dialog";
 import { ProviderLogo } from "./provider-logo";
 import { RuntimeList, buildWorkloadIndex } from "./runtime-list";
 import {
@@ -103,6 +105,7 @@ export function RuntimesPage({
     setSelectedMachineId(id);
   }, []);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [showConnectToServer, setShowConnectToServer] = useState(false);
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "multica_runtimes_layout",
   });
@@ -189,6 +192,7 @@ export function RuntimesPage({
       <PageHeaderBar
         totalCount={totalCount}
         onConnectRemote={() => setShowConnectDialog(true)}
+        onConnectToServer={() => setShowConnectToServer(true)}
       />
 
       {showEmpty ? (
@@ -265,6 +269,9 @@ export function RuntimesPage({
       {showConnectDialog && (
         <ConnectRemoteDialog onClose={() => setShowConnectDialog(false)} />
       )}
+      {showConnectToServer && (
+        <ConnectToServerDialog onClose={() => setShowConnectToServer(false)} />
+      )}
     </div>
   );
 }
@@ -277,9 +284,11 @@ export function RuntimesPage({
 function PageHeaderBar({
   totalCount,
   onConnectRemote,
+  onConnectToServer,
 }: {
   totalCount: number;
   onConnectRemote: () => void;
+  onConnectToServer: () => void;
 }) {
   const { t } = useT("runtimes");
   return (
@@ -294,6 +303,10 @@ function PageHeaderBar({
         )}
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onConnectToServer}>
+          <Link2 className="h-3 w-3" />
+          {t(($) => $.page.connect_to_server)}
+        </Button>
         <Button type="button" size="sm" onClick={onConnectRemote}>
           <Plus className="h-3 w-3" />
           {t(($) => $.page.connect_remote)}

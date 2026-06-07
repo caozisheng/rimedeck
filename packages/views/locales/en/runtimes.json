@@ -4,6 +4,7 @@
     "tagline": "Machines and cloud workers running CLI sessions for your agents.",
     "learn_more": "Learn more →",
     "connect_remote": "Add a computer",
+    "connect_to_server": "Connect to server",
     "search_placeholder": "Search runtimes…",
     "scope_mine": "Mine",
     "scope_all": "All",
@@ -169,11 +170,16 @@
   "connect": {
     "title": "Add a computer",
     "description": "Run these two commands on the computer you want to add. We'll detect it the moment the daemon comes online.",
+    "description_desktop": "Share the address and pairing code below with the other computer. They'll enter it in their RimeDeck Desktop to connect.",
     "step1_label": "Install the RimeDeck CLI",
-    "step2_label": "Start the daemon",
+    "step2_label": "Setup daemon",
     "step2_hint": "Opens a browser to sign in, then keeps the daemon running in the background.",
-    "live_listening": "Waiting for your computer",
-    "live_listening_hint": "We'll detect it as soon as the daemon starts — usually under a minute.",
+    "desktop_steps": "On the other computer: open RimeDeck → Runtimes → Connect to server → enter the address and pairing code above.",
+    "live_listening": "Waiting for connection",
+    "live_listening_hint": "We'll detect it as soon as the other computer connects.",
+    "cli_fallback_title": "Connecting a headless server without Desktop?",
+    "cli_fallback_hint": "If the remote machine doesn't have RimeDeck Desktop (e.g. a headless GPU server), run these CLI commands instead.",
+    "cli_token_label": "Alternative: token login",
     "troubleshooting": "Can't open a browser on that computer?",
     "trouble_intro": "Use a token instead of the browser sign-in. This replaces step 2 and works anywhere you have a terminal.",
     "trouble_token_hint_prefix": "Create a token in ",
@@ -181,6 +187,7 @@
     "trouble_token_hint_suffix": ". The daemon only makes outbound connections — no inbound ports required.",
     "trouble_check_status": "Check status",
     "trouble_view_logs": "View logs",
+    "pairing_code_label": "Pairing code",
     "copy_aria": "Copy",
     "cancel": "Cancel",
     "success_title": "Computer connected",
@@ -227,6 +234,10 @@
       "instance_type_required": "Instance type is required",
       "disk_size_invalid": "Disk size must be a positive integer"
     }
+  },
+  "server_address": {
+    "title": "Server address",
+    "tailscale_hint": "Use the Tailscale address when connecting across different networks."
   },
   "update": {
     "cli_version_label": "CLI Version:",
@@ -326,5 +337,17 @@
     "table_cache_r": "Cache R",
     "table_cache_w": "Cache W",
     "no_data": "No usage data yet"
+  },
+  "connect_to_server": {
+    "title": "Connect to server",
+    "description": "Enter the address and pairing code shown on the other computer's RimeDeck Desktop.",
+    "server_url_label": "Server address",
+    "pairing_code_label": "Pairing code",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "cancel": "Cancel",
+    "done": "Done",
+    "success_title": "Connected",
+    "success_description": "This computer is now connected to the remote server and contributing compute power."
   }
 }

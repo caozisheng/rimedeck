@@ -27,6 +27,7 @@ type InvitationResponse struct {
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
 	ExpiresAt     string  `json:"expires_at"`
+	InviteCode    string  `json:"invite_code,omitempty"`
 	// Enriched fields (present in list responses).
 	InviterName   string `json:"inviter_name,omitempty"`
 	InviterEmail  string `json:"inviter_email,omitempty"`
@@ -45,6 +46,7 @@ func invitationToResponse(inv db.WorkspaceInvitation) InvitationResponse {
 		CreatedAt:     timestampToString(inv.CreatedAt),
 		UpdatedAt:     timestampToString(inv.UpdatedAt),
 		ExpiresAt:     timestampToString(inv.ExpiresAt),
+		InviteCode:    inv.InviteCode.String,
 	}
 }
 
@@ -66,12 +68,6 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(req.Email))
-	if email == "" {
-		writeError(w, http.StatusBadRequest, "email is required")
-		return
-	}
-
 	role, valid := normalizeMemberRole(req.Role)
 	if !valid {
 		writeError(w, http.StatusBadRequest, "invalid member role")
@@ -81,6 +77,33 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "cannot invite as owner")
 		return
 	}
+
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+
+	// Code-based invitation (no email required).
+	if email == "" {
+		code := generatePairingCode(6)
+		inv, err := h.Queries.CreateInvitationWithCode(r.Context(), db.CreateInvitationWithCodeParams{
+			WorkspaceID: requester.WorkspaceID,
+			InviterID:   requester.UserID,
+			InviteeEmail: "",
+			Role:        role,
+			InviteCode:  pgtype.Text{String: code, Valid: true},
+		})
+		if err != nil {
+			slog.Warn("create code invitation failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", workspaceID)...)
+			writeError(w, http.StatusInternalServerError, "failed to create invitation")
+			return
+		}
+		slog.Info("code invitation created", append(logger.RequestAttrs(r), "invitation_id", uuidToString(inv.ID), "workspace_id", workspaceID, "code", code, "role", role)...)
+		resp := invitationToResponse(inv)
+		userID := requestUserID(r)
+		h.publish(protocol.EventInvitationCreated, uuidToString(requester.WorkspaceID), "member", userID, map[string]any{"invitation": resp})
+		writeJSON(w, http.StatusCreated, resp)
+		return
+	}
+
+	// Email-based invitation (legacy flow).
 
 	// Check if the user is already a member.
 	existingUser, err := h.Queries.GetUserByEmail(r.Context(), email)
@@ -95,9 +118,6 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Drop any past-due pending invitations to 'expired' first. The partial unique
-	// index idx_invitation_unique_pending only filters by status = 'pending', so a
-	// stale row would otherwise block CreateInvitation below — see issue #2055.
 	if err := h.Queries.ExpireStalePendingInvitations(r.Context(), db.ExpireStalePendingInvitationsParams{
 		WorkspaceID:  requester.WorkspaceID,
 		InviteeEmail: email,
@@ -107,7 +127,6 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if there is still a live pending invitation.
 	_, err = h.Queries.GetPendingInvitationByEmail(r.Context(), db.GetPendingInvitationByEmailParams{
 		WorkspaceID:  requester.WorkspaceID,
 		InviteeEmail: email,
@@ -117,7 +136,6 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve invitee_user_id if the user already exists.
 	var inviteeUserID pgtype.UUID
 	if existingUser.ID.Valid {
 		inviteeUserID = existingUser.ID
@@ -144,7 +162,6 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 
 	resp := invitationToResponse(inv)
 
-	// Notify the invitee in real time if they are a registered user.
 	userID := requestUserID(r)
 	eventPayload := map[string]any{"invitation": resp}
 	var workspaceName string
@@ -161,9 +178,8 @@ func (h *Handler) CreateInvitation(w http.ResponseWriter, r *http.Request) {
 		"email",
 	))
 
-	// Send invitation email (fire-and-forget).
 	if h.EmailService != nil && workspaceName != "" {
-		inviterName := email // fallback
+		inviterName := email
 		if inviter, err := h.Queries.GetUser(r.Context(), requester.UserID); err == nil {
 			inviterName = inviter.Name
 		}
@@ -547,4 +563,114 @@ func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---------------------------------------------------------------------------
+// RedeemInvitation — redeem a short invite code (public, no auth required).
+// POST /api/invitations/redeem
+// ---------------------------------------------------------------------------
+
+func (h *Handler) RedeemInvitation(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code       string `json:"code"`
+		DeviceName string `json:"device_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	code := strings.ToUpper(strings.TrimSpace(req.Code))
+	if code == "" {
+		writeError(w, http.StatusBadRequest, "code is required")
+		return
+	}
+
+	inv, err := h.Queries.GetPendingInvitationByCode(r.Context(), code)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "invitation not found or expired")
+		return
+	}
+
+	if inv.ExpiresAt.Valid && inv.ExpiresAt.Time.Before(time.Now()) {
+		writeError(w, http.StatusGone, "invitation has expired")
+		return
+	}
+
+	// Create a local user for the redeemer (or find existing by device name).
+	deviceName := strings.TrimSpace(req.DeviceName)
+	if deviceName == "" {
+		deviceName = "Remote User"
+	}
+
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to redeem invitation")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	qtx := h.Queries.WithTx(tx)
+
+	// Create a new user with a placeholder email derived from the invite code.
+	placeholderEmail := strings.ToLower(code) + "@local.rimedeck"
+	user, err := qtx.CreateUser(r.Context(), db.CreateUserParams{
+		Name:  deviceName,
+		Email: placeholderEmail,
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			// User already exists — look them up.
+			user, err = qtx.GetUserByEmail(r.Context(), placeholderEmail)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to resolve user")
+				return
+			}
+		} else {
+			slog.Warn("redeem invitation: create user failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to create user")
+			return
+		}
+	}
+
+	accepted, err := qtx.AcceptInvitation(r.Context(), inv.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to accept invitation")
+		return
+	}
+
+	member, err := qtx.CreateMember(r.Context(), db.CreateMemberParams{
+		WorkspaceID: accepted.WorkspaceID,
+		UserID:      user.ID,
+		Role:        accepted.Role,
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			writeError(w, http.StatusConflict, "already a member of this workspace")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to create membership")
+		return
+	}
+
+	if _, err := qtx.MarkUserOnboarded(r.Context(), user.ID); err != nil {
+		slog.Warn("redeem invitation: mark user onboarded failed", "error", err)
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to redeem invitation")
+		return
+	}
+
+	slog.Info("invitation redeemed via code", "code", code, "user_id", uuidToString(user.ID), "workspace_id", uuidToString(accepted.WorkspaceID))
+
+	wsID := uuidToString(accepted.WorkspaceID)
+	memberResp := memberWithUserResponse(member, user)
+	h.publish(protocol.EventMemberAdded, wsID, "member", uuidToString(user.ID), map[string]any{"member": memberResp})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"member":       memberResp,
+		"workspace_id": wsID,
+		"user_id":      uuidToString(user.ID),
+	})
 }

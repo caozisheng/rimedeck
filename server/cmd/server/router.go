@@ -137,6 +137,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		TrustedProxies:           parseTrustedProxies(os.Getenv("MULTICA_TRUSTED_PROXIES")),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, analyticsClient, signupConfig, daemonHub)
+	h.PairingStore = handler.NewPairingStore()
 	if opts.DaemonWakeup != nil {
 		h.TaskService.Wakeup = opts.DaemonWakeup
 	}
@@ -250,6 +251,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 	// Public API
 	r.Get("/api/config", h.GetConfig)
+	r.Get("/api/server-info", h.GetServerInfo)
+	r.Post("/api/auth/pair", h.DevicePair)
+	r.Post("/api/invitations/redeem", h.RedeemInvitation)
 	r.With(contactSalesRL).Post("/api/contact-sales", h.CreateContactSales)
 
 	// Webhook ingress for autopilots. Outside the authenticated group on

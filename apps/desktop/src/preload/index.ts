@@ -156,6 +156,24 @@ const desktopAPI = {
       ipcRenderer.removeListener(NAVIGATION_GESTURE_CHANNEL, handler);
     };
   },
+  /** Switch the frontend API to a remote server. The renderer must reload
+   *  after this returns so the new URLs take effect. */
+  switchRuntimeConfig: (config: {
+    apiUrl: string;
+    wsUrl: string;
+  }): Promise<void> => ipcRenderer.invoke("runtime-config:switch", config),
+  /** Disconnect from the remote server and restore the local backend. */
+  disconnectRuntimeConfig: (): Promise<void> =>
+    ipcRenderer.invoke("runtime-config:disconnect"),
+  /** Listen for runtime config changes pushed from the main process. */
+  onRuntimeConfigChanged: (callback: (config: RuntimeConfigResult) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, config: RuntimeConfigResult) =>
+      callback(config);
+    ipcRenderer.on("runtime-config:changed", handler);
+    return () => {
+      ipcRenderer.removeListener("runtime-config:changed", handler);
+    };
+  },
   /** Open the OS folder picker and return the chosen absolute path. */
   pickDirectory: (defaultPath?: string) =>
     ipcRenderer.invoke("local-directory:pick", defaultPath),

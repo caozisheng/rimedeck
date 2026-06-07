@@ -200,3 +200,18 @@ export interface PaginationParams {
   limit?: number;
   offset?: number;
 }
+
+// Server Info
+export interface NetworkAddress {
+  ip: string;
+  interface: string;
+  type: "lan" | "tailscale" | "vpn";
+  domain?: string;
+}
+
+export interface ServerInfoResponse {
+  port: number;
+  addresses: NetworkAddress[];
+  hostname: string;
+  pairing_code?: string;
+}

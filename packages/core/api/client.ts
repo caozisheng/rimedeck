@@ -104,6 +104,7 @@ import type {
   SquadMemberStatusListResponse,
   BackupData,
   ImportResult,
+  ServerInfoResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import { type Logger, noopLogger } from "../logger";
@@ -1150,6 +1151,17 @@ export class ApiClient {
     const raw = await this.fetch<unknown>("/api/config");
     return parseWithFallback<AppConfigResponse>(raw, AppConfigSchema, EMPTY_APP_CONFIG, {
       endpoint: "GET /api/config",
+    });
+  }
+
+  async getServerInfo(): Promise<ServerInfoResponse> {
+    return this.fetch("/api/server-info");
+  }
+
+  async redeemInvitation(code: string, deviceName?: string): Promise<{ member: MemberWithUser; workspace_id: string; user_id: string }> {
+    return this.fetch("/api/invitations/redeem", {
+      method: "POST",
+      body: JSON.stringify({ code, device_name: deviceName ?? "" }),
     });
   }
 

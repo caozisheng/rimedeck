@@ -34,7 +34,7 @@ export async function startBackend(
     DATABASE_URL: databaseUrl,
     PORT: String(port),
     JWT_SECRET: config.jwtSecret,
-    CORS_ALLOWED_ORIGINS: `http://127.0.0.1:${port},http://localhost:${port},http://localhost:5173`,
+    CORS_ALLOWED_ORIGINS: `*`,
     LOCAL_UPLOAD_DIR: uploadDir,
     MULTICA_DEV_VERIFICATION_CODE: "000000",
     APP_ENV: "local",

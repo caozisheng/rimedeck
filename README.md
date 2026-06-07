@@ -2,7 +2,7 @@
 
 # RimeDeck
 
-RimeDeck is a local-first AI agent workbench with a built-in Kanban board — manage issues, orchestrate a team of AI coding agents, and track progress in one desktop app, with zero Docker and zero cloud dependency. Forked from [Multica](https://github.com/multica-ai/multica).
+RimeDeck is a local-first AI agent workbench with a built-in Kanban board — manage issues, orchestrate a team of AI coding agents, and track progress in one desktop app, with zero Docker and zero cloud dependency. It also supports compute sharing and remote collaboration across machines on a local network or VPN. Forked from [Multica](https://github.com/multica-ai/multica).
 
 ## Why RimeDeck
 
@@ -14,21 +14,21 @@ Multica's desktop app connects to a cloud backend. RimeDeck removes that depende
 
 RimeDeck supports 13 AI coding tools as agent runtimes. The daemon auto-detects installed tools on your machine during setup.
 
-| Runtime | CLI | Provider |
-|---------|-----|----------|
-| Antigravity | `agy` | Google |
-| Claude Code | `claude` | Anthropic |
-| Codex | `codex` | OpenAI |
-| Copilot | `copilot` | GitHub / Microsoft |
-| Cursor | `cursor-agent` | Cursor |
-| Gemini CLI | `gemini` | Google |
-| Hermes | `hermes` | NousResearch |
-| Kimi | `kimi` | Moonshot AI |
-| Kiro CLI | `kiro-cli` | Amazon |
-| OMP (oh-my-pi) | `omp` | — |
-| OpenCode | `opencode` | — |
-| OpenClaw | `openclaw` | — |
-| Pi | `pi` | — |
+| Runtime        | CLI            | Provider           |
+| -------------- | -------------- | ------------------ |
+| Antigravity    | `agy`          | Google             |
+| Claude Code    | `claude`       | Anthropic          |
+| Codex          | `codex`        | OpenAI             |
+| Copilot        | `copilot`      | GitHub / Microsoft |
+| Cursor         | `cursor-agent` | Cursor             |
+| Gemini CLI     | `gemini`       | Google             |
+| Hermes         | `hermes`       | NousResearch       |
+| Kimi           | `kimi`         | Moonshot AI        |
+| Kiro CLI       | `kiro-cli`     | Amazon             |
+| OMP (oh-my-pi) | `omp`          | —                  |
+| OpenCode       | `opencode`     | —                  |
+| OpenClaw       | `openclaw`     | —                  |
+| Pi             | `pi`           | —                  |
 
 > **OMP** ([oh-my-pi](https://github.com/can1357/oh-my-pi)) is a community fork of Pi with hash-anchored edits, LSP integration, subagents, and 40+ model providers. It shares the same JSON event-stream protocol as Pi, so it works out-of-the-box. Set `MULTICA_OMP_PATH` to point at a non-default binary, or `MULTICA_OMP_MODEL` to pin a default model.
 
@@ -81,6 +81,87 @@ RimeDeck supports 13 AI coding tools as agent runtimes. The daemon auto-detects 
 
 **Daemon** — A background process that polls the task queue, prepares isolated workspaces, injects skills and runtime config, then spawns the agent CLI as a child process. It streams events back to the server via WebSocket.
 
+### Remote Collaboration
+
+RimeDeck supports two independent collaboration modes over a local network (or Tailscale / VPN). They can be combined freely.
+
+#### Compute Collaboration (Runtime → Add a computer)
+
+Add a remote machine as a headless compute node. The remote daemon executes agent tasks but has no access to the workspace UI — it only talks to `/api/daemon/*` endpoints via a scoped daemon token (`mdt_`).
+
+```
+    Machine A (Server)                    Machine C (Compute Node)
+    ┌──────────────────────┐              ┌──────────────────────┐
+    │  RimeDeck Desktop    │              │  RimeDeck Desktop    │
+    │  ┌────────────────┐  │              │                      │
+    │  │ UI (Electron)  │  │              │  (UI stays on local  │
+    │  │ issues, agents │  │              │   workspace — unused │
+    │  └────────────────┘  │              │   for this server)   │
+    │  ┌────────────────┐  │   daemon     │  ┌────────────────┐  │
+    │  │ Server + PG    │◄─┼── token ────┼──│ Daemon          │  │
+    │  │ workspace data │  │  (mdt_)      │  │ claims & runs   │  │
+    │  └────────────────┘  │              │  │ tasks only      │  │
+    │  ┌────────────────┐  │              │  └────────────────┘  │
+    │  │ Local Daemon   │  │              └──────────────────────┘
+    │  └────────────────┘  │
+    └──────────────────────┘
+
+    ✅ Remote daemon runs agent tasks
+    ✅ Server dispatches to both local + remote runtimes
+    ❌ Remote user cannot see issues / agents / settings
+```
+
+**Setup flow**: Server shows IP + pairing code → remote machine enters them in "Connect to server" dialog → daemon token issued → daemon registers as a remote runtime.
+
+#### Workspace Collaboration (Settings → Members → Invite member)
+
+Invite a person as a workspace member. Their Desktop UI switches to the server's API and they get full workspace access — issues, agents, runtimes, settings — authenticated via JWT session, exactly like Multica Cloud.
+
+```
+    Machine A (Server)                    Machine B (Collaborator)
+    ┌──────────────────────┐              ┌──────────────────────┐
+    │  RimeDeck Desktop    │              │  RimeDeck Desktop    │
+    │  ┌────────────────┐  │              │  ┌────────────────┐  │
+    │  │ UI (Electron)  │  │   JWT /      │  │ UI (Electron)  │  │
+    │  │ issues, agents │  │   session    │  │ issues, agents │  │
+    │  └────────────────┘  │◄────────────►│  │ (same data!)   │  │
+    │  ┌────────────────┐  │              │  └────────────────┘  │
+    │  │ Server + PG    │◄─┼── all API ──┼──    /api/*           │
+    │  │ workspace data │  │              │                      │
+    │  └────────────────┘  │              │  Local server idles  │
+    │  ┌────────────────┐  │              │  (data preserved)    │
+    │  │ Local Daemon   │  │              └──────────────────────┘
+    │  └────────────────┘  │
+    └──────────────────────┘
+
+    ✅ Remote user sees full workspace UI
+    ✅ Can create issues, manage agents, view inbox
+    ❌ Does not contribute compute (add runtime separately)
+```
+
+**Setup flow**: Server generates invite code → shares with collaborator → collaborator enters server address + invite code in "Join workspace" dialog → account created + member added → frontend switches to remote server API.
+
+#### Combined: Full Collaboration
+
+A collaborator who both operates the workspace UI *and* contributes compute performs both flows:
+
+1. **Invite member** (get workspace UI access)
+2. **Add computer** (contribute runtime compute)
+
+```
+    Machine A (Server)                    Machine B (Full Collaborator)
+    ┌──────────────────────┐              ┌──────────────────────┐
+    │  Server + PG         │              │  ┌────────────────┐  │
+    │  ┌────────────────┐  │   JWT        │  │ UI → A's API   │  │
+    │  │ workspace data │◄─┼─────────────┼──│ (full access)   │  │
+    │  └────────────────┘  │              │  └────────────────┘  │
+    │                      │   mdt_       │  ┌────────────────┐  │
+    │  Task queue ─────────┼─────────────┼──│ Daemon → A      │  │
+    │                      │              │  │ (runs tasks)    │  │
+    └──────────────────────┘              │  └────────────────┘  │
+                                          └──────────────────────┘
+```
+
 ### Launch Sequence
 
 ```
@@ -119,31 +200,11 @@ RimeDeck App Launch
 
 All user data lives under `~/.rimedeck/`:
 
-| Directory | Content |
-| --- | --- |
-| `~/.rimedeck/config.json` | CLI configuration |
-| `~/.rimedeck/pg/data/` | PostgreSQL data |
+| Directory                 | Content                      |
+| ------------------------- | ---------------------------- |
+| `~/.rimedeck/config.json` | CLI configuration            |
+| `~/.rimedeck/pg/data/`    | PostgreSQL data              |
 | `~/.rimedeck/workspaces/` | Agent execution environments |
-
-### Key Components
-
-**PostgresManager** (`apps/desktop/src/main/local-backend/postgres-manager.ts`)
-
-- Binary resolution: bundled with app → managed (auto-downloaded on first run) → system PATH
-- Data directory: `~/.rimedeck/pg/data/`
-- Localhost-only, auto port allocation, graceful shutdown via `pg_ctl stop`
-
-**MigrationRunner** (`apps/desktop/src/main/local-backend/migration-runner.ts`)
-
-- Reuses the bundled `multica-migrate` binary
-- Runs `multica-migrate up` with the local `DATABASE_URL`
-
-**BackendManager** (`apps/desktop/src/main/local-backend/backend-manager.ts`)
-
-- Spawns the Go server as a child process
-- SIGTERM → 5s grace → SIGKILL on quit
-
-**Shutdown chain** (on `before-quit`): stop daemon → stop Go backend → stop PostgreSQL.
 
 ## Prerequisites
 

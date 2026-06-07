@@ -98,6 +98,7 @@ type Handler struct {
 	MembershipCache       *auth.MembershipCache
 	WebhookRateLimiter    WebhookRateLimiter
 	WebhookIPRateLimiter  WebhookRateLimiter
+	PairingStore          *PairingStore
 	cfg                   Config
 }
 

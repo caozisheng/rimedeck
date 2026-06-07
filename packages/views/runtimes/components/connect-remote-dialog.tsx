@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronRight, Copy, Terminal } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { runtimeKeys } from "@multica/core/runtimes/queries";
 import { useWSEvent } from "@multica/core/realtime";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
+import { api } from "@multica/core/api";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ import { copyText } from "@multica/ui/lib/clipboard";
 import { cn } from "@multica/ui/lib/utils";
 import { useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
+import { ServerAddressBar } from "../../common/server-address-bar";
 
 type Step = "instructions" | "success";
 
@@ -166,7 +168,22 @@ function CommandStep({
 
 function InstructionsStep({ onClose }: { onClose: () => void }) {
   const { t } = useT("runtimes");
-  const { setupCmd, tokenCmd } = daemonCommands();
+  const { data: serverInfo } = useQuery({
+    queryKey: ["server-info"],
+    queryFn: () => api.getServerInfo(),
+    staleTime: 60_000,
+  });
+
+  const firstAddr = serverInfo?.addresses.find((a) => a.type === "lan") ?? serverInfo?.addresses[0];
+  const serverUrl = firstAddr
+    ? `http://${firstAddr.ip}:${serverInfo!.port}`
+    : null;
+  const cliSetupCmd = serverUrl
+    ? `multica setup self-host --server-url ${serverUrl}`
+    : "multica setup";
+  const { tokenCmd } = daemonCommands();
+  const pairingCode = serverInfo?.pairing_code;
+
   return (
     <>
       <DialogHeader className="px-6 pt-6 pb-2">
@@ -174,27 +191,42 @@ function InstructionsStep({ onClose }: { onClose: () => void }) {
           {t(($) => $.connect.title)}
         </DialogTitle>
         <DialogDescription className="text-xs text-balance">
-          {t(($) => $.connect.description)}
+          {t(($) => $.connect.description_desktop)}
         </DialogDescription>
       </DialogHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         <div className="space-y-4">
-          <div>
-            <CommandStep
-              n={1}
-              label={t(($) => $.connect.step2_label)}
-              cmd={setupCmd}
-              copyAria={t(($) => $.connect.copy_aria)}
-            />
-            <p className="mt-1.5 text-[11px] leading-[1.55] text-muted-foreground">
-              {t(($) => $.connect.step2_hint)}
-            </p>
-          </div>
+          {/* Primary flow: share address + pairing code with the other Desktop */}
+          <ServerAddressBar />
+
+          {pairingCode && (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3">
+              <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+                {t(($) => $.connect.pairing_code_label)}
+              </div>
+              <div className="flex items-center gap-3">
+                <code
+                  className={cn(
+                    "text-2xl font-semibold tracking-[0.25em] text-foreground",
+                    CODE_LIGATURE_CLASS,
+                  )}
+                >
+                  {pairingCode}
+                </code>
+                <CopyButton text={pairingCode} ariaLabel={t(($) => $.connect.copy_aria)} />
+              </div>
+            </div>
+          )}
+
+          <p className="text-[11px] leading-[1.55] text-muted-foreground">
+            {t(($) => $.connect.desktop_steps)}
+          </p>
 
           <LiveListening />
 
-          <TroubleshootingDetails tokenCmd={tokenCmd} />
+          {/* Fallback: CLI commands for headless servers */}
+          <CliCommandsFallback setupCmd={cliSetupCmd} tokenCmd={tokenCmd} />
         </div>
       </div>
 
@@ -207,7 +239,13 @@ function InstructionsStep({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
+function CliCommandsFallback({
+  setupCmd,
+  tokenCmd,
+}: {
+  setupCmd: string;
+  tokenCmd: string;
+}) {
   const { t } = useT("runtimes");
   return (
     <details className="group rounded-lg border border-dashed">
@@ -216,51 +254,24 @@ function TroubleshootingDetails({ tokenCmd }: { tokenCmd: string }) {
           className="h-3 w-3 transition-transform group-open:rotate-90"
           aria-hidden
         />
-        {t(($) => $.connect.troubleshooting)}
+        {t(($) => $.connect.cli_fallback_title)}
       </summary>
-      <div className="space-y-2 border-t px-3 pt-2.5 pb-3 text-[11px] leading-[1.55] text-muted-foreground">
-        <p>{t(($) => $.connect.trouble_intro)}</p>
+      <div className="space-y-3 border-t px-3 pt-2.5 pb-3">
+        <p className="text-[11px] leading-[1.55] text-muted-foreground">
+          {t(($) => $.connect.cli_fallback_hint)}
+        </p>
+        <CommandStep
+          n={1}
+          label={t(($) => $.connect.step2_label)}
+          cmd={setupCmd}
+          copyAria={t(($) => $.connect.copy_aria)}
+        />
         <CommandStep
           n={2}
-          label={t(($) => $.connect.step2_label)}
+          label={t(($) => $.connect.cli_token_label)}
           cmd={tokenCmd}
           copyAria={t(($) => $.connect.copy_aria)}
         />
-        <p>
-          {t(($) => $.connect.trouble_token_hint_prefix)}
-          <span className="font-medium text-foreground">
-            {t(($) => $.connect.trouble_token_hint_destination)}
-          </span>
-          {t(($) => $.connect.trouble_token_hint_suffix)}
-        </p>
-        <ul className="space-y-1">
-          <li className="flex items-center gap-1.5">
-            <span>{t(($) => $.connect.trouble_check_status)}</span>
-            {/* CLI command — literal shell string, not i18n content. */}
-            {/* eslint-disable-next-line i18next/no-literal-string */}
-            <code
-              className={cn(
-                "rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground",
-                CODE_LIGATURE_CLASS,
-              )}
-            >
-              {"multica daemon status"}
-            </code>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span>{t(($) => $.connect.trouble_view_logs)}</span>
-            {/* CLI command — literal shell string, not i18n content. */}
-            {/* eslint-disable-next-line i18next/no-literal-string */}
-            <code
-              className={cn(
-                "rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-foreground",
-                CODE_LIGATURE_CLASS,
-              )}
-            >
-              {"multica daemon logs -f"}
-            </code>
-          </li>
-        </ul>
       </div>
     </details>
   );
