@@ -107,41 +107,48 @@ func (h *Handler) DevicePair(w http.ResponseWriter, r *http.Request) {
 		wsUUID = ws
 	}
 
-	// Generate raw token and its hash.
-	rawBytes := make([]byte, 32)
-	if _, err := rand.Read(rawBytes); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to generate token")
-		return
-	}
-	rawToken := "mdt_" + hex.EncodeToString(rawBytes)
-	hash := sha256.Sum256([]byte(rawToken))
-	tokenHash := hex.EncodeToString(hash[:])
-
-	daemonID := req.DeviceName
-	if daemonID == "" {
-		daemonID = fmt.Sprintf("paired-%s", rawToken[4:12])
-	}
-
-	expiresAt := pgtype.Timestamptz{Time: time.Now().Add(365 * 24 * time.Hour), Valid: true}
-
-	_, err := h.Queries.CreateDaemonToken(r.Context(), db.CreateDaemonTokenParams{
-		TokenHash:   tokenHash,
-		WorkspaceID: wsUUID,
-		DaemonID:    daemonID,
-		ExpiresAt:   expiresAt,
-	})
+	rawToken, err := h.issueDaemonToken(r.Context(), wsUUID, req.DeviceName)
 	if err != nil {
-		slog.Warn("device pair: create daemon token failed", "error", err)
+		slog.Warn("device pair: issue daemon token failed", "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to create token")
 		return
 	}
 
-	slog.Info("device paired", "daemon_id", daemonID, "workspace_id", uuidToString(wsUUID))
+	slog.Info("device paired", "device_name", req.DeviceName, "workspace_id", uuidToString(wsUUID))
 
 	writeJSON(w, http.StatusOK, DevicePairResponse{
 		Token:       rawToken,
 		WorkspaceID: uuidToString(wsUUID),
 	})
+}
+
+// issueDaemonToken generates a daemon token for the given workspace.
+// Used by both DevicePair and RedeemInvitation so a joining device can
+// authenticate its daemon without a separate pairing step.
+func (h *Handler) issueDaemonToken(ctx context.Context, wsUUID pgtype.UUID, deviceName string) (string, error) {
+	rawBytes := make([]byte, 32)
+	if _, err := rand.Read(rawBytes); err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
+	rawToken := "mdt_" + hex.EncodeToString(rawBytes)
+	hash := sha256.Sum256([]byte(rawToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	daemonID := deviceName
+	if daemonID == "" {
+		daemonID = fmt.Sprintf("joined-%s", rawToken[4:12])
+	}
+
+	expiresAt := pgtype.Timestamptz{Time: time.Now().Add(365 * 24 * time.Hour), Valid: true}
+	if _, err := h.Queries.CreateDaemonToken(ctx, db.CreateDaemonTokenParams{
+		TokenHash:   tokenHash,
+		WorkspaceID: wsUUID,
+		DaemonID:    daemonID,
+		ExpiresAt:   expiresAt,
+	}); err != nil {
+		return "", fmt.Errorf("create daemon token: %w", err)
+	}
+	return rawToken, nil
 }
 
 func (h *Handler) firstWorkspace(ctx context.Context) (pgtype.UUID, error) {

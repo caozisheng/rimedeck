@@ -662,15 +662,26 @@ func (h *Handler) RedeemInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Issue a daemon token so the joining device can authenticate its
+	// daemon against this server without a separate pairing step.
+	daemonToken, err := h.issueDaemonToken(r.Context(), accepted.WorkspaceID, deviceName)
+	if err != nil {
+		slog.Warn("redeem invitation: issue daemon token failed (non-fatal)", "error", err)
+	}
+
 	slog.Info("invitation redeemed via code", "code", code, "user_id", uuidToString(user.ID), "workspace_id", uuidToString(accepted.WorkspaceID))
 
 	wsID := uuidToString(accepted.WorkspaceID)
 	memberResp := memberWithUserResponse(member, user)
 	h.publish(protocol.EventMemberAdded, wsID, "member", uuidToString(user.ID), map[string]any{"member": memberResp})
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"member":       memberResp,
 		"workspace_id": wsID,
 		"user_id":      uuidToString(user.ID),
-	})
+	}
+	if daemonToken != "" {
+		resp["token"] = daemonToken
+	}
+	writeJSON(w, http.StatusOK, resp)
 }

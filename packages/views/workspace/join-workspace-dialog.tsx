@@ -50,14 +50,26 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         throw new Error(body || `${redeemRes.status} ${redeemRes.statusText}`);
       }
 
-      // Switch the frontend API to the remote server.
+      const data: { token?: string; workspace_id: string } = await redeemRes.json();
+
+      // 1. Switch the renderer's API/WS URLs to the remote server.
       const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
         | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string }) => Promise<void> }
         | undefined;
-
       if (desktopAPI?.switchRuntimeConfig) {
         const wsUrl = url.replace(/^http/, "ws") + "/ws";
         await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
+      }
+
+      // 2. Write the daemon token to the CLI profile so the daemon can
+      //    authenticate against the remote server after restart.
+      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
+        | { syncToken?: (token: string, userId: string) => Promise<void>;
+            restart?: () => Promise<unknown> }
+        | undefined;
+      if (daemonAPI?.syncToken && data.token) {
+        await daemonAPI.syncToken(data.token, "");
+        await daemonAPI.restart?.();
       }
 
       setStep("success");

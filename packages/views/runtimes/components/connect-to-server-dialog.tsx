@@ -53,12 +53,25 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
 
       const data: { token: string; workspace_id: string } = await res.json();
 
-      // TODO: persist token + server URL and reconfigure daemon via IPC
-      // For now, store in localStorage as a proof-of-concept marker.
-      localStorage.setItem(
-        "rimedeck_remote_server",
-        JSON.stringify({ url, token: data.token, workspaceId: data.workspace_id }),
-      );
+      // 1. Switch the renderer's API/WS URLs to the remote server.
+      const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+        | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string }) => Promise<void> }
+        | undefined;
+      if (desktopAPI?.switchRuntimeConfig) {
+        const wsUrl = url.replace(/^http/, "ws") + "/ws";
+        await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
+      }
+
+      // 2. Write the daemon token to the CLI profile so the daemon can
+      //    authenticate against the remote server after restart.
+      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
+        | { syncToken?: (token: string, userId: string) => Promise<void>;
+            restart?: () => Promise<unknown> }
+        | undefined;
+      if (daemonAPI?.syncToken && data.token) {
+        await daemonAPI.syncToken(data.token, "");
+        await daemonAPI.restart?.();
+      }
 
       setStep("success");
     } catch (e) {
@@ -88,7 +101,7 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <DialogFooter className="m-0 rounded-b-xl border-t bg-muted/30 px-6 py-3">
-            <Button size="sm" onClick={onClose}>
+            <Button size="sm" onClick={() => { onClose(); window.location.reload(); }}>
               {t(($) => $.connect_to_server.done)}
             </Button>
           </DialogFooter>
