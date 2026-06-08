@@ -14,12 +14,14 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { cn } from "@multica/ui/lib/utils";
 import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
+import { useAuthStore } from "@multica/core/auth";
 import { useT } from "../i18n";
 
 type Step = "form" | "joining" | "success" | "error";
 
 export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
   const { t } = useT("settings");
+  const localUser = useAuthStore((s) => s.user);
   const [step, setStep] = useState<Step>("form");
   const [serverUrl, setServerUrl] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -41,7 +43,7 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: inviteCode.trim().toUpperCase(),
-          device_name: "",
+          device_name: localUser?.name || "",
         }),
       });
 

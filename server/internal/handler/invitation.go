@@ -694,6 +694,10 @@ func (h *Handler) RedeemInvitation(w http.ResponseWriter, r *http.Request) {
 	wsID := uuidToString(accepted.WorkspaceID)
 	memberResp := memberWithUserResponse(member, user)
 	h.publish(protocol.EventMemberAdded, wsID, "member", uuidToString(user.ID), map[string]any{"member": memberResp})
+	h.publish(protocol.EventInvitationAccepted, wsID, "member", uuidToString(user.ID), map[string]any{
+		"invitation_id": uuidToString(accepted.ID),
+		"member":        memberResp,
+	})
 
 	resp := map[string]any{
 		"member":       memberResp,

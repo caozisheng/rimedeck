@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@multica/ui/lib/utils";
 import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
 import { AppLink, useNavigation } from "../navigation";
@@ -381,6 +381,14 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   // write (our own optimistic update, or a WS refetch) cannot reorder the
   // DOM under dnd-kit while its drop animation is still interpolating.
   const [showJoinWorkspace, setShowJoinWorkspace] = useState(false);
+  const isRemoteConnection = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const d = (window as unknown as Record<string, unknown>).desktopAPI as
+      | { runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } } }
+      | undefined;
+    const url = d?.runtimeConfig?.ok ? d.runtimeConfig.config?.apiUrl : null;
+    return !!url && !url.includes("127.0.0.1") && !url.includes("localhost");
+  }, []);
   const [localPinned, setLocalPinned] = useState<PinnedItem[]>(pinnedItems);
   const isDraggingRef = useRef(false);
   useEffect(() => {
@@ -545,6 +553,19 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                       <Link2 className="h-3.5 w-3.5" />
                       {t(($) => $.sidebar.join_workspace)}
                     </DropdownMenuItem>
+                    {isRemoteConnection && (
+                      <DropdownMenuItem
+                        onClick={async () => {
+                          const d = (window as unknown as Record<string, { disconnectRuntimeConfig?: () => Promise<void> }>).desktopAPI;
+                          await d?.disconnectRuntimeConfig?.();
+                          window.location.reload();
+                        }}
+                        className="text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        {t(($) => $.sidebar.disconnect_remote)}
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuGroup>
                   {myInvitations.length > 0 && (
                     <>
