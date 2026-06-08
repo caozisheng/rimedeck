@@ -35,21 +35,12 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
       const base = serverUrl.trim().replace(/\/+$/, "");
       const url = base.startsWith("http") ? base : `http://${base}`;
 
-      // Resolve the local machine's hostname for a meaningful daemon ID.
-      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-        | { syncToken?: (token: string, userId: string) => Promise<void>;
-            restart?: () => Promise<unknown>;
-            getHostName?: () => Promise<string> }
-        | undefined;
-      let hostName = "";
-      try { hostName = (await daemonAPI?.getHostName?.()) ?? ""; } catch { /* ignore */ }
-
       const res = await fetch(`${url}/api/auth/pair`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: pairingCode.trim().toUpperCase(),
-          device_name: hostName,
+          device_name: "",
         }),
       });
 
@@ -60,28 +51,14 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
         );
       }
 
-      const data: { token: string; jwt?: string; workspace_id: string } = await res.json();
+      const data: { token: string; workspace_id: string } = await res.json();
 
-      // Store the JWT so the frontend can authenticate after reload.
-      if (data.jwt) {
-        localStorage.setItem("multica_token", data.jwt);
-      }
-
-      // 1. Switch the renderer's API/WS URLs to the remote server.
-      const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
-        | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string }) => Promise<void> }
-        | undefined;
-      if (desktopAPI?.switchRuntimeConfig) {
-        const wsUrl = url.replace(/^http/, "ws") + "/ws";
-        await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
-      }
-
-      // 2. Write the daemon token to the CLI profile so the daemon can
-      //    authenticate against the remote server after restart.
-      if (daemonAPI?.syncToken && data.token) {
-        await daemonAPI.syncToken(data.token, "");
-        await daemonAPI.restart?.();
-      }
+      // TODO: persist token + server URL and reconfigure daemon via IPC
+      // For now, store in localStorage as a proof-of-concept marker.
+      localStorage.setItem(
+        "rimedeck_remote_server",
+        JSON.stringify({ url, token: data.token, workspaceId: data.workspace_id }),
+      );
 
       setStep("success");
     } catch (e) {

@@ -35,58 +35,29 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
       const base = serverUrl.trim().replace(/\/+$/, "");
       const url = base.startsWith("http") ? base : `http://${base}`;
 
-      // Resolve the local machine's hostname for a meaningful member name.
-      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-        | { syncToken?: (token: string, userId: string) => Promise<void>;
-            restart?: () => Promise<unknown>;
-            getHostName?: () => Promise<string> }
-        | undefined;
-      let hostName = "";
-      try { hostName = (await daemonAPI?.getHostName?.()) ?? ""; } catch { /* ignore */ }
-
-      // Try the code as an invitation first, then as a pairing code.
-      const code = inviteCode.trim().toUpperCase();
-      const headers = { "Content-Type": "application/json" };
-      const body = JSON.stringify({ code, device_name: hostName });
-
-      let data: { token?: string; jwt?: string; workspace_id: string };
-
+      // Redeem the invite code on the remote server.
       const redeemRes = await fetch(`${url}/api/invitations/redeem`, {
-        method: "POST", headers, body,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: inviteCode.trim().toUpperCase(),
+          device_name: "",
+        }),
       });
-      if (redeemRes.ok) {
-        data = await redeemRes.json();
-      } else {
-        // Invitation failed — try pairing code.
-        const pairRes = await fetch(`${url}/api/auth/pair`, {
-          method: "POST", headers, body,
-        });
-        if (!pairRes.ok) {
-          const errBody = await pairRes.text().catch(() => "");
-          throw new Error(errBody || `${pairRes.status} ${pairRes.statusText}`);
-        }
-        data = await pairRes.json();
+
+      if (!redeemRes.ok) {
+        const body = await redeemRes.text().catch(() => "");
+        throw new Error(body || `${redeemRes.status} ${redeemRes.statusText}`);
       }
 
-      // Store the JWT so the frontend can authenticate after reload.
-      if (data.jwt) {
-        localStorage.setItem("multica_token", data.jwt);
-      }
-
-      // 1. Switch the renderer's API/WS URLs to the remote server.
+      // Switch the frontend API to the remote server.
       const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
         | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string }) => Promise<void> }
         | undefined;
+
       if (desktopAPI?.switchRuntimeConfig) {
         const wsUrl = url.replace(/^http/, "ws") + "/ws";
         await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
-      }
-
-      // 2. Write the daemon token to the CLI profile so the daemon can
-      //    authenticate against the remote server after restart.
-      if (daemonAPI?.syncToken && data.token) {
-        await daemonAPI.syncToken(data.token, "");
-        await daemonAPI.restart?.();
       }
 
       setStep("success");

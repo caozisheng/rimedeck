@@ -107,83 +107,41 @@ func (h *Handler) DevicePair(w http.ResponseWriter, r *http.Request) {
 		wsUUID = ws
 	}
 
-	rawToken, err := h.issueDaemonToken(r.Context(), wsUUID, req.DeviceName)
-	if err != nil {
-		slog.Warn("device pair: issue daemon token failed", "error", err)
-		writeError(w, http.StatusInternalServerError, "failed to create token")
-		return
-	}
-
-	// Create a local user for the paired device so the frontend has a
-	// session to authenticate with. Mirrors the RedeemInvitation flow.
-	deviceName := strings.TrimSpace(req.DeviceName)
-	if deviceName == "" {
-		deviceName = "Paired Device"
-	}
-	placeholderEmail := fmt.Sprintf("paired-%s@local.rimedeck", rawToken[4:12])
-	user, err := h.Queries.CreateUser(r.Context(), db.CreateUserParams{
-		Name:  deviceName,
-		Email: placeholderEmail,
-	})
-	if err != nil {
-		if isUniqueViolation(err) {
-			user, err = h.Queries.GetUserByEmail(r.Context(), placeholderEmail)
-		}
-		if err != nil {
-			slog.Warn("device pair: create user failed (non-fatal)", "error", err)
-		}
-	}
-	if user.ID.Valid {
-		// Add as workspace member
-		_, _ = h.Queries.CreateMember(r.Context(), db.CreateMemberParams{
-			WorkspaceID: wsUUID,
-			UserID:      user.ID,
-			Role:        "member",
-		})
-		_, _ = h.Queries.MarkUserOnboarded(r.Context(), user.ID)
-	}
-
-	slog.Info("device paired", "device_name", deviceName, "workspace_id", uuidToString(wsUUID))
-
-	resp := map[string]any{
-		"token":        rawToken,
-		"workspace_id": uuidToString(wsUUID),
-	}
-	if user.ID.Valid {
-		if jwtToken, err := h.issueJWT(user); err == nil {
-			resp["jwt"] = jwtToken
-		}
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
-// issueDaemonToken generates a daemon token for the given workspace.
-// Used by both DevicePair and RedeemInvitation so a joining device can
-// authenticate its daemon without a separate pairing step.
-func (h *Handler) issueDaemonToken(ctx context.Context, wsUUID pgtype.UUID, deviceName string) (string, error) {
+	// Generate raw token and its hash.
 	rawBytes := make([]byte, 32)
 	if _, err := rand.Read(rawBytes); err != nil {
-		return "", fmt.Errorf("generate token: %w", err)
+		writeError(w, http.StatusInternalServerError, "failed to generate token")
+		return
 	}
 	rawToken := "mdt_" + hex.EncodeToString(rawBytes)
 	hash := sha256.Sum256([]byte(rawToken))
 	tokenHash := hex.EncodeToString(hash[:])
 
-	daemonID := deviceName
+	daemonID := req.DeviceName
 	if daemonID == "" {
-		daemonID = fmt.Sprintf("joined-%s", rawToken[4:12])
+		daemonID = fmt.Sprintf("paired-%s", rawToken[4:12])
 	}
 
 	expiresAt := pgtype.Timestamptz{Time: time.Now().Add(365 * 24 * time.Hour), Valid: true}
-	if _, err := h.Queries.CreateDaemonToken(ctx, db.CreateDaemonTokenParams{
+
+	_, err := h.Queries.CreateDaemonToken(r.Context(), db.CreateDaemonTokenParams{
 		TokenHash:   tokenHash,
 		WorkspaceID: wsUUID,
 		DaemonID:    daemonID,
 		ExpiresAt:   expiresAt,
-	}); err != nil {
-		return "", fmt.Errorf("create daemon token: %w", err)
+	})
+	if err != nil {
+		slog.Warn("device pair: create daemon token failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to create token")
+		return
 	}
-	return rawToken, nil
+
+	slog.Info("device paired", "daemon_id", daemonID, "workspace_id", uuidToString(wsUUID))
+
+	writeJSON(w, http.StatusOK, DevicePairResponse{
+		Token:       rawToken,
+		WorkspaceID: uuidToString(wsUUID),
+	})
 }
 
 func (h *Handler) firstWorkspace(ctx context.Context) (pgtype.UUID, error) {

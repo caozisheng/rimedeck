@@ -652,7 +652,7 @@ async function syncToken(
     config.token.startsWith("mul_");
 
   let finalToken: string;
-  if (tokenFromRenderer.startsWith("mul_") || tokenFromRenderer.startsWith("mdt_")) {
+  if (tokenFromRenderer.startsWith("mul_")) {
     finalToken = tokenFromRenderer;
   } else if (sameUserWithCachedPat) {
     finalToken = config.token as string;
