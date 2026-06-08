@@ -1,7 +1,11 @@
 package handler
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -662,15 +666,42 @@ func (h *Handler) RedeemInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Issue a daemon token so the remote daemon can register against
+	// this server and share its compute.
+	var daemonToken string
+	{
+		rawBytes := make([]byte, 32)
+		if _, err := rand.Read(rawBytes); err == nil {
+			raw := "mdt_" + hex.EncodeToString(rawBytes)
+			hash := sha256.Sum256([]byte(raw))
+			did := deviceName
+			if did == "" {
+				did = fmt.Sprintf("joined-%s", raw[4:12])
+			}
+			if _, err := h.Queries.CreateDaemonToken(r.Context(), db.CreateDaemonTokenParams{
+				TokenHash:   hex.EncodeToString(hash[:]),
+				WorkspaceID: accepted.WorkspaceID,
+				DaemonID:    did,
+				ExpiresAt:   pgtype.Timestamptz{Time: time.Now().Add(365 * 24 * time.Hour), Valid: true},
+			}); err == nil {
+				daemonToken = raw
+			}
+		}
+	}
+
 	slog.Info("invitation redeemed via code", "code", code, "user_id", uuidToString(user.ID), "workspace_id", uuidToString(accepted.WorkspaceID))
 
 	wsID := uuidToString(accepted.WorkspaceID)
 	memberResp := memberWithUserResponse(member, user)
 	h.publish(protocol.EventMemberAdded, wsID, "member", uuidToString(user.ID), map[string]any{"member": memberResp})
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	resp := map[string]any{
 		"member":       memberResp,
 		"workspace_id": wsID,
 		"user_id":      uuidToString(user.ID),
-	})
+	}
+	if daemonToken != "" {
+		resp["token"] = daemonToken
+	}
+	writeJSON(w, http.StatusOK, resp)
 }

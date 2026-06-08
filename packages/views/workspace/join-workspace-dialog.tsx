@@ -50,6 +50,9 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         throw new Error(body || `${redeemRes.status} ${redeemRes.statusText}`);
       }
 
+      const data: { token?: string; workspace_id?: string } =
+        await redeemRes.json();
+
       // Switch the frontend API to the remote server.
       const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
         | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string }) => Promise<void> }
@@ -58,6 +61,22 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
       if (desktopAPI?.switchRuntimeConfig) {
         const wsUrl = url.replace(/^http/, "ws") + "/ws";
         await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
+      }
+
+      // Write the daemon token so the local daemon registers against the
+      // remote server (sharing compute). Without this the daemon stays
+      // connected to its own local backend.
+      if (data.token) {
+        const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
+          | { syncToken?: (t: string, u: string) => Promise<void>;
+              restart?: () => Promise<unknown> }
+          | undefined;
+        if (daemonAPI?.syncToken) {
+          try {
+            await daemonAPI.syncToken(data.token, "");
+            await daemonAPI.restart?.();
+          } catch { /* best effort */ }
+        }
       }
 
       setStep("success");
