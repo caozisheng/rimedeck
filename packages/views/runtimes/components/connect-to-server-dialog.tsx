@@ -53,12 +53,29 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
 
       const data: { token: string; workspace_id: string } = await res.json();
 
-      // TODO: persist token + server URL and reconfigure daemon via IPC
-      // For now, store in localStorage as a proof-of-concept marker.
-      localStorage.setItem(
-        "rimedeck_remote_server",
-        JSON.stringify({ url, token: data.token, workspaceId: data.workspace_id }),
-      );
+      // Switch the frontend to the remote server.
+      const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+        | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string }) => Promise<void> }
+        | undefined;
+      if (desktopAPI?.switchRuntimeConfig) {
+        const wsUrl = url.replace(/^http/, "ws") + "/ws";
+        await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
+      }
+
+      // Write the daemon token so the local daemon registers against
+      // the remote server (sharing compute).
+      if (data.token) {
+        const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
+          | { syncToken?: (t: string, u: string) => Promise<void>;
+              restart?: () => Promise<unknown> }
+          | undefined;
+        if (daemonAPI?.syncToken) {
+          try {
+            await daemonAPI.syncToken(data.token, "");
+            await daemonAPI.restart?.();
+          } catch { /* best effort */ }
+        }
+      }
 
       setStep("success");
     } catch (e) {
