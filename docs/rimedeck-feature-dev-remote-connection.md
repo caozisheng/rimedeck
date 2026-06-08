@@ -482,3 +482,140 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 如果未来有强烈的跨公网需求且用户不愿自装 VPN，可考虑：
 - 内嵌轻量 relay（如 libp2p hole-punch），仅做 NAT 穿透，不引入完整 VPN 栈
 - 提供可选的 Tailscale 插件模式（用户自行启用），而非默认内嵌
+
+---
+
+## 八、实现状态总结（v0.3.20+）
+
+### Flow 1：运行时 → 添加电脑（纯算力共享）
+
+#### 连接
+
+| 步骤 | Server 端 | Client 端 |
+|------|-----------|-----------|
+| 1. 入口 | 运行时页 → "添加电脑" → `ConnectRemoteDialog` | 运行时页 → "连接到服务器" → `ConnectToServerDialog` |
+| 2. 配对 | 显示 pairing code + 服务器地址，监听 `daemon:register` WS 事件 | 输入服务器地址 + pairing code |
+| 3. 认证 | `POST /api/auth/pair` 验证 code → 返回 `mdt_*` daemon token | 收到 `{ token, workspace_id }` |
+| 4. Daemon 配置 | — | `setTargetApiUrl(url)` → `syncToken(mdt_token)` → `restart()` |
+| 5. Daemon 注册 | 收到 `daemon:register` 事件 → 对话框跳转成功页 | Daemon 用 token + server_url 向 server 注册 |
+| 6. 完成状态 | 运行时列表显示远端 runtime（在线） | **前端不切换**，停留在本地工作区；daemon 在后台共享算力 |
+
+**关键文件**：
+- `server/internal/handler/device_pair.go` — `DevicePair()` 配对端点
+- `packages/views/runtimes/components/connect-remote-dialog.tsx` — Server 端对话框
+- `packages/views/runtimes/components/connect-to-server-dialog.tsx` — Client 端对话框
+- `apps/desktop/src/main/daemon-manager.ts:syncToken()` — `mdt_*` token 透传 + `server_url` 写入
+
+**连接后状态**：
+
+| 维度 | Server 端 | Client 端 |
+|------|-----------|-----------|
+| 前端 URL | 本地（不变） | 本地（不变） |
+| daemon 连接 | 本地 | **远端 server**（共享算力） |
+| 数据库 | `agent_runtime` 新增远端 runtime 行 | 不变 |
+| 磁盘持久化 | — | daemon profile config 有 `server_url` + `token`；`localStorage` 有记录 |
+| 重启后 | 不变 | daemon 从 profile config 读 `server_url` + `token`，自动重连 |
+
+#### 断开
+
+| 端 | 操作 | 效果 |
+|----|------|------|
+| **Server 端** | 运行时页 → 选中远端 runtime → 删除 | runtime 从列表消失；daemon 心跳 404 → `handleRuntimeGone` 触发但无法重注册（runtime 已删） |
+| **Client 端** | 暂无直接 UI（daemon 算力共享是后台行为） | 需手动停止 daemon 或清除 daemon profile config |
+
+**已知限制**：Client 端没有"停止共享算力"的 UI 按钮。daemon 在后台持续共享直到手动干预。
+
+#### 重连
+
+- **网络闪断**：daemon 心跳 15s 重试 + WebSocket 指数退避（1s→30s），自动恢复
+- **Client 重启**：daemon 从 profile config 读取 `server_url` + `token`，自动重连
+- **Server 重启**：daemon 心跳失败 → `handleRuntimeGone` → `registerRuntimesForWorkspace` → `RecoverOrphans` → 恢复
+- **Runtime 被 Server 删除**：daemon 心跳 404 → `handleRuntimeGone` → 重注册（如果有 token），或者 Server 端 runtime sweeper 150s 后标记 offline
+
+---
+
+### Flow 2：设置 → 成员 → 邀请 → 加入工作区
+
+#### 连接
+
+| 步骤 | Server 端 | Client 端 |
+|------|-----------|-----------|
+| 1. 入口 | 设置 → 成员 → "邀请成员" → 生成邀请码 | 侧边栏工作区菜单 → "加入工作区" → `JoinWorkspaceDialog` |
+| 2. 邀请 | 显示 6 位邀请码 + 服务器地址 | 输入服务器地址 + 邀请码 |
+| 3. 赎回 | `POST /api/invitations/redeem` → 创建 user + member + 返回 `mdt_*` token | 收到 `{ member, workspace_id, user_id, token }` |
+| 4. 前端切换 | — | `switchRuntimeConfig({ apiUrl, wsUrl })` → 前端指向远端 server |
+| 5. Daemon 配置 | — | `setTargetApiUrl(url)` → `syncToken(mdt_token)` → `restart()` |
+| 6. Daemon 注册 | 收到 `daemon:register` 事件 | Daemon 用 token + server_url 注册 |
+| 7. 页面刷新 | 成员列表更新；邀请状态变为"已接受" | `window.location.reload()` → 前端加载远端工作区 |
+
+**关键文件**：
+- `server/internal/handler/invitation.go` — `RedeemInvitation()` 赎回端点（含 daemon token 生成 + `invitation:accepted` 事件广播）
+- `packages/views/workspace/join-workspace-dialog.tsx` — Client 端对话框
+- `packages/views/layout/app-sidebar.tsx` — "断开远程连接"菜单项
+- `apps/desktop/src/main/index.ts` — `loadRemoteConfig()` / `saveRemoteConfig()` 持久化
+
+**连接后状态**：
+
+| 维度 | Server 端 | Client 端 |
+|------|-----------|-----------|
+| 前端 URL | 本地（不变） | **远端 server**（完整工作区 UI） |
+| daemon 连接 | 本地 | **远端 server**（共享算力） |
+| 数据库 | `user` + `member` + `daemon_token` + `agent_runtime` 新增 | 不变 |
+| 磁盘持久化 | — | `~/.rimedeck/remote_connection.json`（前端 URL）；daemon profile config（`server_url` + `token`） |
+| 重启后 | 不变 | 前端从 `remote_connection.json` 恢复远端 URL；daemon 从 profile config 自动重连 |
+
+**注意**：RedeemInvitation 不返回 JWT（前端认证依赖本地 auth store 的 token）。当前设计中远端 Desktop 的前端认证需要通过本地 auth 流程完成。
+
+#### 断开
+
+| 步骤 | 操作 | 效果 |
+|------|------|------|
+| 1 | Client 侧边栏 → 工作区菜单 → "断开远程连接" | — |
+| 2 | `disconnectRuntimeConfig()` | 删除 `~/.rimedeck/remote_connection.json`；内存 `runtimeConfigResult` 恢复本地 |
+| 3 | `clearToken()` | 删除 daemon profile config 中的 `token` + `server_url` |
+| 4 | `setTargetApiUrl("")` | 内存中清空 `targetApiBaseUrl` |
+| 5 | `restart()` | daemon 重启，连回本地 backend |
+| 6 | `window.location.reload()` | 前端刷新，加载本地工作区 |
+
+**断开后状态**：
+
+| 维度 | Server 端 | Client 端 |
+|------|-----------|-----------|
+| 前端 URL | 不变 | 恢复本地 |
+| daemon | runtime 150s 后标记 offline | 连回本地 |
+| 成员记录 | member 行保留（需管理员手动移除） | — |
+| daemon token | 数据库中 token 仍然有效（365天） | config 已清除，无法使用 |
+| 磁盘 | — | `remote_connection.json` 已删；daemon profile config 已清除 `token` + `server_url` |
+
+**断开后能否操作远端工作区**：**不能**。五层保护：
+1. 前端 URL → 指向本地，API 请求不到远端
+2. `remote_connection.json` → 已删，重启不恢复
+3. daemon `token` → 已清除，无法认证
+4. daemon `server_url` → 已清除，不知道远端地址
+5. daemon 进程 → 已重启，连到本地
+
+#### 重连
+
+- **网络闪断**：前端 WebSocket 自动重连（`use-realtime-sync.ts`）；daemon 心跳 + WS 退避自动恢复
+- **Client 重启**：前端从 `remote_connection.json` 恢复远端 URL；daemon 从 profile config 读 `server_url` + `token` 自动注册
+- **Server 重启**：daemon `handleRuntimeGone` → 重注册 → `RecoverOrphans`；前端 WebSocket 重连
+- **Token 过期**（365天后）：需重新邀请加入
+
+---
+
+### 角色权限对比
+
+| 角色 | 说明 | 权限 |
+|------|------|------|
+| **owner** | 所有者 | 完全访问权限，可管理所有设置、成员、删除工作区 |
+| **admin** | 管理员 | 管理成员、设置、智能体；不能删除工作区 |
+| **member** | 成员 | 创建和处理 issue、使用智能体和聊天 |
+
+---
+
+### 已知限制
+
+1. **Flow 1 无 Client 端断开 UI**：共享算力后，Client 没有"停止共享"按钮，需手动停 daemon 或清 config
+2. **RedeemInvitation 不返回 JWT**：Client 前端的用户认证需要通过本地 auth store 完成，远端工作区的 API 请求可能需要额外的认证流程
+3. **成员记录不自动清理**：断开后 Server 端的 member 行保留，需管理员手动移除
+4. **单 daemon 单 server**：daemon 一次只能连一个 server（本地或远端），不支持同时服务多个 server
