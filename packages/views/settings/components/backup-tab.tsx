@@ -24,10 +24,10 @@ import {
   AlertDialogAction,
 } from "@multica/ui/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
-import { memberListOptions } from "@multica/core/workspace/queries";
+import { memberListOptions, workspaceKeys } from "@multica/core/workspace/queries";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { api } from "@multica/core/api";
 import type { BackupData } from "@multica/core/types";
@@ -38,6 +38,7 @@ export function BackupTab() {
   const user = useAuthStore((s) => s.user);
   const workspace = useCurrentWorkspace();
   const wsId = useWorkspaceId();
+  const qc = useQueryClient();
   const { data: members = [] } = useQuery(memberListOptions(wsId));
 
   const currentMember = members.find((m) => m.user_id === user?.id) ?? null;
@@ -130,6 +131,9 @@ export function BackupTab() {
           }),
         );
       }
+      qc.invalidateQueries({ queryKey: workspaceKeys.agents(wsId) });
+      qc.invalidateQueries({ queryKey: workspaceKeys.squads(wsId) });
+      qc.invalidateQueries({ queryKey: workspaceKeys.skills(wsId) });
       setPreview(null);
     } catch (e) {
       toast.error(
