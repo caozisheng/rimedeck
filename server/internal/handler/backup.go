@@ -426,12 +426,21 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 				result.Skipped.Agents++
 				continue
 			}
-		}
-		// For overwrite we skip re-creating agents that already exist since
-		// agents have complex state (tasks, issues). Just skip.
-		if _, exists := agentIDByName[ba.Name]; exists {
+			// Agent exists and overwrite is set. Agent itself is not recreated
+			// (complex state: tasks, issues), but skill bindings may have been
+			// lost during skill overwrite (CASCADE delete on skill_id FK).
+			// Re-bind skills to the existing agent.
+			agentID := agentIDByName[ba.Name]
+			for _, skillName := range ba.SkillNames {
+				skillID, found := skillIDByName[skillName]
+				if !found {
+					result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: skill %q not found, binding skipped", ba.Name, skillName))
+					continue
+				}
+				_ = qtx.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agentID, SkillID: skillID})
+			}
 			result.Skipped.Agents++
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: already exists, overwrite not supported for agents", ba.Name))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: already exists, re-bound %d skills", ba.Name, len(ba.SkillNames)))
 			continue
 		}
 
