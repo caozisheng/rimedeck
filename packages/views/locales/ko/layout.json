@@ -27,6 +27,7 @@
     "workspaces_label": "워크스페이스",
     "create_workspace": "워크스페이스 만들기",
     "join_workspace": "워크스페이스 참여",
+    "disconnect_remote": "원격 연결 해제",
     "pending_invitations_label": "대기 중인 초대",
     "invitation_workspace_fallback": "워크스페이스",
     "invitation_join": "참가",
