@@ -712,10 +712,10 @@ async function savePrefs(prefs: DaemonPrefs): Promise<void> {
 async function clearToken(): Promise<void> {
   const active = await ensureActiveProfile();
   const config = await readProfileConfig(active.name);
-  if ("token" in config) {
-    delete config.token;
-    await writeProfileConfig(active.name, config);
-  }
+  let changed = false;
+  if ("token" in config) { delete config.token; changed = true; }
+  if ("server_url" in config) { delete config.server_url; changed = true; }
+  if (changed) await writeProfileConfig(active.name, config);
   // Always drop the sidecar so a subsequent syncToken from any user is
   // treated as a fresh mint, not a reuse of a stale cached PAT.
   await removeProfileUserId(active.name);
