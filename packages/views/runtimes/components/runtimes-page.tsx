@@ -187,6 +187,29 @@ export function RuntimesPage({
   // "register a runtime" empty state would hide the Start button.
   const showEmpty = totalCount === 0 && !bootstrapping && !hasLocalMachine;
 
+  const [sharingRemote, setSharingRemote] = useState<string | null>(() => {
+    try {
+      const raw = localStorage.getItem("rimedeck_remote_server");
+      if (raw) { const obj = JSON.parse(raw); return obj.url ?? null; }
+    } catch { /* ignore */ }
+    return null;
+  });
+
+  const handleStopSharing = useCallback(async () => {
+    const daemon = (window as unknown as Record<string, {
+      clearToken?: () => Promise<void>;
+      setTargetApiUrl?: (u: string) => Promise<void>;
+      restart?: () => Promise<unknown>;
+    }>).daemonAPI;
+    try {
+      await daemon?.clearToken?.();
+      await daemon?.setTargetApiUrl?.("");
+      await daemon?.restart?.();
+    } catch { /* best effort */ }
+    localStorage.removeItem("rimedeck_remote_server");
+    setSharingRemote(null);
+  }, []);
+
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       <PageHeaderBar
@@ -194,6 +217,10 @@ export function RuntimesPage({
         onConnectRemote={() => setShowConnectDialog(true)}
         onConnectToServer={() => setShowConnectToServer(true)}
       />
+
+      {sharingRemote && (
+        <SharingBanner serverUrl={sharingRemote} onStop={handleStopSharing} />
+      )}
 
       {showEmpty ? (
         <div className="flex flex-1 items-center justify-center p-6">
@@ -672,6 +699,31 @@ function MachineDetail({
         now={now}
       />
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sharing banner — shown when this machine is sharing compute to a remote
+// server (pairing-code flow). The frontend stays local; the daemon runs
+// in the background. Provides a "stop sharing" button.
+// ---------------------------------------------------------------------------
+
+function SharingBanner({ serverUrl, onStop }: { serverUrl: string; onStop: () => void }) {
+  const { t } = useT("runtimes");
+  return (
+    <div className="flex items-center justify-between gap-3 border-b bg-muted/40 px-5 py-2.5">
+      <div className="flex items-center gap-2 text-xs">
+        <span className="relative inline-flex shrink-0" aria-hidden>
+          <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-success opacity-60 motion-reduce:hidden" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+        </span>
+        <span className="font-medium">{t(($) => $.page.sharing_banner.label)}</span>
+        <span className="text-muted-foreground">{serverUrl}</span>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={onStop} className="h-7 text-xs">
+        {t(($) => $.page.sharing_banner.stop)}
+      </Button>
+    </div>
   );
 }
 

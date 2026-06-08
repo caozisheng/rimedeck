@@ -12,6 +12,10 @@
     "live_tooltip": "Real-time updates · offline detection up to 75s",
     "filter_all": "All",
     "filter_all_description": "All runtimes in this view",
+    "sharing_banner": {
+      "label": "Sharing compute to",
+      "stop": "Stop sharing"
+    },
     "empty": {
       "title": "No runtimes yet",
       "hint": "Desktop auto-scans this computer. To use another machine — a server, dev box, or any computer with a terminal — add it here."

@@ -12,6 +12,10 @@
     "live_tooltip": "实时更新 · 离线检测 75 秒以内",
     "filter_all": "全部",
     "filter_all_description": "当前视图下的所有运行时",
+    "sharing_banner": {
+      "label": "正在共享算力到",
+      "stop": "停止共享"
+    },
     "empty": {
       "title": "还没有运行时",
       "hint": "桌面端会自动扫描这台电脑。想把另一台电脑加进来 —— 服务器、远程开发机，或任何能开终端的电脑 —— 在这里添加。"
