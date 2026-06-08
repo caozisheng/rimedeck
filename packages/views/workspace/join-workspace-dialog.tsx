@@ -65,20 +65,20 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
       }
 
-      // Write the daemon token so the local daemon registers against the
-      // remote server (sharing compute). Without this the daemon stays
-      // connected to its own local backend.
+      // Tell daemon-manager the remote URL BEFORE syncToken, so
+      // syncToken writes server_url to the daemon CLI profile.
+      // Then restart the daemon to register against the remote server.
       if (data.token) {
         const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-          | { syncToken?: (t: string, u: string) => Promise<void>;
+          | { setTargetApiUrl?: (u: string) => Promise<void>;
+              syncToken?: (t: string, u: string) => Promise<void>;
               restart?: () => Promise<unknown> }
           | undefined;
-        if (daemonAPI?.syncToken) {
-          try {
-            await daemonAPI.syncToken(data.token, "");
-            await daemonAPI.restart?.();
-          } catch { /* best effort */ }
-        }
+        try {
+          await daemonAPI?.setTargetApiUrl?.(url);
+          await daemonAPI?.syncToken?.(data.token, "");
+          await daemonAPI?.restart?.();
+        } catch { /* best effort */ }
       }
 
       setStep("success");

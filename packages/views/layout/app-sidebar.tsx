@@ -556,8 +556,18 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                     {isRemoteConnection && (
                       <DropdownMenuItem
                         onClick={async () => {
-                          const d = (window as unknown as Record<string, { disconnectRuntimeConfig?: () => Promise<void> }>).desktopAPI;
-                          await d?.disconnectRuntimeConfig?.();
+                          const dAPI = (window as unknown as Record<string, { disconnectRuntimeConfig?: () => Promise<void> }>).desktopAPI;
+                          const daemon = (window as unknown as Record<string, {
+                            setTargetApiUrl?: (u: string) => Promise<void>;
+                            clearToken?: () => Promise<void>;
+                            restart?: () => Promise<unknown>;
+                          }>).daemonAPI;
+                          await dAPI?.disconnectRuntimeConfig?.();
+                          try {
+                            await daemon?.clearToken?.();
+                            await daemon?.setTargetApiUrl?.("");
+                            await daemon?.restart?.();
+                          } catch { /* best effort */ }
                           window.location.reload();
                         }}
                         className="text-destructive"

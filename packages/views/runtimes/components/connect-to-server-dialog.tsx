@@ -53,16 +53,17 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
 
       const data: { token: string; workspace_id: string } = await res.json();
 
-      // Write the daemon token so the local daemon registers against
-      // the remote server and shares its compute. The frontend stays
-      // on the local workspace — this is compute sharing only, not
-      // workspace joining.
+      // Tell daemon-manager the remote URL BEFORE syncToken, so
+      // syncToken writes server_url to the daemon CLI profile.
+      // Frontend stays on local — this is compute sharing only.
       const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-        | { syncToken?: (t: string, u: string) => Promise<void>;
+        | { setTargetApiUrl?: (u: string) => Promise<void>;
+            syncToken?: (t: string, u: string) => Promise<void>;
             restart?: () => Promise<unknown> }
         | undefined;
       if (daemonAPI?.syncToken && data.token) {
         try {
+          await daemonAPI.setTargetApiUrl?.(url);
           await daemonAPI.syncToken(data.token, "");
           await daemonAPI.restart?.();
         } catch { /* best effort */ }
