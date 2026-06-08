@@ -95,6 +95,8 @@ async function loadRemoteConnection(): Promise<RemoteConnection | null> {
 
 async function saveRemoteConnection(conn: RemoteConnection | null): Promise<void> {
   if (conn) {
+    const { mkdir } = await import("fs/promises");
+    await mkdir(join(homedir(), ".rimedeck"), { recursive: true });
     await writeFile(REMOTE_CONNECTION_PATH, JSON.stringify(conn, null, 2));
   } else {
     await rm(REMOTE_CONNECTION_PATH, { force: true });
@@ -383,8 +385,10 @@ if (!gotTheLock) {
     // but doesn't become the API source.
     const savedRemote = await loadRemoteConnection();
 
+    let localBackendUrls: { apiUrl: string; wsUrl: string } | null = null;
     try {
       const localBackend = await setupLocalBackend(updateSplashStatus);
+      localBackendUrls = { apiUrl: localBackend.apiUrl, wsUrl: localBackend.wsUrl };
       if (savedRemote) {
         runtimeConfigResult = {
           ok: true,
@@ -459,13 +463,9 @@ if (!gotTheLock) {
     });
 
     // IPC: switch the runtime config to a remote server or back to local.
-    let localBackendConfig: { apiUrl: string; wsUrl: string } | null = null;
-    if (runtimeConfigResult.ok) {
-      localBackendConfig = {
-        apiUrl: runtimeConfigResult.config.apiUrl,
-        wsUrl: runtimeConfigResult.config.wsUrl,
-      };
-    }
+    // localBackendUrls was captured from setupLocalBackend BEFORE any
+    // remote override, so it always points at the real local address.
+    const localBackendConfig = localBackendUrls;
 
     ipcMain.handle(
       "runtime-config:switch",

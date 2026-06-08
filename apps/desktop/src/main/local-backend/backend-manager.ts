@@ -56,20 +56,16 @@ export async function startBackend(
 
   await waitForHealth(port);
 
-  // On Windows, add a firewall rule so remote devices can connect to
-  // the backend without the user manually disabling the firewall.
-  // Runs best-effort — failures are logged but don't block startup.
+  // On Windows, add a firewall rule so remote devices can connect.
+  // netsh requires admin — use PowerShell Start-Process -Verb RunAs to
+  // trigger a UAC prompt. Best-effort: failures are logged, not fatal.
   if (process.platform === "win32") {
     const ruleName = "RimeDeck Backend";
+    const netshCmd = `netsh advfirewall firewall delete rule name='${ruleName}' >$null 2>&1; netsh advfirewall firewall add rule name='${ruleName}' dir=in action=allow protocol=TCP localport=${port} profile=any`;
     execFile(
-      "netsh",
-      [
-        "advfirewall", "firewall", "add", "rule",
-        `name=${ruleName}`,
-        "dir=in", "action=allow", "protocol=TCP",
-        `localport=${port}`,
-        "profile=private,domain",
-      ],
+      "powershell",
+      ["-Command", `Start-Process powershell -ArgumentList '-Command','${netshCmd.replace(/'/g, "''")}' -Verb RunAs -WindowStyle Hidden -Wait`],
+      { timeout: 30_000 },
       (err) => {
         if (err) {
           console.warn("[local-backend] firewall rule (non-fatal):", err.message);
