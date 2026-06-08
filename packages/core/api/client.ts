@@ -1158,7 +1158,7 @@ export class ApiClient {
     return this.fetch("/api/server-info");
   }
 
-  async redeemInvitation(code: string, deviceName?: string): Promise<{ member: MemberWithUser; workspace_id: string; user_id: string }> {
+  async redeemInvitation(code: string, deviceName?: string): Promise<{ member: MemberWithUser; workspace_id: string; user_id: string; token?: string; auth_token?: string }> {
     return this.fetch("/api/invitations/redeem", {
       method: "POST",
       body: JSON.stringify({ code, device_name: deviceName ?? "" }),

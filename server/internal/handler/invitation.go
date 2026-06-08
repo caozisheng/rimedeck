@@ -689,6 +689,14 @@ func (h *Handler) RedeemInvitation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Issue a JWT so the remote frontend can authenticate as this user.
+	var authToken string
+	if tokenStr, err := h.issueJWT(user); err != nil {
+		slog.Warn("redeem invitation: JWT issuance failed", "error", err)
+	} else {
+		authToken = tokenStr
+	}
+
 	slog.Info("invitation redeemed via code", "code", code, "user_id", uuidToString(user.ID), "workspace_id", uuidToString(accepted.WorkspaceID))
 
 	wsID := uuidToString(accepted.WorkspaceID)
@@ -706,6 +714,9 @@ func (h *Handler) RedeemInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	if daemonToken != "" {
 		resp["token"] = daemonToken
+	}
+	if authToken != "" {
+		resp["auth_token"] = authToken
 	}
 	writeJSON(w, http.StatusOK, resp)
 }

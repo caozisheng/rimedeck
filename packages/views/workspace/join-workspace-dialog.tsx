@@ -52,7 +52,7 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         throw new Error(body || `${redeemRes.status} ${redeemRes.statusText}`);
       }
 
-      const data: { token?: string; workspace_id?: string } =
+      const data: { token?: string; auth_token?: string; workspace_id?: string } =
         await redeemRes.json();
 
       // Switch the frontend API to the remote server.
@@ -63,6 +63,12 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
       if (desktopAPI?.switchRuntimeConfig) {
         const wsUrl = url.replace(/^http/, "ws") + "/ws";
         await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
+      }
+
+      // Store the remote server's JWT so the post-reload auth
+      // initializer authenticates against the remote server.
+      if (data.auth_token) {
+        localStorage.setItem("multica_token", data.auth_token);
       }
 
       // Tell daemon-manager the remote URL BEFORE syncToken, so

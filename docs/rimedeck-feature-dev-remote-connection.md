@@ -542,14 +542,15 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 |------|-----------|-----------|
 | 1. 入口 | 设置 → 成员 → "邀请成员" → 生成邀请码 | 侧边栏工作区菜单 → "加入工作区" → `JoinWorkspaceDialog` |
 | 2. 邀请 | 显示 6 位邀请码 + 服务器地址 | 输入服务器地址 + 邀请码 |
-| 3. 赎回 | `POST /api/invitations/redeem` → 创建 user + member + 返回 `mdt_*` token | 收到 `{ member, workspace_id, user_id, token }` |
+| 3. 赎回 | `POST /api/invitations/redeem` → 创建 user + member + 返回 `mdt_*` token + JWT | 收到 `{ member, workspace_id, user_id, token, auth_token }` |
 | 4. 前端切换 | — | `switchRuntimeConfig({ apiUrl, wsUrl })` → 前端指向远端 server |
-| 5. Daemon 配置 | — | `setTargetApiUrl(url)` → `syncToken(mdt_token)` → `restart()` |
-| 6. Daemon 注册 | 收到 `daemon:register` 事件 | Daemon 用 token + server_url 注册 |
-| 7. 页面刷新 | 成员列表更新；邀请状态变为"已接受" | `window.location.reload()` → 前端加载远端工作区 |
+| 5. 存储 JWT | — | `localStorage.setItem("multica_token", auth_token)` → 覆盖本机 JWT |
+| 6. Daemon 配置 | — | `setTargetApiUrl(url)` → `syncToken(mdt_token)` → `restart()` |
+| 7. Daemon 注册 | 收到 `daemon:register` 事件 | Daemon 用 token + server_url 注册 |
+| 8. 页面刷新 | 成员列表更新；邀请状态变为"已接受" | `window.location.reload()` → 前端加载远端工作区 |
 
 **关键文件**：
-- `server/internal/handler/invitation.go` — `RedeemInvitation()` 赎回端点（含 daemon token 生成 + `invitation:accepted` 事件广播）
+- `server/internal/handler/invitation.go` — `RedeemInvitation()` 赎回端点（含 daemon token 生成 + JWT 签发 + `invitation:accepted` 事件广播）
 - `packages/views/workspace/join-workspace-dialog.tsx` — Client 端对话框
 - `packages/views/layout/app-sidebar.tsx` — "断开远程连接"菜单项
 - `apps/desktop/src/main/index.ts` — `loadRemoteConfig()` / `saveRemoteConfig()` 持久化
@@ -561,10 +562,8 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 | 前端 URL | 本地（不变） | **远端 server**（完整工作区 UI） |
 | daemon 连接 | 本地 | **远端 server**（共享算力） |
 | 数据库 | `user` + `member` + `daemon_token` + `agent_runtime` 新增 | 不变 |
-| 磁盘持久化 | — | `~/.rimedeck/remote_connection.json`（前端 URL）；daemon profile config（`server_url` + `token`） |
-| 重启后 | 不变 | 前端从 `remote_connection.json` 恢复远端 URL；daemon 从 profile config 自动重连 |
-
-**注意**：RedeemInvitation 不返回 JWT（前端认证依赖本地 auth store 的 token）。当前设计中远端 Desktop 的前端认证需要通过本地 auth 流程完成。
+| 磁盘持久化 | — | `~/.rimedeck/remote_connection.json`（前端 URL）；`localStorage` 中的 JWT；daemon profile config（`server_url` + `token`） |
+| 重启后 | 不变 | 前端从 `remote_connection.json` 恢复远端 URL；auth store 从 `localStorage` 读取远端 JWT 自动认证；daemon 从 profile config 自动重连 |
 
 #### 断开
 
@@ -599,7 +598,45 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 - **网络闪断**：前端 WebSocket 自动重连（`use-realtime-sync.ts`）；daemon 心跳 + WS 退避自动恢复
 - **Client 重启**：前端从 `remote_connection.json` 恢复远端 URL；daemon 从 profile config 读 `server_url` + `token` 自动注册
 - **Server 重启**：daemon `handleRuntimeGone` → 重注册 → `RecoverOrphans`；前端 WebSocket 重连
-- **Token 过期**（365天后）：需重新邀请加入
+- **JWT 过期**（默认 30 天）：前端 auth store 收到 401 → 清除 token → 用户被登出。需重新邀请加入
+- **Daemon token 过期**（365天后）：daemon 心跳认证失败，需重新邀请加入
+
+---
+
+### 认证闭环：赎回时签发 JWT
+
+**问题**：每个 Desktop 实例在首次启动时生成独立的随机 JWT secret（`local-backend/config.ts` — `randomBytes(32)`）。机器 A 签发的 JWT 在机器 B 的 server 上**必定验签失败**。如果 `RedeemInvitation` 不签发 JWT，远端用户 reload 后 localStorage 中的本机 JWT 在远端 server 上 401，无法操作工作区。
+
+**方案**：`RedeemInvitation` 在创建 user + member 后，调用 `issueJWT(user)` 签发由远端 server 自己密钥签名的 JWT，通过 `auth_token` 字段返回。前端在 `switchRuntimeConfig` 之后、reload 之前，将此 JWT 写入 `localStorage`，覆盖本机 JWT。
+
+**时序**：
+```
+1. fetch POST <remote>/api/invitations/redeem
+   → { token: "mdt_*", auth_token: "<jwt>", member, workspace_id, user_id }
+2. switchRuntimeConfig({ apiUrl, wsUrl })   → 主进程指向远端
+3. localStorage.setItem("multica_token", auth_token)  → 覆盖本机 JWT
+4. daemonAPI.setTargetApiUrl(url) + syncToken(mdt_*) + restart()
+5. window.location.reload()
+   → runtime-config:get → 远端 URL
+   → initCore(remoteUrl) → 新 ApiClient
+   → localStorage 读到远端 JWT → api.setToken()
+   → api.getMe() 成功 → 用户已认证为被邀请者身份
+```
+
+**用户身份**：远端用户操作工作区时，使用的是赎回时在 Server DB 上新建的用户身份，而非 Server 本机 owner 或远端机器的本地用户。三者完全独立：
+
+| 身份 | 存在于哪个 DB | 用途 |
+|------|-------------|------|
+| Server 本机 owner | Server DB | 本机操作工作区 |
+| 赎回时新建的 user（`<code>@local.rimedeck`） | Server DB | 远端用户操作该工作区 |
+| 远端机器本地 user | 远端机器本地 DB | 远端用户操作自己本地的工作区 |
+
+JWT 的 `sub` claim 写的是赎回时新建 user 的 UUID，Auth middleware 据此设置 `X-User-ID`，所有 API 操作（创建 issue、操作 agent 等）均归属该身份。
+
+**设计决策**：
+- 不调用 `SetAuthCookies`：Electron 渲染进程从 `localhost` 发请求到远端 IP，`SameSite: Strict` cookie 不会被发送。Desktop 统一用 `localStorage` token 模式
+- JWT 签发失败不阻断请求（member 已创建），只 log warning
+- `auth_token` 字段名与 `token`（daemon token `mdt_*`）区分
 
 ---
 
@@ -616,6 +653,6 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 ### 已知限制
 
 1. **Flow 1 无 Client 端断开 UI**：共享算力后，Client 没有"停止共享"按钮，需手动停 daemon 或清 config
-2. **RedeemInvitation 不返回 JWT**：Client 前端的用户认证需要通过本地 auth store 完成，远端工作区的 API 请求可能需要额外的认证流程
+2. **JWT 过期无刷新机制**：赎回时签发的 JWT 默认 30 天过期。过期后远端用户被登出，只能通过新邀请码重新加入。未来可考虑 token refresh 端点
 3. **成员记录不自动清理**：断开后 Server 端的 member 行保留，需管理员手动移除
 4. **单 daemon 单 server**：daemon 一次只能连一个 server（本地或远端），不支持同时服务多个 server
