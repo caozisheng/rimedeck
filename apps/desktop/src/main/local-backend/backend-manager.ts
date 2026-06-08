@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execFile, type ChildProcess } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -55,6 +55,30 @@ export async function startBackend(
   });
 
   await waitForHealth(port);
+
+  // On Windows, add a firewall rule so remote devices can connect to
+  // the backend without the user manually disabling the firewall.
+  // Runs best-effort — failures are logged but don't block startup.
+  if (process.platform === "win32") {
+    const ruleName = "RimeDeck Backend";
+    execFile(
+      "netsh",
+      [
+        "advfirewall", "firewall", "add", "rule",
+        `name=${ruleName}`,
+        "dir=in", "action=allow", "protocol=TCP",
+        `localport=${port}`,
+        "profile=private,domain",
+      ],
+      (err) => {
+        if (err) {
+          console.warn("[local-backend] firewall rule (non-fatal):", err.message);
+        } else {
+          console.log(`[local-backend] firewall rule added for port ${port}`);
+        }
+      },
+    );
+  }
 
   const apiUrl = `http://127.0.0.1:${port}`;
   const wsUrl = `ws://127.0.0.1:${port}/ws`;

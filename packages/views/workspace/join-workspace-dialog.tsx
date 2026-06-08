@@ -35,13 +35,22 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
       const base = serverUrl.trim().replace(/\/+$/, "");
       const url = base.startsWith("http") ? base : `http://${base}`;
 
+      // Resolve the local machine's hostname for a meaningful member name.
+      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
+        | { syncToken?: (token: string, userId: string) => Promise<void>;
+            restart?: () => Promise<unknown>;
+            getHostName?: () => Promise<string> }
+        | undefined;
+      let hostName = "";
+      try { hostName = (await daemonAPI?.getHostName?.()) ?? ""; } catch { /* ignore */ }
+
       // Redeem the invite code on the remote server.
       const redeemRes = await fetch(`${url}/api/invitations/redeem`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: inviteCode.trim().toUpperCase(),
-          device_name: "",
+          device_name: hostName,
         }),
       });
 
@@ -63,10 +72,6 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
 
       // 2. Write the daemon token to the CLI profile so the daemon can
       //    authenticate against the remote server after restart.
-      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-        | { syncToken?: (token: string, userId: string) => Promise<void>;
-            restart?: () => Promise<unknown> }
-        | undefined;
       if (daemonAPI?.syncToken && data.token) {
         await daemonAPI.syncToken(data.token, "");
         await daemonAPI.restart?.();
