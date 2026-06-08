@@ -180,13 +180,6 @@ export function RuntimesPage({
     filteredMachines[0] ??
     null;
 
-  if (isLoading || fetching) return <RuntimesPageSkeleton />;
-
-  const totalCount = runtimes.length;
-  // Desktop always has a synthesized local machine row, so the
-  // "register a runtime" empty state would hide the Start button.
-  const showEmpty = totalCount === 0 && !bootstrapping && !hasLocalMachine;
-
   const [sharingRemote, setSharingRemote] = useState<string | null>(() => {
     try {
       const raw = localStorage.getItem("rimedeck_remote_server");
@@ -209,6 +202,13 @@ export function RuntimesPage({
     localStorage.removeItem("rimedeck_remote_server");
     setSharingRemote(null);
   }, []);
+
+  if (isLoading || fetching) return <RuntimesPageSkeleton />;
+
+  const totalCount = runtimes.length;
+  // Desktop always has a synthesized local machine row, so the
+  // "register a runtime" empty state would hide the Start button.
+  const showEmpty = totalCount === 0 && !bootstrapping && !hasLocalMachine;
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
