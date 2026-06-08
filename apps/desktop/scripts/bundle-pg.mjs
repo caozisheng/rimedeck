@@ -90,9 +90,75 @@ try {
   await mkdir(dirname(destDir), { recursive: true });
   await cp(extractedPgsql, destDir, { recursive: true });
 
-  // macOS: ad-hoc codesign PG binaries to avoid Gatekeeper issues
+  // macOS: rewrite dylib paths from absolute Homebrew/EDB paths to
+  // @executable_path/../lib/ so the bundled binaries find their libs
+  // inside the app bundle instead of /opt/homebrew/... or /Library/...
+  if (targetPlatform === "darwin") {
+    const libDir = join(destDir, "lib");
+    const binDir = join(destDir, "bin");
+    const bins = ["pg_ctl", "initdb", "createdb", "pg_isready", "postgres", "psql"];
+    for (const bin of bins) {
+      const binPath = join(binDir, bin);
+      if (!existsSync(binPath)) continue;
+      try {
+        const otoolOut = execFileSync("otool", ["-L", binPath], { encoding: "utf-8" });
+        for (const line of otoolOut.split("\n")) {
+          const match = line.trim().match(/^(.+\.dylib)\s/);
+          if (!match) continue;
+          const dep = match[1];
+          // Only rewrite absolute paths (not @executable_path, @rpath, /usr/lib)
+          if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
+          const libName = dep.split("/").pop();
+          const localLib = join(libDir, libName);
+          if (existsSync(localLib)) {
+            execFileSync("install_name_tool", [
+              "-change", dep, `@executable_path/../lib/${libName}`, binPath,
+            ], { stdio: "pipe" });
+          }
+        }
+      } catch (err) {
+        console.warn(`[bundle-pg] rewrite dylib for ${bin} (non-fatal):`, err.message);
+      }
+    }
+    // Also fix dylibs that reference other dylibs with absolute paths
+    try {
+      const { readdirSync } = await import("node:fs");
+      for (const libFile of readdirSync(libDir)) {
+        if (!libFile.endsWith(".dylib")) continue;
+        const libPath = join(libDir, libFile);
+        try {
+          // Fix the install name of the lib itself
+          execFileSync("install_name_tool", [
+            "-id", `@executable_path/../lib/${libFile}`, libPath,
+          ], { stdio: "pipe" });
+          // Fix references to other libs
+          const otoolOut = execFileSync("otool", ["-L", libPath], { encoding: "utf-8" });
+          for (const line of otoolOut.split("\n")) {
+            const match = line.trim().match(/^(.+\.dylib)\s/);
+            if (!match) continue;
+            const dep = match[1];
+            if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
+            const depName = dep.split("/").pop();
+            const localDep = join(libDir, depName);
+            if (existsSync(localDep)) {
+              execFileSync("install_name_tool", [
+                "-change", dep, `@executable_path/../lib/${depName}`, libPath,
+              ], { stdio: "pipe" });
+            }
+          }
+        } catch {
+          // Non-fatal per-lib
+        }
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  // macOS: ad-hoc codesign PG binaries + libs to avoid Gatekeeper issues
+  // (must run AFTER install_name_tool — codesign invalidates on modification)
   if (process.platform === "darwin" && targetPlatform === "darwin") {
-    const bins = ["pg_ctl", "initdb", "createdb", "pg_isready", "postgres"];
+    const bins = ["pg_ctl", "initdb", "createdb", "pg_isready", "postgres", "psql"];
     for (const bin of bins) {
       const binPath = join(destDir, "bin", bin);
       if (existsSync(binPath)) {
@@ -103,6 +169,16 @@ try {
         }
       }
     }
+    // Codesign dylibs too
+    try {
+      const { readdirSync } = await import("node:fs");
+      for (const f of readdirSync(join(destDir, "lib"))) {
+        if (!f.endsWith(".dylib")) continue;
+        try {
+          execFileSync("codesign", ["-s", "-", "--force", join(destDir, "lib", f)], { stdio: "pipe" });
+        } catch { /* non-fatal */ }
+      }
+    } catch { /* non-fatal */ }
   }
 
   console.log(`[bundle-pg] PostgreSQL ${PG_VERSION} bundled at ${destDir}`);
