@@ -53,29 +53,26 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
 
       const data: { token: string; workspace_id: string } = await res.json();
 
-      // Switch the frontend to the remote server.
-      const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
-        | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string }) => Promise<void> }
+      // Write the daemon token so the local daemon registers against
+      // the remote server and shares its compute. The frontend stays
+      // on the local workspace — this is compute sharing only, not
+      // workspace joining.
+      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
+        | { syncToken?: (t: string, u: string) => Promise<void>;
+            restart?: () => Promise<unknown> }
         | undefined;
-      if (desktopAPI?.switchRuntimeConfig) {
-        const wsUrl = url.replace(/^http/, "ws") + "/ws";
-        await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl });
+      if (daemonAPI?.syncToken && data.token) {
+        try {
+          await daemonAPI.syncToken(data.token, "");
+          await daemonAPI.restart?.();
+        } catch { /* best effort */ }
       }
 
-      // Write the daemon token so the local daemon registers against
-      // the remote server (sharing compute).
-      if (data.token) {
-        const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-          | { syncToken?: (t: string, u: string) => Promise<void>;
-              restart?: () => Promise<unknown> }
-          | undefined;
-        if (daemonAPI?.syncToken) {
-          try {
-            await daemonAPI.syncToken(data.token, "");
-            await daemonAPI.restart?.();
-          } catch { /* best effort */ }
-        }
-      }
+      // Persist for reference (daemon already has the token in its profile).
+      localStorage.setItem(
+        "rimedeck_remote_server",
+        JSON.stringify({ url, token: data.token, workspaceId: data.workspace_id }),
+      );
 
       setStep("success");
     } catch (e) {
