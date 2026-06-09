@@ -9,16 +9,23 @@ import (
 	"time"
 )
 
-const wslResolveTimeout = 5 * time.Second
+const wslResolveTimeout = 8 * time.Second
+const wslResolveWaitDelay = 3 * time.Second
 
-// resolveAgentsViaWSL asks the default WSL distro to resolve each command name
-// in names to its canonical absolute path. It returns a map of name → linux-path
-// for whatever WSL could find, and an empty/nil map when WSL is unavailable,
-// unconfigured, or produces no usable output.
+// resolveAgentsViaWSL asks the default WSL distro's login shell to resolve
+// each command name in names to its canonical absolute path. It returns a map
+// of name → path for whatever WSL could find, and an empty/nil map when WSL
+// is unavailable, unconfigured, or produces no usable output.
 //
-// This is the Windows-only counterpart of resolveAgentsViaLoginShell: the login-
-// shell resolver relies on $SHELL which is empty on Windows, while this function
-// reaches into WSL where npm-installed CLIs (claude, codex, …) commonly live.
+// This is the Windows-only counterpart of resolveAgentsViaLoginShell: the
+// login-shell resolver relies on $SHELL which is empty on Windows, while this
+// function reaches into WSL where npm-installed CLIs (claude, codex, …)
+// commonly live.
+//
+// Key design: we invoke `bash -ilc <script>` inside WSL so .bashrc / .profile
+// are sourced, which is where nvm/fnm/volta add their bin dirs to PATH. A
+// plain `sh -c` would miss these entirely — the root cause of the original
+// "not found" reports.
 func resolveAgentsViaWSL(names []string) map[string]string {
 	if len(names) == 0 {
 		return nil
@@ -29,8 +36,7 @@ func resolveAgentsViaWSL(names []string) map[string]string {
 		return nil
 	}
 
-	// Verify a usable default distro exists. `wsl.exe -e true` exits 0 when
-	// a default distro is registered and boots successfully.
+	// Verify a usable default distro exists.
 	probeCtx, probeCancel := context.WithTimeout(context.Background(), wslResolveTimeout)
 	defer probeCancel()
 	if err := exec.CommandContext(probeCtx, wslExe, "-e", "true").Run(); err != nil {
@@ -51,9 +57,24 @@ func resolveAgentsViaWSL(names []string) map[string]string {
 	defer cancel()
 
 	script := buildWSLResolveScript(safe)
-	cmd := exec.CommandContext(ctx, wslExe, "--", "sh", "-c", script)
-	raw, err := cmd.Output()
-	if err != nil {
+
+	// Try bash first (most common WSL default), fall back to the distro's
+	// default shell via plain `sh -lc` (login, but not interactive — some
+	// distros have a minimal default shell).
+	var raw []byte
+	for _, argv := range [][]string{
+		{wslExe, "--", "bash", "-ilc", script},
+		{wslExe, "--", "sh", "-lc", script},
+	} {
+		cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+		cmd.WaitDelay = wslResolveWaitDelay
+		out, err := cmd.Output()
+		if err == nil && len(out) > 0 {
+			raw = out
+			break
+		}
+	}
+	if len(raw) == 0 {
 		return nil
 	}
 
@@ -72,9 +93,11 @@ func resolveAgentsViaWSL(names []string) map[string]string {
 	return out
 }
 
-// buildWSLResolveScript returns a POSIX shell script that resolves each command
-// to its absolute path inside WSL, printing name<TAB>path per line. Mirrors the
-// login-shell script but omits unalias/unset (WSL shells start non-interactive).
+// buildWSLResolveScript returns a POSIX shell script that resolves each
+// command to its canonical absolute path inside WSL. It mirrors the native
+// resolveAgentsViaLoginShell script: unalias + unset -f to see past aliases
+// and shell functions, then command -v for the real binary, then pwd -P to
+// chase symlinks (nvm/fnm multishell dirs vanish on shell exit).
 func buildWSLResolveScript(names []string) string {
 	var b strings.Builder
 	b.WriteString("for n in")
@@ -83,10 +106,13 @@ func buildWSLResolveScript(names []string) string {
 		b.WriteString(n)
 	}
 	b.WriteString("; do\n")
+	b.WriteString("  unalias \"$n\" 2>/dev/null\n")
+	b.WriteString("  unset -f \"$n\" 2>/dev/null\n")
 	b.WriteString("  p=$(command -v \"$n\" 2>/dev/null) || continue\n")
 	b.WriteString("  [ -n \"$p\" ] || continue\n")
 	b.WriteString("  case \"$p\" in /*) ;; *) continue ;; esac\n")
-	b.WriteString("  printf '%s\\t%s\\n' \"$n\" \"$p\"\n")
+	b.WriteString("  d=$(dirname \"$p\") && f=$(basename \"$p\") && c=$(cd \"$d\" 2>/dev/null && pwd -P) || continue\n")
+	b.WriteString("  printf '%s\\t%s\\n' \"$n\" \"$c/$f\"\n")
 	b.WriteString("done\n")
 	return b.String()
 }
