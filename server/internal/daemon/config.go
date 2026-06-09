@@ -209,6 +209,17 @@ func LoadConfig(overrides Overrides) (Config, error) {
 				Model: strings.TrimSpace(os.Getenv(modelEnv)),
 			}, true
 		}
+		// Windows npm global directory fallback: Electron-launched daemons
+		// often miss %APPDATA%\npm in their PATH. This also catches the
+		// common case where users run `npm install -g` inside WSL but WSL's
+		// npm is actually the Windows host npm (via PATH interop), so the
+		// .cmd shim lands on the Windows filesystem, not inside WSL.
+		if p := resolveAgentViaNpmGlobal(cmd); p != "" {
+			return AgentEntry{
+				Path:  p,
+				Model: strings.TrimSpace(os.Getenv(modelEnv)),
+			}, true
+		}
 		if defaultCmd == "codex" && cmd == defaultCmd {
 			// Codex Desktop bundles its CLI inside the macOS app instead of
 			// installing it onto PATH.

@@ -4,7 +4,9 @@ package daemon
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -135,4 +137,45 @@ func wslPathExists(path string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	return exec.CommandContext(ctx, wslExe, "-e", "test", "-x", path).Run() == nil
+}
+
+// npmGlobalBinPaths returns well-known Windows directories where npm (and
+// pnpm/yarn) install global CLI shims. Electron-launched daemon processes
+// often miss these because the user's PATH wasn't fully inherited.
+//
+// When users run `npm install -g @anthropic-ai/claude-code` inside WSL but
+// WSL's npm is actually the Windows host npm (via PATH interop), the .cmd
+// shim lands here — not inside the WSL filesystem.
+func npmGlobalBinPaths() []string {
+	var dirs []string
+	if appdata := os.Getenv("APPDATA"); appdata != "" {
+		dirs = append(dirs, filepath.Join(appdata, "npm"))
+	}
+	if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+		dirs = append(dirs, filepath.Join(localAppData, "pnpm"))
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs,
+			filepath.Join(home, ".volta", "bin"),
+			filepath.Join(home, "scoop", "shims"),
+		)
+	}
+	return dirs
+}
+
+// resolveAgentViaNpmGlobal searches well-known Windows npm global bin
+// directories for a .cmd shim matching the given command name. Returns
+// the absolute path to the .cmd file, or "" if not found.
+func resolveAgentViaNpmGlobal(cmd string) string {
+	for _, dir := range npmGlobalBinPaths() {
+		// npm creates <name>.cmd on Windows; also check extensionless
+		// (npm creates a bash shim alongside the .cmd).
+		for _, name := range []string{cmd + ".cmd", cmd} {
+			p := filepath.Join(dir, name)
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				return p
+			}
+		}
+	}
+	return ""
 }
