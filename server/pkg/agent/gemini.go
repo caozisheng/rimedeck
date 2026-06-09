@@ -22,7 +22,11 @@ func (b *geminiBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	if execPath == "" {
 		execPath = "gemini"
 	}
-	if _, err := exec.LookPath(execPath); err != nil {
+	if b.cfg.IsWSL {
+		if err := wslLookPath(execPath); err != nil {
+			return nil, fmt.Errorf("gemini executable not found in WSL at %q: %w", execPath, err)
+		}
+	} else if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("gemini executable not found at %q: %w", execPath, err)
 	}
 
@@ -31,14 +35,19 @@ func (b *geminiBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 
 	args := buildGeminiArgs(prompt, opts, b.cfg.Logger)
 
-	cmd := exec.CommandContext(runCtx, execPath, args...)
-	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args)
-	cmd.WaitDelay = 10 * time.Second
-	if opts.Cwd != "" {
-		cmd.Dir = opts.Cwd
+	var cmd *exec.Cmd
+	if b.cfg.IsWSL {
+		cmd = wslCommand(runCtx, execPath, args, opts.Cwd, b.cfg.Env)
+	} else {
+		cmd = exec.CommandContext(runCtx, execPath, args...)
+		if opts.Cwd != "" {
+			cmd.Dir = opts.Cwd
+		}
+		cmd.Env = buildGeminiEnv(b.cfg.Env)
 	}
-	cmd.Env = buildGeminiEnv(b.cfg.Env)
+	hideAgentWindow(cmd)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args, "wsl", b.cfg.IsWSL)
+	cmd.WaitDelay = 10 * time.Second
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

@@ -6,6 +6,7 @@ import "encoding/json"
 type AgentEntry struct {
 	Path  string // path to CLI binary
 	Model string // model override (optional)
+	IsWSL bool   // true when the CLI was discovered inside WSL (Windows only)
 }
 
 // Runtime represents a registered daemon runtime.

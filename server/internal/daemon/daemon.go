@@ -735,7 +735,13 @@ func (d *Daemon) registerRuntimesForWorkspace(ctx context.Context, workspaceID s
 	d.logger.Debug("registering runtimes for workspace", "workspace_id", workspaceID, "agent_count", len(d.cfg.Agents))
 	var runtimes []map[string]string
 	for name, entry := range d.cfg.Agents {
-		version, err := detectAgentVersion(ctx, entry.Path)
+		var version string
+		var err error
+		if entry.IsWSL {
+			version, err = agent.DetectVersionWSL(ctx, entry.Path)
+		} else {
+			version, err = detectAgentVersion(ctx, entry.Path)
+		}
 		if err != nil {
 			d.logger.Warn("skip registering runtime", "name", name, "error", err)
 			continue
@@ -1442,6 +1448,14 @@ func (d *Daemon) handleModelList(ctx context.Context, rt Runtime, requestID stri
 		return
 	}
 
+	if entry.IsWSL {
+		d.logger.Info("model list: skipping discovery for WSL agent", "provider", rt.Provider)
+		d.reportModelListResult(ctx, rt, requestID, map[string]any{
+			"status": "ok",
+			"models": []any{},
+		})
+		return
+	}
 	models, err := agent.ListModels(ctx, rt.Provider, entry.Path)
 	if err != nil {
 		d.reportModelListResult(ctx, rt, requestID, map[string]any{
@@ -2730,6 +2744,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		ExecutablePath: entry.Path,
 		Env:            agentEnv,
 		Logger:         d.logger,
+		IsWSL:          entry.IsWSL,
 	})
 	if err != nil {
 		return TaskResult{}, fmt.Errorf("create agent backend: %w", err)

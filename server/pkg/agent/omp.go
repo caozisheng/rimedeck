@@ -26,9 +26,14 @@ func (b *ompBackend) Execute(ctx context.Context, prompt string, opts ExecOption
 	if execName == "" {
 		execName = "omp"
 	}
-	lookedUp, err := exec.LookPath(execName)
-	if err != nil {
-		return nil, fmt.Errorf("omp executable not found at %q: %w", execName, err)
+	if b.cfg.IsWSL {
+		if err := wslLookPath(execName); err != nil {
+			return nil, fmt.Errorf("omp executable not found in WSL at %q: %w", execName, err)
+		}
+	} else {
+		if _, err := exec.LookPath(execName); err != nil {
+			return nil, fmt.Errorf("omp executable not found at %q: %w", execName, err)
+		}
 	}
 
 	timeout := opts.Timeout
@@ -51,16 +56,23 @@ func (b *ompBackend) Execute(ctx context.Context, prompt string, opts ExecOption
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 
 	args := buildOmpArgs(prompt, sessionPath, opts, b.cfg.Logger)
-	argv0, cmdArgs := chooseOmpInvocation(execName, lookedUp, args, b.cfg.Logger)
 
-	cmd := exec.CommandContext(runCtx, argv0, cmdArgs...)
-	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", argv0, "args", cmdArgs)
-	cmd.WaitDelay = 10 * time.Second
-	if opts.Cwd != "" {
-		cmd.Dir = opts.Cwd
+	var cmd *exec.Cmd
+	if b.cfg.IsWSL {
+		cmd = wslCommand(runCtx, execName, args, opts.Cwd, b.cfg.Env)
+		b.cfg.Logger.Info("agent command", "exec", execName, "args", args, "wsl", true)
+	} else {
+		lookedUp, _ := exec.LookPath(execName)
+		argv0, cmdArgs := chooseOmpInvocation(execName, lookedUp, args, b.cfg.Logger)
+		cmd = exec.CommandContext(runCtx, argv0, cmdArgs...)
+		if opts.Cwd != "" {
+			cmd.Dir = opts.Cwd
+		}
+		cmd.Env = buildEnv(b.cfg.Env)
+		b.cfg.Logger.Info("agent command", "exec", argv0, "args", cmdArgs)
 	}
-	cmd.Env = buildEnv(b.cfg.Env)
+	hideAgentWindow(cmd)
+	cmd.WaitDelay = 10 * time.Second
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

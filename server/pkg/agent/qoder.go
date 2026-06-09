@@ -35,7 +35,11 @@ func (b *qoderBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	if execPath == "" {
 		execPath = "qoder"
 	}
-	if _, err := exec.LookPath(execPath); err != nil {
+	if b.cfg.IsWSL {
+		if err := wslLookPath(execPath); err != nil {
+			return nil, fmt.Errorf("qoder executable not found in WSL at %q: %w", execPath, err)
+		}
+	} else if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("qoder executable not found at %q: %w", execPath, err)
 	}
 
@@ -48,13 +52,18 @@ func (b *qoderBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	runCtx, cancel := runContext(ctx, timeout)
 
 	qoderArgs := append([]string{"acp"}, filterCustomArgs(opts.CustomArgs, qoderBlockedArgs, b.cfg.Logger)...)
-	cmd := exec.CommandContext(runCtx, execPath, qoderArgs...)
-	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", qoderArgs)
-	if opts.Cwd != "" {
-		cmd.Dir = opts.Cwd
+	var cmd *exec.Cmd
+	if b.cfg.IsWSL {
+		cmd = wslCommand(runCtx, execPath, qoderArgs, opts.Cwd, b.cfg.Env)
+	} else {
+		cmd = exec.CommandContext(runCtx, execPath, qoderArgs...)
+		if opts.Cwd != "" {
+			cmd.Dir = opts.Cwd
+		}
+		cmd.Env = buildEnv(b.cfg.Env)
 	}
-	cmd.Env = buildEnv(b.cfg.Env)
+	hideAgentWindow(cmd)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", qoderArgs, "wsl", b.cfg.IsWSL)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

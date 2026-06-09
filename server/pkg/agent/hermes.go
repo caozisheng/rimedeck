@@ -41,7 +41,11 @@ func (b *hermesBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	if execPath == "" {
 		execPath = "hermes"
 	}
-	if _, err := exec.LookPath(execPath); err != nil {
+	if b.cfg.IsWSL {
+		if err := wslLookPath(execPath); err != nil {
+			return nil, fmt.Errorf("hermes executable not found in WSL at %q: %w", execPath, err)
+		}
+	} else if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("hermes executable not found at %q: %w", execPath, err)
 	}
 
@@ -58,13 +62,29 @@ func (b *hermesBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	runCtx, cancel := runContext(ctx, timeout)
 
 	hermesArgs := append([]string{"acp"}, filterCustomArgs(opts.CustomArgs, hermesBlockedArgs, b.cfg.Logger)...)
-	cmd := exec.CommandContext(runCtx, execPath, hermesArgs...)
+	hermesEnv := b.cfg.Env
+	if hermesEnv == nil {
+		hermesEnv = map[string]string{}
+	}
+	hermesEnv["HERMES_YOLO_MODE"] = "1"
+
+	var cmd *exec.Cmd
+	if b.cfg.IsWSL {
+		cmd = wslCommand(runCtx, execPath, hermesArgs, opts.Cwd, hermesEnv)
+	} else {
+		cmd = exec.CommandContext(runCtx, execPath, hermesArgs...)
+		if opts.Cwd != "" {
+			cmd.Dir = opts.Cwd
+		}
+		env := buildEnv(b.cfg.Env)
+		env = append(env, "HERMES_YOLO_MODE=1")
+		cmd.Env = env
+	}
 	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", hermesArgs)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", hermesArgs, "wsl", b.cfg.IsWSL)
 	agentsMDPresent := false
 	if opts.Cwd != "" {
-		cmd.Dir = opts.Cwd
-		if _, err := os.Stat(filepath.Join(opts.Cwd, "AGENTS.md")); err == nil {
+		if _, statErr := os.Stat(filepath.Join(opts.Cwd, "AGENTS.md")); statErr == nil {
 			agentsMDPresent = true
 		}
 	}
@@ -72,11 +92,6 @@ func (b *hermesBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	if opts.SystemPrompt != "" {
 		b.cfg.Logger.Debug("hermes ignoring ExecOptions.SystemPrompt; using cwd-scoped context files", "cwd", opts.Cwd)
 	}
-
-	env := buildEnv(b.cfg.Env)
-	// Enable yolo mode so Hermes auto-approves all tool executions.
-	env = append(env, "HERMES_YOLO_MODE=1")
-	cmd.Env = env
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

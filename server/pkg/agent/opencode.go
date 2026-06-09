@@ -34,31 +34,28 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if execPath == "" {
 		execPath = "opencode"
 	}
-	resolved, err := exec.LookPath(execPath)
-	if err != nil {
-		return nil, fmt.Errorf("opencode executable not found at %q: %w", execPath, err)
-	}
-	if runtime.GOOS == "windows" {
-		if native := resolveOpenCodeNativeFromShim(resolved, os.Stat); native != "" {
-			b.cfg.Logger.Info("opencode resolved to native binary to avoid .cmd shim argv truncation", "shim", resolved, "native", native)
-			resolved = native
+	if b.cfg.IsWSL {
+		if err := wslLookPath(execPath); err != nil {
+			return nil, fmt.Errorf("opencode executable not found in WSL at %q: %w", execPath, err)
 		}
+	} else {
+		resolved, err := exec.LookPath(execPath)
+		if err != nil {
+			return nil, fmt.Errorf("opencode executable not found at %q: %w", execPath, err)
+		}
+		if runtime.GOOS == "windows" {
+			if native := resolveOpenCodeNativeFromShim(resolved, os.Stat); native != "" {
+				b.cfg.Logger.Info("opencode resolved to native binary to avoid .cmd shim argv truncation", "shim", resolved, "native", native)
+				resolved = native
+			}
+		}
+		execPath = resolved
 	}
-	execPath = resolved
 
 	timeout := opts.Timeout
 	runCtx, cancel := runContext(ctx, timeout)
 
 	args := []string{"run", "--format", "json", "--dangerously-skip-permissions"}
-	// Anchor OpenCode's project discovery (AGENTS.md walk-up + .opencode/skills/
-	// project config scan) at the task workdir. Without this, OpenCode falls
-	// back to PWD (inherited from the daemon process) or process.cwd(), which
-	// in self-host deployments can resolve to the user's shell working
-	// directory and silently bypass the per-task workdir — agents lose
-	// visibility into their assigned skills and AGENTS.md instructions.
-	// PWD is also overridden below because OpenCode prefers PWD over cwd when
-	// `--dir` is absent and uses it as the starting point for any further
-	// path resolution.
 	if opts.Cwd != "" {
 		args = append(args, "--dir", opts.Cwd)
 	}
@@ -80,53 +77,37 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	args = append(args, filterCustomArgs(opts.CustomArgs, opencodeBlockedArgs, b.cfg.Logger)...)
 	args = append(args, prompt)
 
-	cmd := exec.CommandContext(runCtx, execPath, args...)
-	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args)
-	cmd.WaitDelay = 10 * time.Second
-	if opts.Cwd != "" {
-		cmd.Dir = opts.Cwd
-	}
-
-	env := buildEnv(b.cfg.Env)
-	// Keep daemon-mode runs non-interactive without relying on
-	// OPENCODE_PERMISSION. OpenCode deep-merges that env override into user
-	// config while preserving existing key order, so a pre-existing
-	// permission.question key can be followed by a wildcard allow and bypass
-	// the intended question deny. Current OpenCode run sessions inject their
-	// own question/plan deny rules after agent config; this flag only answers
-	// prompts that survive those explicit denies.
-	// Override PWD so the child OpenCode process resolves its discovery root
-	// to the task workdir. cmd.Dir alone is not enough: OpenCode reads PWD
-	// (inherited from the parent daemon) before falling back to process.cwd()
-	// when computing the directory it walks for AGENTS.md / .opencode/skills.
-	// See packages/opencode/src/cli/cmd/run.ts in the upstream source.
-	if opts.Cwd != "" {
-		env = append(env, "PWD="+opts.Cwd)
-	}
-	// Project agent.mcp_config into OpenCode via OPENCODE_CONFIG_CONTENT —
-	// OpenCode's general inline-config injection mechanism that merges at
-	// "local" scope (after the project-config loop, before remote / managed
-	// configs). MCP is the only field we currently project there; if a
-	// future Multica field needs the same channel it would assemble a
-	// combined OpenCode config slice before the env append.
-	//
-	// This deliberately leaves <workdir>/opencode.json untouched — the
-	// workdir is reused across turns for the same (agent, issue), and any
-	// agent- or user-written model / tools / permission settings in it must
-	// survive across runs.
-	mcpContent, err := buildOpenCodeMCPConfigContent(opts.McpConfig)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-	if mcpContent != "" {
-		if _, dup := b.cfg.Env["OPENCODE_CONFIG_CONTENT"]; dup {
-			b.cfg.Logger.Warn("agent.custom_env sets OPENCODE_CONFIG_CONTENT but agent.mcp_config takes precedence and overrides it")
+	var cmd *exec.Cmd
+	if b.cfg.IsWSL {
+		cmd = wslCommand(runCtx, execPath, args, opts.Cwd, b.cfg.Env)
+	} else {
+		cmd = exec.CommandContext(runCtx, execPath, args...)
+		if opts.Cwd != "" {
+			cmd.Dir = opts.Cwd
 		}
-		env = append(env, "OPENCODE_CONFIG_CONTENT="+mcpContent)
 	}
-	cmd.Env = env
+	hideAgentWindow(cmd)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args, "wsl", b.cfg.IsWSL)
+	cmd.WaitDelay = 10 * time.Second
+
+	if !b.cfg.IsWSL {
+		env := buildEnv(b.cfg.Env)
+		if opts.Cwd != "" {
+			env = append(env, "PWD="+opts.Cwd)
+		}
+		mcpContent, err := buildOpenCodeMCPConfigContent(opts.McpConfig)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		if mcpContent != "" {
+			if _, dup := b.cfg.Env["OPENCODE_CONFIG_CONTENT"]; dup {
+				b.cfg.Logger.Warn("agent.custom_env sets OPENCODE_CONFIG_CONTENT but agent.mcp_config takes precedence and overrides it")
+			}
+			env = append(env, "OPENCODE_CONFIG_CONTENT="+mcpContent)
+		}
+		cmd.Env = env
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

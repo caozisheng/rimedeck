@@ -494,7 +494,11 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	if execPath == "" {
 		execPath = "codex"
 	}
-	if _, err := exec.LookPath(execPath); err != nil {
+	if b.cfg.IsWSL {
+		if err := wslLookPath(execPath); err != nil {
+			return nil, fmt.Errorf("codex executable not found in WSL at %q: %w", execPath, err)
+		}
+	} else if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("codex executable not found at %q: %w", execPath, err)
 	}
 
@@ -514,34 +518,33 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	// echoed into the daemon's `agent command` log line below, so any
 	// inline env-bearing TOML would defeat the redaction. Writing through
 	// config.toml at 0o600 keeps the secret values out of argv and logs.
-	if codexHome := strings.TrimSpace(b.cfg.Env["CODEX_HOME"]); codexHome != "" {
-		if err := ensureCodexMcpConfig(filepath.Join(codexHome, "config.toml"), opts.McpConfig, b.cfg.Logger); err != nil {
-			// Fail closed when we can't materialise the managed config.
-			// Warning-and-launching would silently fall back to the
-			// user's global `~/.codex/config.toml` MCP servers and
-			// look indistinguishable from "the saved config was
-			// applied", which is exactly the surprise the MCP Tab is
-			// supposed to remove.
+	// WSL agents skip CODEX_HOME management — the Windows path is not
+	// accessible from inside WSL.
+	if !b.cfg.IsWSL {
+		if codexHome := strings.TrimSpace(b.cfg.Env["CODEX_HOME"]); codexHome != "" {
+			if err := ensureCodexMcpConfig(filepath.Join(codexHome, "config.toml"), opts.McpConfig, b.cfg.Logger); err != nil {
+				cancel()
+				return nil, fmt.Errorf("apply codex mcp_config: %w", err)
+			}
+		} else if hasManagedCodexMcpConfig(opts.McpConfig) {
 			cancel()
-			return nil, fmt.Errorf("apply codex mcp_config: %w", err)
+			return nil, fmt.Errorf("codex: mcp_config is set but CODEX_HOME env var is not configured; cannot apply managed MCP")
 		}
-	} else if hasManagedCodexMcpConfig(opts.McpConfig) {
-		// Managed mcp_config saved but no CODEX_HOME to anchor it.
-		// Same reasoning as above: silently launching would inherit
-		// whatever MCP setup the host user has, which is the wrong
-		// shape of failure.
-		cancel()
-		return nil, fmt.Errorf("codex: mcp_config is set but CODEX_HOME env var is not configured; cannot apply managed MCP")
 	}
 
 	codexArgs := buildCodexArgs(opts, b.cfg.Logger)
-	cmd := exec.CommandContext(runCtx, execPath, codexArgs...)
-	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", codexArgs)
-	if opts.Cwd != "" {
-		cmd.Dir = opts.Cwd
+	var cmd *exec.Cmd
+	if b.cfg.IsWSL {
+		cmd = wslCommand(runCtx, execPath, codexArgs, opts.Cwd, b.cfg.Env)
+	} else {
+		cmd = exec.CommandContext(runCtx, execPath, codexArgs...)
+		if opts.Cwd != "" {
+			cmd.Dir = opts.Cwd
+		}
+		cmd.Env = buildEnv(b.cfg.Env)
 	}
-	cmd.Env = buildEnv(b.cfg.Env)
+	hideAgentWindow(cmd)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", codexArgs, "wsl", b.cfg.IsWSL)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
