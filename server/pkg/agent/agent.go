@@ -1,7 +1,7 @@
 // Package agent provides a unified interface for executing prompts via
 // coding agents (Claude Code, Codex, Copilot, OpenCode, OpenClaw, Hermes,
-// Gemini, Pi, OMP, Cursor, Kimi, Kiro, Antigravity). It mirrors the happy-cli
-// AgentBackend pattern, translated to idiomatic Go.
+// Gemini, Pi, OMP, Cursor, Kimi, Kiro, Antigravity, Qoder, Qwen Code).
+// It mirrors the happy-cli AgentBackend pattern, translated to idiomatic Go.
 package agent
 
 import (
@@ -115,13 +115,13 @@ type Result struct {
 
 // Config configures a Backend instance.
 type Config struct {
-	ExecutablePath string            // path to CLI binary (claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro-cli, agy)
+	ExecutablePath string            // path to CLI binary (claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro-cli, agy, qoder, qwen-code)
 	Env            map[string]string // extra environment variables
 	Logger         *slog.Logger
 }
 
 // New creates a Backend for the given agent type.
-// Supported types: "claude", "codex", "copilot", "opencode", "openclaw", "hermes", "gemini", "pi", "omp", "cursor", "kimi", "kiro", "antigravity".
+// Supported types: "claude", "codex", "copilot", "opencode", "openclaw", "hermes", "gemini", "pi", "omp", "cursor", "kimi", "kiro", "antigravity", "qoder", "qwencode".
 func New(agentType string, cfg Config) (Backend, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -154,8 +154,12 @@ func New(agentType string, cfg Config) (Backend, error) {
 		return &kiroBackend{cfg: cfg}, nil
 	case "antigravity":
 		return &antigravityBackend{cfg: cfg}, nil
+	case "qoder":
+		return &qoderBackend{cfg: cfg}, nil
+	case "qwencode":
+		return &qwencodeBackend{cfg: cfg}, nil
 	default:
-		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro, antigravity)", agentType)
+		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro, antigravity, qoder, qwencode)", agentType)
 	}
 }
 
@@ -184,6 +188,8 @@ var launchHeaders = map[string]string{
 	"opencode":    "opencode run (json)",
 	"omp":         "omp (json mode)",
 	"pi":          "pi (json mode)",
+	"qoder":       "qoder acp",
+	"qwencode":    "qwen-code run (json)",
 }
 
 // LaunchHeader returns the user-visible launch skeleton for agentType, or an

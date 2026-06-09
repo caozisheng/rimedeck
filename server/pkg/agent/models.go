@@ -145,6 +145,12 @@ func ListModels(ctx context.Context, providerType, executablePath string) ([]Mod
 		return cachedDiscovery(providerType, func() ([]Model, error) {
 			return discoverOpenclawAgents(ctx, executablePath)
 		})
+	case "qoder":
+		return cachedDiscovery(providerType, func() ([]Model, error) {
+			return discoverQoderModels(ctx, executablePath)
+		})
+	case "qwencode":
+		return qwencodeStaticModels(), nil
 	default:
 		return nil, fmt.Errorf("unknown agent type: %q", providerType)
 	}
@@ -1236,4 +1242,29 @@ func isOpenclawIdentifier(s string) bool {
 		}
 	}
 	return true
+}
+
+// discoverQoderModels spins up a throwaway `qoder acp` process and drives
+// the standard ACP handshake to surface the model catalog. Qoder's ACP 0.23
+// implementation returns `availableModels` in the session/new response.
+func discoverQoderModels(ctx context.Context, executablePath string) ([]Model, error) {
+	return discoverACPModels(ctx, executablePath, acpDiscoveryProvider{
+		defaultBin:   "qoder",
+		clientName:   "multica-model-discovery",
+		tmpdirPrefix: "multica-qoder-discovery-",
+	})
+}
+
+// qwencodeStaticModels lists the known Qwen Code models. Qwen Code CLI
+// doesn't expose a model discovery mechanism yet, so this static list
+// covers the primary Qwen3-Coder family. Default = Qwen3-Coder-Plus
+// because it's the recommended general-purpose coding model.
+func qwencodeStaticModels() []Model {
+	return []Model{
+		{ID: "qwen3-coder-plus", Label: "Qwen3 Coder Plus", Provider: "alibaba", Default: true},
+		{ID: "qwen3-coder", Label: "Qwen3 Coder", Provider: "alibaba"},
+		{ID: "qwen-max", Label: "Qwen Max", Provider: "alibaba"},
+		{ID: "qwen-plus", Label: "Qwen Plus", Provider: "alibaba"},
+		{ID: "qwen-turbo", Label: "Qwen Turbo", Provider: "alibaba"},
+	}
 }
