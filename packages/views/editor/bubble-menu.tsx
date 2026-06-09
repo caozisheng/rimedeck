@@ -71,6 +71,11 @@ import {
   Heading3,
   FilePlus,
   Loader2,
+  Table2,
+  Rows3,
+  Columns3,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -449,6 +454,140 @@ function CreateSubIssueButton({
 }
 
 // ---------------------------------------------------------------------------
+// Table Dropdown
+// ---------------------------------------------------------------------------
+
+function TableDropdown({
+  editor,
+  onOpenChange,
+  isInTable,
+}: {
+  editor: Editor;
+  onOpenChange: (open: boolean) => void;
+  isInTable: boolean;
+}) {
+  const { t } = useT("editor");
+  const [open, setOpen] = useState(false);
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      setOpen(next);
+      onOpenChange(next);
+    },
+    [onOpenChange],
+  );
+
+  return (
+    <Popover modal={false} open={open} onOpenChange={handleOpenChange}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              className="inline-flex h-7 items-center gap-0.5 rounded-md px-1.5 text-xs font-medium hover:bg-muted aria-pressed:bg-muted"
+              aria-pressed={isInTable}
+              onMouseDown={(e) => e.preventDefault()}
+            />
+          }
+        >
+          <Table2 className="size-3.5" />
+          <ChevronDown className="size-3" />
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={8}>
+          {t(($) => $.bubble_menu.table_dropdown.label)}
+        </TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        side="bottom"
+        sideOffset={8}
+        align="start"
+        className="w-auto min-w-40 p-1"
+        initialFocus={false}
+        finalFocus={false}
+      >
+        {!isInTable ? (
+          <button
+            type="button"
+            className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-xs outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+              handleOpenChange(false);
+            }}
+          >
+            <Plus className="size-3.5" />
+            {t(($) => $.bubble_menu.table_dropdown.insert_table)}
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-xs outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().addRowAfter().run();
+                handleOpenChange(false);
+              }}
+            >
+              <Rows3 className="size-3.5" />
+              {t(($) => $.bubble_menu.table_dropdown.add_row)}
+            </button>
+            <button
+              type="button"
+              className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-xs outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().deleteRow().run();
+                handleOpenChange(false);
+              }}
+            >
+              <Rows3 className="size-3.5" />
+              {t(($) => $.bubble_menu.table_dropdown.delete_row)}
+            </button>
+            <button
+              type="button"
+              className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-xs outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().addColumnAfter().run();
+                handleOpenChange(false);
+              }}
+            >
+              <Columns3 className="size-3.5" />
+              {t(($) => $.bubble_menu.table_dropdown.add_column)}
+            </button>
+            <button
+              type="button"
+              className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-xs outline-hidden select-none hover:bg-accent hover:text-accent-foreground"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().deleteColumn().run();
+                handleOpenChange(false);
+              }}
+            >
+              <Columns3 className="size-3.5" />
+              {t(($) => $.bubble_menu.table_dropdown.delete_column)}
+            </button>
+            <div className="my-0.5 h-px bg-border" />
+            <button
+              type="button"
+              className="flex w-full cursor-default items-center gap-2 rounded-md px-1.5 py-1 text-xs text-destructive outline-hidden select-none hover:bg-accent hover:text-destructive"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                editor.chain().focus().deleteTable().run();
+                handleOpenChange(false);
+              }}
+            >
+              <Trash2 className="size-3.5" />
+              {t(($) => $.bubble_menu.table_dropdown.delete_table)}
+            </button>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Bubble Menu — @floating-ui/dom + portal to body
 // ---------------------------------------------------------------------------
 
@@ -481,6 +620,7 @@ function EditorBubbleMenu({
       heading1: e.isActive("heading", { level: 1 }),
       heading2: e.isActive("heading", { level: 2 }),
       heading3: e.isActive("heading", { level: 3 }),
+      table: e.isActive("table"),
     }),
   });
 
@@ -615,6 +755,7 @@ function EditorBubbleMenu({
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={8}>{t(($) => $.bubble_menu.quote)}</TooltipContent>
             </Tooltip>
+            <TableDropdown editor={editor} onOpenChange={handleMenuOpenChange} isInTable={fmt.table} />
             {currentIssueId && (
               <>
                 <Separator orientation="vertical" className="mx-0.5 h-5" />

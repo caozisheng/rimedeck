@@ -9,12 +9,13 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Agent } from "@multica/core/types";
+import type { Agent, Squad } from "@multica/core/types";
 import type { AgentPresenceDetail } from "@multica/core/agents";
 import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useWorkspacePaths } from "@multica/core/paths";
 import { workspaceKeys } from "@multica/core/workspace/queries";
 import {
   AlertDialog,
@@ -34,6 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@multica/ui/components/ui/dropdown-menu";
+import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
 
 interface AgentRowActionsProps {
@@ -67,10 +69,29 @@ export function AgentRowActions({
 }: AgentRowActionsProps) {
   const { t } = useT("agents");
   const wsId = useWorkspaceId();
+  const wsPaths = useWorkspacePaths();
   const qc = useQueryClient();
 
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [leaderWarningSquads, setLeaderWarningSquads] = useState<Squad[]>([]);
+
+  const { data: squads = [] } = useQuery<Squad[]>({
+    queryKey: workspaceKeys.squads(wsId),
+    queryFn: () => api.listSquads(),
+    enabled: !!wsId,
+  });
+
+  const handleArchiveClick = () => {
+    const ledSquads = squads.filter(
+      (s) => s.leader_id === agent.id && !s.archived_at,
+    );
+    if (ledSquads.length > 0) {
+      setLeaderWarningSquads(ledSquads);
+    } else {
+      setConfirmArchive(true);
+    }
+  };
 
   const isArchived = !!agent.archived_at;
   const runningCount = presence?.runningCount ?? 0;
@@ -177,7 +198,7 @@ export function AgentRowActions({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive"
-                onClick={() => setConfirmArchive(true)}
+                onClick={handleArchiveClick}
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 {t(($) => $.row_actions.archive)}
@@ -258,6 +279,49 @@ export function AgentRowActions({
               >
                 {t(($) => $.row_actions.archive_dialog_confirm)}
               </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {leaderWarningSquads.length > 0 && (
+        <AlertDialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setLeaderWarningSquads([]);
+          }}
+        >
+          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+            <AlertDialogHeader>
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                  <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <AlertDialogTitle>
+                    {t(($) => $.row_actions.leader_warning_title)}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t(($) => $.row_actions.leader_warning_description)}
+                  </AlertDialogDescription>
+                  <ul className="mt-2 space-y-1">
+                    {leaderWarningSquads.map((s) => (
+                      <li key={s.id}>
+                        <AppLink
+                          href={wsPaths.squadDetail(s.id)}
+                          className="text-sm text-foreground underline underline-offset-2 hover:text-foreground/80"
+                          onClick={() => setLeaderWarningSquads([])}
+                        >
+                          {s.name}
+                        </AppLink>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t(($) => $.row_actions.leader_warning_cancel)}</AlertDialogCancel>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

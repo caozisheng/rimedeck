@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Agent, UpdateAgentRequest } from "@multica/core/types";
+import type { Agent, Squad, UpdateAgentRequest } from "@multica/core/types";
 import {
   type AgentPresenceDetail,
   useWorkspacePresenceMap,
@@ -100,6 +100,25 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
   const { canEdit } = useAgentPermissions(agent, wsId);
 
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [leaderWarningSquads, setLeaderWarningSquads] = useState<Squad[]>([]);
+
+  const { data: squads = [] } = useQuery<Squad[]>({
+    queryKey: workspaceKeys.squads(wsId),
+    queryFn: () => api.listSquads(),
+    enabled: !!wsId,
+  });
+
+  const handleArchiveClick = () => {
+    if (!agent) return;
+    const ledSquads = squads.filter(
+      (s) => s.leader_id === agent.id && !s.archived_at,
+    );
+    if (ledSquads.length > 0) {
+      setLeaderWarningSquads(ledSquads);
+    } else {
+      setConfirmArchive(true);
+    }
+  };
 
   const handleUpdate = async (id: string, data: Record<string, unknown>) => {
     // Optimistic update: patch the matching agent in the cached list
@@ -247,7 +266,7 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
         presence={presence}
         backHref={paths.agents()}
         canArchive={canEdit.allowed}
-        onArchive={() => setConfirmArchive(true)}
+        onArchive={handleArchiveClick}
       />
 
       {!canEdit.allowed && (
@@ -336,6 +355,52 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
                 }}
               >
                 {t(($) => $.detail.archive_dialog_confirm)}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {leaderWarningSquads.length > 0 && (
+        <Dialog
+          open
+          onOpenChange={(v) => {
+            if (!v) setLeaderWarningSquads([]);
+          }}
+        >
+          <DialogContent className="max-w-sm" showCloseButton={false}>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <DialogHeader className="flex-1 gap-1">
+                <DialogTitle className="text-sm font-semibold">
+                  {t(($) => $.detail.leader_warning_title)}
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  {t(($) => $.detail.leader_warning_description)}
+                </DialogDescription>
+                <ul className="mt-2 space-y-1">
+                  {leaderWarningSquads.map((s) => (
+                    <li key={s.id}>
+                      <AppLink
+                        href={paths.squadDetail(s.id)}
+                        className="text-sm text-foreground underline underline-offset-2 hover:text-foreground/80"
+                        onClick={() => setLeaderWarningSquads([])}
+                      >
+                        {s.name}
+                      </AppLink>
+                    </li>
+                  ))}
+                </ul>
+              </DialogHeader>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => setLeaderWarningSquads([])}
+              >
+                {t(($) => $.detail.leader_warning_cancel)}
               </Button>
             </DialogFooter>
           </DialogContent>

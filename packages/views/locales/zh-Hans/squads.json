@@ -71,6 +71,11 @@
   "instructions_tab": {
     "description": "小队指引会在 Leader 智能体处理分配给该小队的 issue 时注入到它的 prompt 中。可用来给 Leader 提供贯穿全队的指导、协作规范，或每次任务都应遵循的上下文。",
     "unsaved_changes": "有未保存的修改",
-    "save_button": "保存"
+    "save_button": "保存",
+    "insert_template": "插入模板",
+    "template_routing_table": "成员路由表",
+    "template_by_type": "按任务类型分配",
+    "template_by_priority": "按优先级处理",
+    "template_escalation": "升级规则"
   }
 }

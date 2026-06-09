@@ -12,12 +12,21 @@ import { isImeComposing } from "@multica/core/utils";
 import { useTimeAgo } from "../../i18n";
 import { agentListOptions, memberListOptions, squadMemberStatusOptions, workspaceKeys } from "@multica/core/workspace/queries";
 import { runtimeListOptions } from "@multica/core/runtimes";
+import {
+  hasRoutingTable,
+  generateRoutingTable,
+  appendMemberToRoutingTable,
+  removeMemberFromRoutingTable,
+  ROUTING_TEMPLATE_BY_TYPE,
+  ROUTING_TEMPLATE_BY_PRIORITY,
+  ROUTING_TEMPLATE_ESCALATION,
+} from "@multica/core/squads";
 import { CreateAgentDialog } from "../../agents/components/create-agent-dialog";
 import { useNavigation } from "../../navigation";
 import { AppLink } from "../../navigation";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { PageHeader } from "../../layout/page-header";
-import { Users, Plus, Trash2, ArrowUpRight, Crown, Camera, Loader2, Pencil, FileText, Save } from "lucide-react";
+import { Users, Plus, Trash2, ArrowUpRight, Crown, Camera, Loader2, Pencil, FileText, Save, ChevronDown } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
@@ -50,6 +59,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@multica/ui/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@multica/ui/components/ui/dropdown-menu";
 import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ContentEditor } from "../../editor/content-editor";
@@ -58,7 +73,7 @@ import {
   PickerSection,
   PickerEmpty,
 } from "../../issues/components/pickers/property-picker";
-import { ChevronDown, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import type { Squad, SquadMember, SquadMemberStatus, SquadMemberStatusValue, Agent, CreateAgentRequest, MemberWithUser } from "@multica/core/types";
 import { useT } from "../../i18n";
@@ -121,6 +136,7 @@ export function SquadDetailPage() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const instructionsDirtyRef = useRef(false);
 
   const updateSquadMut = useMutation({
     mutationFn: (data: { name?: string; description?: string; instructions?: string; avatar_url?: string; leader_id?: string }) => api.updateSquad(squadId, data),
@@ -138,14 +154,46 @@ export function SquadDetailPage() {
         member_id: input.id,
         role: input.role?.trim() || undefined,
       }),
-    onSuccess: () => { refetchMembers(); toast.success("Member added"); },
+    onSuccess: (_data, input) => {
+      refetchMembers();
+      toast.success("Member added");
+      if (squad && hasRoutingTable(squad.instructions ?? "")) {
+        if (instructionsDirtyRef.current) {
+          toast.info("Instructions have unsaved edits — new member was not added to routing table automatically.");
+        } else {
+          const memberName = getEntityName(input.type, input.id);
+          const updated = appendMemberToRoutingTable(squad.instructions ?? "", {
+            name: memberName,
+            memberType: input.type,
+            role: input.role ?? "",
+          });
+          if (updated !== (squad.instructions ?? "")) {
+            updateSquadMut.mutate({ instructions: updated });
+          }
+        }
+      }
+    },
     onError: (err) =>
       toast.error(err instanceof Error && err.message ? err.message : "Failed to add member"),
   });
 
   const removeMemberMut = useMutation({
     mutationFn: (m: SquadMember) => api.removeSquadMember(squadId, { member_type: m.member_type, member_id: m.member_id }),
-    onSuccess: () => { refetchMembers(); toast.success("Member removed"); },
+    onSuccess: (_data, removed) => {
+      refetchMembers();
+      toast.success("Member removed");
+      if (squad && hasRoutingTable(squad.instructions ?? "")) {
+        if (instructionsDirtyRef.current) {
+          toast.info("Instructions have unsaved edits — removed member was not deleted from routing table automatically.");
+        } else {
+          const memberName = getEntityName(removed.member_type, removed.member_id);
+          const updated = removeMemberFromRoutingTable(squad.instructions ?? "", memberName);
+          if (updated !== (squad.instructions ?? "")) {
+            updateSquadMut.mutate({ instructions: updated });
+          }
+        }
+      }
+    },
     onError: (err) =>
       toast.error(err instanceof Error && err.message ? err.message : "Failed to remove member"),
   });
@@ -269,6 +317,7 @@ export function SquadDetailPage() {
           onUpdateRole={async (m, role) => { await updateRoleMut.mutateAsync({ member: m, role }); }}
           onSaveInstructions={async (next) => { await updateSquadMut.mutateAsync({ instructions: next }); toast.success("Instructions saved"); }}
           setLeaderPending={setLeaderMut.isPending}
+          instructionsDirtyRef={instructionsDirtyRef}
         />
       </div>
 
@@ -1013,6 +1062,7 @@ function SquadOverviewPane({
   onUpdateRole,
   onSaveInstructions,
   setLeaderPending,
+  instructionsDirtyRef,
 }: {
   squad: Squad;
   members: SquadMember[];
@@ -1021,20 +1071,22 @@ function SquadOverviewPane({
   isArchived: (m: SquadMember) => boolean;
   getEntityName: (type: string, id: string) => string;
   onAddMemberClick: () => void;
-  // Optional — only passed when the current user can manage the squad
-  // (workspace owner/admin). Hidden otherwise so plain members don't
-  // see a button they can't action.
   onCreateAgentClick?: () => void;
   onSetLeader: (agentId: string) => void;
   onRemoveMember: (m: SquadMember) => void;
   onUpdateRole: (m: SquadMember, role: string) => Promise<void>;
   onSaveInstructions: (next: string) => Promise<void>;
   setLeaderPending: boolean;
+  instructionsDirtyRef?: React.MutableRefObject<boolean>;
 }) {
   const { t } = useT("squads");
   const [activeTab, setActiveTab] = useState<SquadDetailTab>("members");
   const [activeDirty, setActiveDirty] = useState(false);
   const [pendingTab, setPendingTab] = useState<SquadDetailTab | null>(null);
+
+  useEffect(() => {
+    if (instructionsDirtyRef) instructionsDirtyRef.current = activeDirty;
+  }, [activeDirty, instructionsDirtyRef]);
 
   const requestTabChange = (next: SquadDetailTab) => {
     if (next === activeTab) return;
@@ -1092,6 +1144,8 @@ function SquadOverviewPane({
           <div className="flex h-full flex-col p-4 md:p-6">
             <SquadInstructionsTab
               squad={squad}
+              members={members}
+              getEntityName={getEntityName}
               onSave={onSaveInstructions}
               onDirtyChange={setActiveDirty}
             />
@@ -1345,10 +1399,14 @@ function SquadMembersTab({
 // (server/internal/handler/daemon.go).
 function SquadInstructionsTab({
   squad,
+  members,
+  getEntityName,
   onSave,
   onDirtyChange,
 }: {
   squad: Squad;
+  members: SquadMember[];
+  getEntityName: (type: string, id: string) => string;
   onSave: (instructions: string) => Promise<void>;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -1376,11 +1434,57 @@ function SquadInstructionsTab({
     }
   };
 
+  const insertTemplate = (text: string) => {
+    setValue((prev) => (prev ? prev + "\n\n" + text : text));
+  };
+
+  const insertRoutingTable = () => {
+    if (hasRoutingTable(value)) {
+      toast.info("Routing table already exists");
+      return;
+    }
+    const nonLeader = members
+      .filter((m) => !(m.member_type === "agent" && m.member_id === squad.leader_id))
+      .map((m) => ({
+        name: getEntityName(m.member_type, m.member_id),
+        memberType: m.member_type as "agent" | "member",
+        role: m.role ?? "",
+      }));
+    insertTemplate(generateRoutingTable(nonLeader));
+  };
+
   return (
     <div className="flex h-full flex-col gap-4">
-      <p className="text-xs text-muted-foreground">
-        {t(($) => $.instructions_tab.description)}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          {t(($) => $.instructions_tab.description)}
+        </p>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="outline" size="sm">
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                {t(($) => $.instructions_tab.insert_template)}
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={insertRoutingTable}>
+              {t(($) => $.instructions_tab.template_routing_table)}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertTemplate(ROUTING_TEMPLATE_BY_TYPE)}>
+              {t(($) => $.instructions_tab.template_by_type)}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertTemplate(ROUTING_TEMPLATE_BY_PRIORITY)}>
+              {t(($) => $.instructions_tab.template_by_priority)}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertTemplate(ROUTING_TEMPLATE_ESCALATION)}>
+              {t(($) => $.instructions_tab.template_escalation)}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto rounded-md border bg-background px-4 py-3 transition-colors focus-within:border-input">
         <ContentEditor

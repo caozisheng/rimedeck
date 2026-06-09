@@ -71,6 +71,11 @@
   "instructions_tab": {
     "description": "Squad instructions are injected into the leader agent's prompt whenever it works on an issue assigned to this squad. Use them to give the leader squad-wide guidance, working agreements, or context the leader should follow on every task.",
     "unsaved_changes": "Unsaved changes",
-    "save_button": "Save"
+    "save_button": "Save",
+    "insert_template": "Insert template",
+    "template_routing_table": "Member routing table",
+    "template_by_type": "By task type",
+    "template_by_priority": "By priority",
+    "template_escalation": "Escalation rules"
   }
 }

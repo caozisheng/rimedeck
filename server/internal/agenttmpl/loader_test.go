@@ -145,6 +145,33 @@ func TestLoadFromFS_PromptOnlyTemplate(t *testing.T) {
 	}
 }
 
+func TestLoadBundledSkill(t *testing.T) {
+	t.Run("cn-skill-router", func(t *testing.T) {
+		data, err := LoadBundledSkill("cn-skill-router")
+		if err != nil {
+			t.Fatalf("LoadBundledSkill(cn-skill-router): %v", err)
+		}
+		if !strings.Contains(string(data), "name: cn-skill-router") {
+			t.Error("expected SKILL.md to contain frontmatter with name: cn-skill-router")
+		}
+	})
+	t.Run("multica-cli-operator", func(t *testing.T) {
+		data, err := LoadBundledSkill("multica-cli-operator")
+		if err != nil {
+			t.Fatalf("LoadBundledSkill(multica-cli-operator): %v", err)
+		}
+		if !strings.Contains(string(data), "name: multica-cli-operator") {
+			t.Error("expected SKILL.md to contain frontmatter with name: multica-cli-operator")
+		}
+	})
+	t.Run("nonexistent", func(t *testing.T) {
+		_, err := LoadBundledSkill("nonexistent")
+		if err == nil {
+			t.Fatal("expected error for nonexistent slug, got nil")
+		}
+	})
+}
+
 func TestLoadFromFS_DuplicateSlug(t *testing.T) {
 	// Two valid files declaring the same slug — caught by the registry, not
 	// by validate(). Slugs are unique within the registry.

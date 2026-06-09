@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/agenttmpl"
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/logger"
+	skillpkg "github.com/multica-ai/multica/server/internal/skill"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
@@ -657,7 +659,30 @@ func fetchSkillFromURL(client *http.Client, rawURL string) (*importedSkill, erro
 		return fetchFromSkillsSh(client, normalized)
 	case sourceGitHub:
 		return fetchFromGitHub(client, normalized)
+	case sourceBundled:
+		return fetchFromBundled(normalized)
 	}
 	return nil, fmt.Errorf("unknown import source for %s", rawURL)
+}
+
+func fetchFromBundled(rawURL string) (*importedSkill, error) {
+	slug := strings.TrimPrefix(rawURL, "bundled://")
+	data, err := agenttmpl.LoadBundledSkill(slug)
+	if err != nil {
+		return nil, err
+	}
+	name, description := skillpkg.ParseSkillFrontmatter(string(data))
+	if name == "" {
+		name = slug
+	}
+	return &importedSkill{
+		name:        name,
+		description: description,
+		content:     string(data),
+		origin: map[string]any{
+			"type":       "bundled",
+			"source_url": rawURL,
+		},
+	}, nil
 }
 

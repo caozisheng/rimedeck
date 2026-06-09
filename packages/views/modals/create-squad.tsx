@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, UserPlus, X } from "lucide-react";
+import { ChevronDown, Crown, UserPlus, X } from "lucide-react";
 import { api } from "@multica/core/api";
 import { useAuthStore } from "@multica/core/auth";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -12,9 +12,10 @@ import {
   memberListOptions,
   workspaceKeys,
 } from "@multica/core/workspace/queries";
+import { runtimeListOptions } from "@multica/core/runtimes/queries";
 import { AGENT_DESCRIPTION_MAX_LENGTH } from "@multica/core/agents";
 import { isImeComposing } from "@multica/core/utils";
-import type { Agent, MemberWithUser } from "@multica/core/types";
+import type { Agent, MemberWithUser, RuntimeDevice } from "@multica/core/types";
 import {
   Dialog,
   DialogContent,
@@ -32,10 +33,13 @@ import { Input } from "@multica/ui/components/ui/input";
 import { Label } from "@multica/ui/components/ui/label";
 import { toast } from "sonner";
 
+import { generateRoutingTable, type RoutingTableMember } from "@multica/core/squads";
 import { useNavigation } from "../navigation";
 import { ActorAvatar } from "../common/actor-avatar";
 import { AvatarPicker } from "../agents/components/avatar-picker";
 import { CharCounter } from "../agents/components/char-counter";
+import { RuntimePicker } from "../agents/components/runtime-picker";
+import { ModelDropdown } from "../agents/components/model-dropdown";
 import {
   PickerEmpty,
   PickerItem,
@@ -50,7 +54,8 @@ type SelectedMember = {
   name: string;
 };
 
-// How many chips we show inline before collapsing the tail into "+N".
+type LeaderMode = "existing" | "create-manager";
+
 const CHIP_DISPLAY_LIMIT = 3;
 
 export function CreateSquadModal({ onClose }: { onClose: () => void }) {
@@ -64,22 +69,39 @@ export function CreateSquadModal({ onClose }: { onClose: () => void }) {
 
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
   const { data: wsMembers = [] } = useQuery(memberListOptions(wsId));
+  const { data: runtimes = [], isLoading: runtimesLoading } = useQuery({
+    ...runtimeListOptions(wsId),
+  });
 
   const activeAgents = useMemo(
     () => agents.filter((a: Agent) => !a.archived_at && a.runtime_id),
     [agents],
   );
 
+  // -- Step state --
+  const [step, setStep] = useState<1 | 2>(1);
+
+  // -- Step 1: Leader selection --
+  const [leaderMode, setLeaderMode] = useState<LeaderMode>("existing");
+  // Existing agent selection
+  const [leaderId, setLeaderId] = useState("");
+  // Create-manager form
+  const [managerName, setManagerName] = useState("Agent Manager");
+  const [selectedRuntimeId, setSelectedRuntimeId] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+
+  // -- Step 2: Squad info --
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [leaderId, setLeaderId] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<SelectedMember[]>([]);
   const [creating, setCreating] = useState(false);
 
-  // Promoting an agent to leader must actually drop it from selectedMembers,
-  // not merely hide it. Otherwise switching leader away later resurrects the
-  // hidden pick and silently submits it as a member.
+  // Default to create-manager when user has no agents.
+  useEffect(() => {
+    if (activeAgents.length === 0) setLeaderMode("create-manager");
+  }, [activeAgents.length]);
+
   const handleLeaderChange = (id: string) => {
     setLeaderId(id);
     if (id) {
@@ -89,16 +111,37 @@ export function CreateSquadModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const canSubmit = !!name.trim() && !!leaderId && !creating;
+  const selectedRuntime = runtimes.find((r) => r.id === selectedRuntimeId) ?? null;
+
+  const canProceedToStep2 =
+    leaderMode === "existing"
+      ? !!leaderId
+      : !!managerName.trim() && !!selectedRuntimeId;
+
+  const canSubmit = !!name.trim() && !creating;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setCreating(true);
     try {
+      let finalLeaderId = leaderId;
+
+      if (leaderMode === "create-manager") {
+        const result = await api.createAgentFromTemplate({
+          template_slug: "agent-manager",
+          name: managerName.trim(),
+          runtime_id: selectedRuntimeId,
+          model: selectedModel || undefined,
+          visibility: "workspace",
+        });
+        finalLeaderId = result.agent.id;
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.agents(wsId) });
+      }
+
       const squad = await api.createSquad({
         name: name.trim(),
         description: description.trim() || undefined,
-        leader_id: leaderId,
+        leader_id: finalLeaderId,
         avatar_url: avatarUrl ?? undefined,
       });
       queryClient.invalidateQueries({ queryKey: workspaceKeys.squads(wsId) });
@@ -127,6 +170,21 @@ export function CreateSquadModal({ onClose }: { onClose: () => void }) {
         });
       }
 
+      // Auto-generate routing table when creating via Agent Manager template.
+      if (leaderMode === "create-manager" && selectedMembers.length > 0) {
+        try {
+          const rtMembers: RoutingTableMember[] = selectedMembers.map((m) => ({
+            name: m.name,
+            memberType: m.type,
+            role: "",
+          }));
+          const routingTable = generateRoutingTable(rtMembers);
+          await api.updateSquad(squad.id, { instructions: routingTable });
+        } catch {
+          // Non-fatal — squad is created, routing table can be added manually.
+        }
+      }
+
       onClose();
       toast.success(t(($) => $.create_squad.toast_created));
       router.push(wsPaths.squadDetail(squad.id));
@@ -134,7 +192,9 @@ export function CreateSquadModal({ onClose }: { onClose: () => void }) {
       toast.error(
         err instanceof Error
           ? err.message
-          : t(($) => $.create_squad.toast_failed),
+          : leaderMode === "create-manager"
+            ? t(($) => $.create_squad.toast_manager_failed)
+            : t(($) => $.create_squad.toast_failed),
       );
       setCreating(false);
     }
@@ -145,90 +205,81 @@ export function CreateSquadModal({ onClose }: { onClose: () => void }) {
       <DialogContent className="p-0 gap-0 flex flex-col overflow-hidden !top-1/2 !left-1/2 !-translate-x-1/2 !-translate-y-1/2 !w-full !max-w-2xl !h-[85vh]">
         <DialogHeader className="border-b px-5 py-3 space-y-0">
           <DialogTitle className="text-base font-semibold">
-            {t(($) => $.create_squad.title)}
+            {step === 1
+              ? t(($) => $.create_squad.step1_title)
+              : t(($) => $.create_squad.title)}
           </DialogTitle>
           <DialogDescription className="mt-1 text-xs">
-            {t(($) => $.create_squad.description)}
+            {step === 1
+              ? t(($) => $.create_squad.step1_description)
+              : t(($) => $.create_squad.description)}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-5">
-          <div className="space-y-4 min-w-0">
-            {/* Identity row mirrors CreateAgentDialog so the two creates read
-                as siblings — avatar (left) + name/description stack (right). */}
-            <div className="flex items-start gap-4">
-              <AvatarPicker value={avatarUrl} onChange={setAvatarUrl} size={64} />
-              <div className="flex-1 min-w-0 space-y-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    {t(($) => $.create_squad.name_label)}
-                  </Label>
-                  <Input
-                    autoFocus
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t(($) => $.create_squad.name_placeholder)}
-                    className="mt-1"
-                    onKeyDown={(e) => {
-                      if (isImeComposing(e)) return;
-                      if (e.key === "Enter") void handleSubmit();
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    {t(($) => $.create_squad.description_label)}
-                  </Label>
-                  <Input
-                    type="text"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder={t(($) => $.create_squad.description_placeholder)}
-                    maxLength={AGENT_DESCRIPTION_MAX_LENGTH}
-                    className="mt-1"
-                  />
-                  <div className="mt-1">
-                    <CharCounter
-                      length={[...description].length}
-                      max={AGENT_DESCRIPTION_MAX_LENGTH}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <LeaderPicker
-              agents={activeAgents}
-              currentUserId={currentUserId}
-              value={leaderId}
-              onChange={handleLeaderChange}
-            />
-
-            <AdditionalMembersPicker
-              agents={activeAgents}
-              members={wsMembers}
+          {step === 1 ? (
+            <StepLeader
+              leaderMode={leaderMode}
+              onModeChange={setLeaderMode}
+              activeAgents={activeAgents}
               currentUserId={currentUserId}
               leaderId={leaderId}
-              value={selectedMembers}
-              onChange={setSelectedMembers}
+              onLeaderChange={handleLeaderChange}
+              managerName={managerName}
+              onManagerNameChange={setManagerName}
+              runtimes={runtimes}
+              runtimesLoading={runtimesLoading}
+              wsMembers={wsMembers}
+              selectedRuntimeId={selectedRuntimeId}
+              onRuntimeSelect={setSelectedRuntimeId}
+              selectedRuntime={selectedRuntime}
+              selectedModel={selectedModel}
+              onModelChange={setSelectedModel}
             />
-          </div>
+          ) : (
+            <StepSquadInfo
+              name={name}
+              onNameChange={setName}
+              description={description}
+              onDescriptionChange={setDescription}
+              avatarUrl={avatarUrl}
+              onAvatarChange={setAvatarUrl}
+              activeAgents={activeAgents}
+              wsMembers={wsMembers}
+              currentUserId={currentUserId}
+              leaderId={leaderMode === "existing" ? leaderId : ""}
+              selectedMembers={selectedMembers}
+              onMembersChange={setSelectedMembers}
+              onSubmit={handleSubmit}
+            />
+          )}
         </div>
 
-        {/* Inline footer — see CreateAgentDialog: shadcn DialogFooter applies
-            negative margins assuming a padded DialogContent. Our content is
-            p-0, so a plain bordered row is the right call. */}
         <div className="flex items-center justify-end gap-2 border-t bg-background px-5 py-3">
-          <Button variant="ghost" onClick={onClose}>
-            {t(($) => $.create_squad.cancel)}
-          </Button>
-          <Button onClick={() => void handleSubmit()} disabled={!canSubmit}>
-            {creating
-              ? t(($) => $.create_squad.submitting)
-              : t(($) => $.create_squad.submit)}
-          </Button>
+          {step === 1 ? (
+            <>
+              <Button variant="ghost" onClick={onClose}>
+                {t(($) => $.create_squad.cancel)}
+              </Button>
+              <Button
+                onClick={() => setStep(2)}
+                disabled={!canProceedToStep2}
+              >
+                {t(($) => $.create_squad.next_step)}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setStep(1)} disabled={creating}>
+                {t(($) => $.create_squad.prev_step)}
+              </Button>
+              <Button onClick={() => void handleSubmit()} disabled={!canSubmit}>
+                {creating
+                  ? t(($) => $.create_squad.submitting)
+                  : t(($) => $.create_squad.submit)}
+              </Button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -236,9 +287,245 @@ export function CreateSquadModal({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// LeaderPicker — single-select agent picker, grouped "My Agents" first then
-// "Workspace Agents". Empty workspaces render a disabled trigger that points
-// the user at agent creation.
+// Step 1: Choose or create a Leader
+// ---------------------------------------------------------------------------
+function StepLeader({
+  leaderMode,
+  onModeChange,
+  activeAgents,
+  currentUserId,
+  leaderId,
+  onLeaderChange,
+  managerName,
+  onManagerNameChange,
+  runtimes,
+  runtimesLoading,
+  wsMembers,
+  selectedRuntimeId,
+  onRuntimeSelect,
+  selectedRuntime,
+  selectedModel,
+  onModelChange,
+}: {
+  leaderMode: LeaderMode;
+  onModeChange: (mode: LeaderMode) => void;
+  activeAgents: Agent[];
+  currentUserId: string | null;
+  leaderId: string;
+  onLeaderChange: (id: string) => void;
+  managerName: string;
+  onManagerNameChange: (name: string) => void;
+  runtimes: RuntimeDevice[];
+  runtimesLoading: boolean;
+  wsMembers: MemberWithUser[];
+  selectedRuntimeId: string;
+  onRuntimeSelect: (id: string) => void;
+  selectedRuntime: RuntimeDevice | null;
+  selectedModel: string;
+  onModelChange: (model: string) => void;
+}) {
+  const { t } = useT("modals");
+
+  return (
+    <div className="space-y-4">
+      {/* Radio: Select existing agent */}
+      <label
+        className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+          leaderMode === "existing"
+            ? "border-foreground bg-accent/30"
+            : "border-border hover:bg-accent/10"
+        }`}
+      >
+        <input
+          type="radio"
+          name="leader-mode"
+          checked={leaderMode === "existing"}
+          onChange={() => onModeChange("existing")}
+          className="mt-0.5 accent-foreground"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium">
+            {t(($) => $.create_squad.mode_existing)}
+          </div>
+          {leaderMode === "existing" && (
+            <div className="mt-3">
+              <LeaderPicker
+                agents={activeAgents}
+                currentUserId={currentUserId}
+                value={leaderId}
+                onChange={onLeaderChange}
+              />
+            </div>
+          )}
+        </div>
+      </label>
+
+      {/* Radio: Create Agent Manager */}
+      <label
+        className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+          leaderMode === "create-manager"
+            ? "border-foreground bg-accent/30"
+            : "border-border hover:bg-accent/10"
+        }`}
+      >
+        <input
+          type="radio"
+          name="leader-mode"
+          checked={leaderMode === "create-manager"}
+          onChange={() => onModeChange("create-manager")}
+          className="mt-0.5 accent-foreground"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Crown className="h-4 w-4 text-amber-500" />
+            {t(($) => $.create_squad.mode_create_manager)}
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t(($) => $.create_squad.mode_create_manager_hint)}
+          </p>
+          {leaderMode === "create-manager" && (
+            <div className="mt-3 space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {t(($) => $.create_squad.manager_name_label)}
+                </Label>
+                <Input
+                  type="text"
+                  value={managerName}
+                  onChange={(e) => onManagerNameChange(e.target.value)}
+                  placeholder={t(($) => $.create_squad.manager_name_placeholder)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {t(($) => $.create_squad.runtime_label)}
+                </Label>
+                <div className="mt-1">
+                  <RuntimePicker
+                    runtimes={runtimes}
+                    runtimesLoading={runtimesLoading}
+                    members={wsMembers}
+                    currentUserId={currentUserId}
+                    selectedRuntimeId={selectedRuntimeId}
+                    onSelect={onRuntimeSelect}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  {t(($) => $.create_squad.model_label)}
+                </Label>
+                <div className="mt-1">
+                  <ModelDropdown
+                    runtimeId={selectedRuntimeId || null}
+                    runtimeOnline={selectedRuntime?.status === "online"}
+                    value={selectedModel}
+                    onChange={onModelChange}
+                    disabled={!selectedRuntimeId}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </label>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Squad info (name, description, avatar, members)
+// ---------------------------------------------------------------------------
+function StepSquadInfo({
+  name,
+  onNameChange,
+  description,
+  onDescriptionChange,
+  avatarUrl,
+  onAvatarChange,
+  activeAgents,
+  wsMembers,
+  currentUserId,
+  leaderId,
+  selectedMembers,
+  onMembersChange,
+  onSubmit,
+}: {
+  name: string;
+  onNameChange: (v: string) => void;
+  description: string;
+  onDescriptionChange: (v: string) => void;
+  avatarUrl: string | null;
+  onAvatarChange: (v: string | null) => void;
+  activeAgents: Agent[];
+  wsMembers: MemberWithUser[];
+  currentUserId: string | null;
+  leaderId: string;
+  selectedMembers: SelectedMember[];
+  onMembersChange: (v: SelectedMember[]) => void;
+  onSubmit: () => void;
+}) {
+  const { t } = useT("modals");
+
+  return (
+    <div className="space-y-4 min-w-0">
+      <div className="flex items-start gap-4">
+        <AvatarPicker value={avatarUrl} onChange={onAvatarChange} size={64} />
+        <div className="flex-1 min-w-0 space-y-3">
+          <div>
+            <Label className="text-xs text-muted-foreground">
+              {t(($) => $.create_squad.name_label)}
+            </Label>
+            <Input
+              autoFocus
+              type="text"
+              value={name}
+              onChange={(e) => onNameChange(e.target.value)}
+              placeholder={t(($) => $.create_squad.name_placeholder)}
+              className="mt-1"
+              onKeyDown={(e) => {
+                if (isImeComposing(e)) return;
+                if (e.key === "Enter") void onSubmit();
+              }}
+            />
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">
+              {t(($) => $.create_squad.description_label)}
+            </Label>
+            <Input
+              type="text"
+              value={description}
+              onChange={(e) => onDescriptionChange(e.target.value)}
+              placeholder={t(($) => $.create_squad.description_placeholder)}
+              maxLength={AGENT_DESCRIPTION_MAX_LENGTH}
+              className="mt-1"
+            />
+            <div className="mt-1">
+              <CharCounter
+                length={[...description].length}
+                max={AGENT_DESCRIPTION_MAX_LENGTH}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <AdditionalMembersPicker
+        agents={activeAgents}
+        members={wsMembers}
+        currentUserId={currentUserId}
+        leaderId={leaderId}
+        value={selectedMembers}
+        onChange={onMembersChange}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LeaderPicker — single-select agent picker
 // ---------------------------------------------------------------------------
 function LeaderPicker({
   agents,
@@ -276,113 +563,103 @@ function LeaderPicker({
   const selected = agents.find((a) => a.id === value) ?? null;
   const noAgents = agents.length === 0;
 
-  return (
-    <div>
-      <Label className="text-xs text-muted-foreground">
-        {t(($) => $.create_squad.leader_label)}
-      </Label>
-      <p className="mt-0.5 mb-1.5 text-xs text-muted-foreground">
-        {t(($) => $.create_squad.leader_hint)}
-      </p>
+  if (noAgents) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+        {t(($) => $.create_squad.no_agents)}
+      </div>
+    );
+  }
 
-      {noAgents ? (
-        <div className="flex items-center gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
-          {t(($) => $.create_squad.no_agents)}
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setFilter("");
+      }}
+    >
+      <PopoverTrigger className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted">
+        {selected ? (
+          <ActorAvatar actorType="agent" actorId={selected.id} size={20} showStatusDot />
+        ) : (
+          <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">
+            {selected?.name ?? t(($) => $.create_squad.leader_placeholder)}
+          </div>
+          {selected?.description && (
+            <div className="truncate text-xs text-muted-foreground">
+              {selected.description}
+            </div>
+          )}
         </div>
-      ) : (
-        <Popover
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) setFilter("");
-          }}
-        >
-          <PopoverTrigger className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted">
-            {selected ? (
-              <ActorAvatar actorType="agent" actorId={selected.id} size={20} showStatusDot />
-            ) : (
-              <UserPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">
-                {selected?.name ?? t(($) => $.create_squad.leader_placeholder)}
-              </div>
-              {selected?.description && (
-                <div className="truncate text-xs text-muted-foreground">
-                  {selected.description}
-                </div>
-              )}
-            </div>
-            <ChevronDown
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
-                open ? "rotate-180" : ""
-              }`}
-            />
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-[var(--anchor-width)] p-0">
-            <div className="border-b px-2 py-1.5">
-              <input
-                autoFocus
-                type="text"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder={t(($) => $.create_squad.picker_search_placeholder)}
-                className="w-full bg-transparent text-sm placeholder:text-muted-foreground outline-none"
-              />
-            </div>
-            <div className="max-h-72 overflow-y-auto p-1">
-              {filteredMine.length > 0 && (
-                <PickerSection label={t(($) => $.create_squad.group_my_agents)}>
-                  {filteredMine.map((a) => (
-                    <PickerItem
-                      key={a.id}
-                      selected={value === a.id}
-                      onClick={() => {
-                        onChange(a.id);
-                        setOpen(false);
-                        setFilter("");
-                      }}
-                    >
-                      <ActorAvatar actorType="agent" actorId={a.id} size={18} showStatusDot />
-                      <span className="truncate">{a.name}</span>
-                    </PickerItem>
-                  ))}
-                </PickerSection>
-              )}
-              {filteredOthers.length > 0 && (
-                <PickerSection label={t(($) => $.create_squad.group_workspace_agents)}>
-                  {filteredOthers.map((a) => (
-                    <PickerItem
-                      key={a.id}
-                      selected={value === a.id}
-                      onClick={() => {
-                        onChange(a.id);
-                        setOpen(false);
-                        setFilter("");
-                      }}
-                    >
-                      <ActorAvatar actorType="agent" actorId={a.id} size={18} showStatusDot />
-                      <span className="truncate">{a.name}</span>
-                    </PickerItem>
-                  ))}
-                </PickerSection>
-              )}
-              {filteredMine.length === 0 && filteredOthers.length === 0 && (
-                <PickerEmpty />
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--anchor-width)] p-0">
+        <div className="border-b px-2 py-1.5">
+          <input
+            autoFocus
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder={t(($) => $.create_squad.picker_search_placeholder)}
+            className="w-full bg-transparent text-sm placeholder:text-muted-foreground outline-none"
+          />
+        </div>
+        <div className="max-h-72 overflow-y-auto p-1">
+          {filteredMine.length > 0 && (
+            <PickerSection label={t(($) => $.create_squad.group_my_agents)}>
+              {filteredMine.map((a) => (
+                <PickerItem
+                  key={a.id}
+                  selected={value === a.id}
+                  onClick={() => {
+                    onChange(a.id);
+                    setOpen(false);
+                    setFilter("");
+                  }}
+                >
+                  <ActorAvatar actorType="agent" actorId={a.id} size={18} showStatusDot />
+                  <span className="truncate">{a.name}</span>
+                </PickerItem>
+              ))}
+            </PickerSection>
+          )}
+          {filteredOthers.length > 0 && (
+            <PickerSection label={t(($) => $.create_squad.group_workspace_agents)}>
+              {filteredOthers.map((a) => (
+                <PickerItem
+                  key={a.id}
+                  selected={value === a.id}
+                  onClick={() => {
+                    onChange(a.id);
+                    setOpen(false);
+                    setFilter("");
+                  }}
+                >
+                  <ActorAvatar actorType="agent" actorId={a.id} size={18} showStatusDot />
+                  <span className="truncate">{a.name}</span>
+                </PickerItem>
+              ))}
+            </PickerSection>
+          )}
+          {filteredMine.length === 0 && filteredOthers.length === 0 && (
+            <PickerEmpty />
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
 // ---------------------------------------------------------------------------
-// AdditionalMembersPicker — multi-select agents + workspace members. The
-// trigger shows up to 3 chips inline; the rest collapse into "+N". The popup
-// stays open while the user toggles selections so they can pick multiple
-// without re-opening it.
+// AdditionalMembersPicker — multi-select agents + workspace members
 // ---------------------------------------------------------------------------
 function AdditionalMembersPicker({
   agents,
@@ -466,10 +743,6 @@ function AdditionalMembersPicker({
           if (!v) setFilter("");
         }}
       >
-        {/* render={<div role="combobox" />} — chips contain their own remove
-            <button>, so the trigger cannot itself be a <button> without
-            nesting interactive content. Base UI injects click/keyboard/ARIA
-            wiring into the rendered element. */}
         <PopoverTrigger
           render={
             <div

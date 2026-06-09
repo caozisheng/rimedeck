@@ -718,6 +718,7 @@ const (
 	sourceClawHub importSource = iota
 	sourceSkillsSh
 	sourceGitHub
+	sourceBundled
 )
 
 // detectImportSource determines the source from a URL.
@@ -726,6 +727,10 @@ func detectImportSource(raw string) (importSource, string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return 0, "", fmt.Errorf("empty URL")
+	}
+
+	if strings.HasPrefix(raw, "bundled://") {
+		return sourceBundled, raw, nil
 	}
 
 	normalized := raw
