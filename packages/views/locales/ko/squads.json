@@ -71,6 +71,11 @@
   "instructions_tab": {
     "description": "스쿼드에 할당된 이슈를 리더 에이전트가 처리할 때마다 스쿼드 지침이 리더 프롬프트에 포함됩니다. 스쿼드 전체의 방향, 작업 합의, 매 작업마다 따라야 할 맥락을 리더에게 전달할 때 사용하세요.",
     "unsaved_changes": "저장하지 않은 변경사항",
-    "save_button": "저장"
+    "save_button": "저장",
+    "insert_template": "Insert template",
+    "template_routing_table": "Member routing table",
+    "template_by_type": "By task type",
+    "template_by_priority": "By priority",
+    "template_escalation": "Escalation rules"
   }
 }

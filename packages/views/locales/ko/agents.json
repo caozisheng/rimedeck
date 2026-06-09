@@ -112,7 +112,10 @@
     "archive_dialog_title": "\"{{name}}\"을(를) 보관할까요?",
     "archive_dialog_description": "이 에이전트는 할당하거나 멘션할 수 없고, 활성 작업은 모두 취소됩니다. 기록은 유지되며 나중에 복원할 수 있습니다.",
     "archive_dialog_cancel": "취소",
-    "archive_dialog_confirm": "보관"
+    "archive_dialog_confirm": "보관",
+    "leader_warning_title": "This agent is a squad leader",
+    "leader_warning_description": "Archiving it will stop the squad from functioning (tasks won't be claimed). Please change the squad leader first.",
+    "leader_warning_cancel": "Cancel"
   },
   "detail": {
     "back_to_agents": "에이전트",
@@ -134,7 +137,10 @@
     "agent_archived_toast": "에이전트를 보관했습니다",
     "archive_failed_toast": "에이전트를 보관하지 못했습니다",
     "agent_restored_toast": "에이전트를 복원했습니다",
-    "restore_failed_toast": "에이전트를 복원하지 못했습니다"
+    "restore_failed_toast": "에이전트를 복원하지 못했습니다",
+    "leader_warning_title": "This agent is a squad leader",
+    "leader_warning_description": "Archiving it will stop the squad from functioning (tasks won't be claimed). Please change the squad leader first.",
+    "leader_warning_cancel": "Cancel"
   },
   "inspector": {
     "section_properties": "속성",

@@ -99,7 +99,10 @@
     "archive_dialog_title": "\"{{name}}\" をアーカイブしますか？",
     "archive_dialog_description": "このエージェントは割り当てやメンションができなくなり、アクティブなタスクはすべてキャンセルされます。履歴はすべて保持され、後で復元できます。",
     "archive_dialog_cancel": "キャンセル",
-    "archive_dialog_confirm": "アーカイブ"
+    "archive_dialog_confirm": "アーカイブ",
+    "leader_warning_title": "This agent is a squad leader",
+    "leader_warning_description": "Archiving it will stop the squad from functioning (tasks won't be claimed). Please change the squad leader first.",
+    "leader_warning_cancel": "Cancel"
   },
   "detail": {
     "back_to_agents": "エージェント",
@@ -121,7 +124,10 @@
     "agent_archived_toast": "エージェントをアーカイブしました",
     "archive_failed_toast": "エージェントをアーカイブできませんでした",
     "agent_restored_toast": "エージェントを復元しました",
-    "restore_failed_toast": "エージェントを復元できませんでした"
+    "restore_failed_toast": "エージェントを復元できませんでした",
+    "leader_warning_title": "This agent is a squad leader",
+    "leader_warning_description": "Archiving it will stop the squad from functioning (tasks won't be claimed). Please change the squad leader first.",
+    "leader_warning_cancel": "Cancel"
   },
   "inspector": {
     "section_properties": "プロパティ",

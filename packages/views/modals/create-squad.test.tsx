@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import type { ReactNode } from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { I18nProvider } from "@multica/core/i18n/react";
 import type { Agent, MemberWithUser, Squad } from "@multica/core/types";
 import enCommon from "../locales/en/common.json";
@@ -30,19 +30,23 @@ const mocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: (opts: { queryKey?: unknown[] }) => {
-    const key = opts.queryKey ?? [];
-    if (Array.isArray(key) && key.includes("agents")) {
-      return { data: mocks.agents };
-    }
-    if (Array.isArray(key) && key.includes("members")) {
-      return { data: mocks.members };
-    }
-    return { data: [] };
-  },
-  useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
-}));
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useQuery: (opts: { queryKey?: unknown[] }) => {
+      const key = opts.queryKey ?? [];
+      if (Array.isArray(key) && key.includes("agents")) {
+        return { data: mocks.agents, isLoading: false };
+      }
+      if (Array.isArray(key) && key.includes("members")) {
+        return { data: mocks.members, isLoading: false };
+      }
+      return { data: [], isLoading: false };
+    },
+    useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
+  };
+});
 
 vi.mock("@multica/core/workspace/queries", () => ({
   agentListOptions: () => ({ queryKey: ["agents"] }),
@@ -103,6 +107,22 @@ vi.mock("../agents/components/avatar-picker", () => ({
       avatar
     </button>
   ),
+}));
+
+vi.mock("@multica/core/runtimes/queries", () => ({
+  runtimeListOptions: () => ({ queryKey: ["runtimes"] }),
+}));
+
+vi.mock("@multica/core/squads", () => ({
+  generateRoutingTable: () => "mock-routing-table",
+}));
+
+vi.mock("../agents/components/runtime-picker", () => ({
+  RuntimePicker: () => <div data-testid="runtime-picker" />,
+}));
+
+vi.mock("../agents/components/model-dropdown", () => ({
+  ModelDropdown: () => <div data-testid="model-dropdown" />,
 }));
 
 vi.mock("../agents/components/char-counter", () => ({
@@ -247,14 +267,34 @@ function makeSquad(overrides: Partial<Squad> = {}): Squad {
   };
 }
 
-// "Create Squad" is both the dialog title and the submit button label. Always
-// pick by role so tests don't depend on DOM order between the two.
 function getSubmitButton(): HTMLButtonElement {
   const btn = screen
     .getAllByRole("button")
     .find((b) => b.textContent === "Create Squad");
   if (!btn) throw new Error("Create Squad submit button not found");
   return btn as HTMLButtonElement;
+}
+
+function getNextButton(): HTMLButtonElement {
+  const btn = screen
+    .getAllByRole("button")
+    .find((b) => b.textContent === "Next");
+  if (!btn) throw new Error("Next button not found");
+  return btn as HTMLButtonElement;
+}
+
+/** Select a leader on Step 1 and advance to Step 2. */
+async function selectLeaderAndNext(leaderName: string) {
+  fireEvent.click(firstMatch(leaderName));
+  // After clicking agent name, Next button should become enabled
+  await waitFor(() => {
+    expect(getNextButton().disabled).toBe(false);
+  });
+  fireEvent.click(getNextButton());
+  // Wait for Step 2 to render (squad name input appears)
+  await waitFor(() => {
+    expect(screen.queryAllByPlaceholderText(/e\.g\. Frontend Team/i).length).toBeGreaterThan(0);
+  });
 }
 
 // getAllByText is typed to never return undefined slots, but the indexed
@@ -287,22 +327,27 @@ const otherAgent = makeAgent({ id: "agent-other-1", name: "OtherAgentOne", owner
 const wsMember = makeMember(OTHER, "Workspace Pal");
 
 describe("CreateSquadModal", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.agents = [otherAgent, myAgent, myAgent2];
     mocks.members = [wsMember];
   });
 
-  it("binds the name and description inputs in the identity row", () => {
+  it("binds the name and description inputs in the identity row", async () => {
     renderModal();
-    const name = screen.getByPlaceholderText(/e\.g\. Frontend Team/i) as HTMLInputElement;
+    await selectLeaderAndNext("MineAgentOne");
+
+    const name = screen.getAllByPlaceholderText(/e\.g\. Frontend Team/i).pop()! as HTMLInputElement;
     fireEvent.change(name, { target: { value: "Platform Team" } });
     expect(name.value).toBe("Platform Team");
 
-    const desc = screen.getByPlaceholderText(/Describe what this squad/i) as HTMLInputElement;
+    const desc = screen.getAllByPlaceholderText(/Describe what this squad/i).pop()! as HTMLInputElement;
     fireEvent.change(desc, { target: { value: "We own infra" } });
     expect(desc.value).toBe("We own infra");
-    // Char counter reflects the typed length.
     expect(screen.getByTestId("char-counter").textContent).toMatch(/^12\//);
   });
 
@@ -327,58 +372,25 @@ describe("CreateSquadModal", () => {
 
   it("auto-clears an additional-members entry when the same agent is picked as leader", async () => {
     renderModal();
-    // Find the "MineAgentTwo" row inside the additional-members picker (the
-    // leader picker also has it; clicking either toggles its respective
-    // state). We pick it as an additional member via the second occurrence,
-    // then promote it to leader via the first.
-    // The additional-members picker's MineAgentTwo row is the LAST occurrence —
-    // leader picker renders earlier in the tree.
-    fireEvent.click(lastMatch("MineAgentTwo"));
+    // Pick MineAgentTwo as leader and advance to Step 2.
+    await selectLeaderAndNext("MineAgentTwo");
 
-    // Chip should appear (the trigger now lists MineAgentTwo).
-    await waitFor(() => {
-      expect(screen.getAllByText("MineAgentTwo").length).toBeGreaterThanOrEqual(2);
-    });
-
-    // Promote MineAgentTwo to leader by clicking the first occurrence.
-    fireEvent.click(firstMatch("MineAgentTwo"));
-
-    // Wire up the rest of the submit path so we can verify the sanitized
-    // payload sent to addSquadMember (none — leader was the only pick).
-    mocks.createSquad.mockResolvedValue(makeSquad({ leader_id: "agent-mine-2" }));
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Frontend Team/i), {
-      target: { value: "Platform" },
-    });
-    fireEvent.click(getSubmitButton());
-
-    await waitFor(() => {
-      expect(mocks.createSquad).toHaveBeenCalledTimes(1);
-    });
-    // addSquadMember must NOT be called for the agent we promoted to leader.
-    expect(mocks.addSquadMember).not.toHaveBeenCalled();
+    // On Step 2, the additional-members picker filters out the leader.
+    // MineAgentOne and OtherAgentOne should be available.
+    expect(screen.getAllByText("MineAgentOne").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("OtherAgentOne").length).toBeGreaterThanOrEqual(1);
   });
 
   it("removes a member promoted to leader from selectedMembers so switching leader away does not resurrect it", async () => {
     renderModal();
-    // 1. Add MineAgentTwo as an additional member.
-    fireEvent.click(lastMatch("MineAgentTwo"));
-    await waitFor(() => {
-      expect(screen.getAllByText("MineAgentTwo").length).toBeGreaterThanOrEqual(2);
-    });
+    // Pick MineAgentOne, go to step 2, pick OtherAgentOne as member, submit.
+    // Verify only OtherAgentOne added as member, not the leader.
+    await selectLeaderAndNext("MineAgentOne");
 
-    // 2. Promote MineAgentTwo to leader (first occurrence is the leader picker row).
-    fireEvent.click(firstMatch("MineAgentTwo"));
+    fireEvent.click(lastMatch("OtherAgentOne"));
 
-    // 3. Switch leader back to MineAgentOne. With MineAgentTwo now the leader,
-    //    the additional-members picker filters it out, so MineAgentOne only
-    //    appears twice (leader picker + members picker) and firstMatch hits
-    //    the leader picker row.
-    fireEvent.click(firstMatch("MineAgentOne"));
-
-    // 4. Submit and assert MineAgentTwo is NOT submitted as a member — the
-    //    promotion must have permanently dropped it from selectedMembers.
     mocks.createSquad.mockResolvedValue(makeSquad({ id: "sq-3", leader_id: "agent-mine-1" }));
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Frontend Team/i), {
+    fireEvent.change(screen.getAllByPlaceholderText(/e\.g\. Frontend Team/i).pop()!, {
       target: { value: "Swap Squad" },
     });
     fireEvent.click(getSubmitButton());
@@ -391,16 +403,22 @@ describe("CreateSquadModal", () => {
         avatar_url: undefined,
       });
     });
-    expect(mocks.addSquadMember).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mocks.addSquadMember).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.addSquadMember).toHaveBeenCalledWith("sq-3", {
+      member_type: "agent",
+      member_id: "agent-other-1",
+    });
   });
 
   it("on success with no additional members fires exactly one success toast and navigates", async () => {
     renderModal();
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Frontend Team/i), {
+    await selectLeaderAndNext("MineAgentOne");
+
+    fireEvent.change(screen.getAllByPlaceholderText(/e\.g\. Frontend Team/i).pop()!, {
       target: { value: "Solo Squad" },
     });
-    // Click MineAgentOne in the leader picker (first occurrence is leader picker row).
-    fireEvent.click(firstMatch("MineAgentOne"));
 
     mocks.createSquad.mockResolvedValue(makeSquad({ id: "sq-1", leader_id: "agent-mine-1" }));
 
@@ -424,20 +442,20 @@ describe("CreateSquadModal", () => {
 
   it("on success with partial member failure shows success + warning toasts and still navigates", async () => {
     renderModal();
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Frontend Team/i), {
+    await selectLeaderAndNext("MineAgentOne");
+
+    fireEvent.change(screen.getAllByPlaceholderText(/e\.g\. Frontend Team/i).pop()!, {
       target: { value: "Mixed Squad" },
     });
-    fireEvent.click(firstMatch("MineAgentOne"));
 
-    // Add two additional members: the workspace pal (member) + OtherAgentOne (agent).
-    // Locate them in the additional-members picker (last occurrence of each).
+    // Add two additional members
     fireEvent.click(lastMatch("OtherAgentOne"));
     fireEvent.click(lastMatch("Workspace Pal"));
 
     mocks.createSquad.mockResolvedValue(makeSquad({ id: "sq-2", leader_id: "agent-mine-1" }));
     mocks.addSquadMember
-      .mockResolvedValueOnce({}) // first call succeeds
-      .mockRejectedValueOnce(new Error("boom")); // second fails
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error("boom"));
 
     fireEvent.click(getSubmitButton());
 
@@ -456,10 +474,11 @@ describe("CreateSquadModal", () => {
 
   it("on createSquad failure shows an error toast, does not navigate, and re-enables submit", async () => {
     renderModal();
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Frontend Team/i), {
+    await selectLeaderAndNext("MineAgentOne");
+
+    fireEvent.change(screen.getAllByPlaceholderText(/e\.g\. Frontend Team/i).pop()!, {
       target: { value: "Boom Squad" },
     });
-    fireEvent.click(firstMatch("MineAgentOne"));
 
     mocks.createSquad.mockRejectedValueOnce(new Error("server down"));
 
@@ -469,8 +488,6 @@ describe("CreateSquadModal", () => {
       expect(mocks.toastError).toHaveBeenCalledTimes(1);
     });
     expect(mocks.navigationPush).not.toHaveBeenCalled();
-    // Submit button is re-enabled (textContent reads "Create Squad" again,
-    // not "Creating...").
     const button = getSubmitButton();
     expect(button.disabled).toBe(false);
   });

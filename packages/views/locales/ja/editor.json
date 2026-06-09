@@ -20,6 +20,15 @@
       "bullet_list": "箇条書きリスト",
       "ordered_list": "番号付きリスト"
     },
+    "table_dropdown": {
+      "label": "Table",
+      "insert_table": "Insert table",
+      "add_row": "Add row",
+      "delete_row": "Delete row",
+      "add_column": "Add column",
+      "delete_column": "Delete column",
+      "delete_table": "Delete table"
+    },
     "sub_issue": {
       "tooltip": "選択範囲からサブイシューを作成",
       "created": "{{identifier}} を作成しました",
