@@ -12,7 +12,7 @@ Multica's desktop app connects to a cloud backend. RimeDeck removes that depende
 
 ## Supported Runtimes
 
-RimeDeck supports 13 AI coding tools as agent runtimes. The daemon auto-detects installed tools on your machine during setup.
+RimeDeck supports 15 AI coding tools as agent runtimes. The daemon auto-detects installed tools on your machine during setup.
 
 | Runtime        | CLI            | Provider           |
 | -------------- | -------------- | ------------------ |
@@ -29,6 +29,8 @@ RimeDeck supports 13 AI coding tools as agent runtimes. The daemon auto-detects 
 | OpenCode       | `opencode`     | —                  |
 | OpenClaw       | `openclaw`     | —                  |
 | Pi             | `pi`           | —                  |
+| Qoder          | `qoder`        | Qodo               |
+| Qwen Code      | `qwen-code`    | Alibaba            |
 
 > **OMP** ([oh-my-pi](https://github.com/can1357/oh-my-pi)) is a community fork of Pi with hash-anchored edits, LSP integration, subagents, and 40+ model providers. It shares the same JSON event-stream protocol as Pi, so it works out-of-the-box. Set `MULTICA_OMP_PATH` to point at a non-default binary, or `MULTICA_OMP_MODEL` to pin a default model.
 
@@ -75,7 +77,7 @@ RimeDeck supports 13 AI coding tools as agent runtimes. The daemon auto-detects 
 
 **Squad** — A team unit with one leader agent and member agents/users. When an issue is assigned to a squad, the leader agent claims it, breaks the work down, and delegates sub-tasks to members via `@mention` links.
 
-**Agent** — A named AI entity with custom instructions, environment, and MCP config. Each agent is bound to an **AgentRuntime** — one of the 13 supported CLI tools (claude, codex, omp, etc.).
+**Agent** — A named AI entity with custom instructions, environment, and MCP config. Each agent is bound to an **AgentRuntime** — one of the 15 supported CLI tools (claude, codex, qoder, etc.).
 
 **Skill** — Reusable instruction files (e.g. code review checklists, language conventions) attached to an agent. At task time, the daemon writes them into the workspace so the CLI discovers them natively (`.claude/skills/`, `.opencode/skills/`, etc.).
 
