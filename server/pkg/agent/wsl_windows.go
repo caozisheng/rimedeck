@@ -18,7 +18,7 @@ func wslLookPath(execPath string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := exec.CommandContext(ctx, wslExe, "--", "test", "-x", execPath).Run(); err != nil {
+	if err := exec.CommandContext(ctx, wslExe, "-e", "test", "-x", execPath).Run(); err != nil {
 		return fmt.Errorf("WSL executable not found at %q: %w", execPath, err)
 	}
 	return nil
@@ -33,7 +33,9 @@ func wslCommand(ctx context.Context, execPath string, args []string, cwd string,
 	if cwd != "" {
 		wslArgs = append(wslArgs, "--cd", cwd)
 	}
-	wslArgs = append(wslArgs, "--")
+	// Use -e (--exec) so wsl.exe calls execve directly without an
+	// intermediate shell layer that would re-parse quotes and $ in args.
+	wslArgs = append(wslArgs, "-e")
 
 	envArgs := buildWSLEnvArgs(envMap)
 	if len(envArgs) > 0 {
@@ -47,14 +49,14 @@ func wslCommand(ctx context.Context, execPath string, args []string, cwd string,
 	return exec.CommandContext(ctx, "wsl.exe", wslArgs...)
 }
 
-// wslDetectVersion runs `wsl.exe -- <execPath> --version` and returns the raw
+// wslDetectVersion runs `wsl.exe -e <execPath> --version` and returns the raw
 // output. Used for agent version detection when the CLI lives inside WSL.
 func wslDetectVersion(ctx context.Context, execPath string) (string, error) {
 	wslExe, err := exec.LookPath("wsl.exe")
 	if err != nil {
 		return "", fmt.Errorf("wsl.exe not found: %w", err)
 	}
-	cmd := exec.CommandContext(ctx, wslExe, "--", execPath, "--version")
+	cmd := exec.CommandContext(ctx, wslExe, "-e", execPath, "--version")
 	hideAgentWindow(cmd)
 	data, err := cmd.Output()
 	if err != nil {

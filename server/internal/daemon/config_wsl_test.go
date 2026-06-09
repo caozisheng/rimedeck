@@ -1,22 +1,27 @@
 package daemon
 
 import (
+	"strings"
 	"testing"
 )
 
 func TestBuildWSLResolveScript(t *testing.T) {
 	got := buildWSLResolveScript([]string{"claude", "codex"})
-	want := "for n in claude codex; do\n" +
-		"  unalias \"$n\" 2>/dev/null\n" +
-		"  unset -f \"$n\" 2>/dev/null\n" +
-		"  p=$(command -v \"$n\" 2>/dev/null) || continue\n" +
-		"  [ -n \"$p\" ] || continue\n" +
-		"  case \"$p\" in /*) ;; *) continue ;; esac\n" +
-		"  d=$(dirname \"$p\") && f=$(basename \"$p\") && c=$(cd \"$d\" 2>/dev/null && pwd -P) || continue\n" +
-		"  printf '%s\\t%s\\n' \"$n\" \"$c/$f\"\n" +
-		"done\n"
+	// Must be a single line — newlines break Windows CreateProcessW → wsl.exe.
+	want := "for n in claude codex; do " +
+		"unalias \"$n\" 2>/dev/null; " +
+		"unset -f \"$n\" 2>/dev/null; " +
+		"p=$(command -v \"$n\" 2>/dev/null) || continue; " +
+		"[ -n \"$p\" ] || continue; " +
+		"case \"$p\" in /*) ;; *) continue;; esac; " +
+		"d=$(dirname \"$p\") && f=$(basename \"$p\") && c=$(cd \"$d\" 2>/dev/null && pwd -P) || continue; " +
+		"printf '%s\\t%s\\n' \"$n\" \"$c/$f\"; " +
+		"done"
 	if got != want {
 		t.Errorf("buildWSLResolveScript:\ngot:  %q\nwant: %q", got, want)
+	}
+	if strings.Contains(got, "\n") {
+		t.Error("script must be single-line for Windows command-line safety")
 	}
 }
 
