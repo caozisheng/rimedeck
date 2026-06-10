@@ -671,7 +671,9 @@ async function syncToken(
   config.token = finalToken;
   if (targetApiBaseUrl) config.server_url = targetApiBaseUrl;
   await writeProfileConfig(active.name, config);
-  await writeProfileUserId(active.name, userId);
+  if (userId) {
+    await writeProfileUserId(active.name, userId);
+  }
 
   // If we just rotated credentials onto a running daemon, restart it so the
   // in-memory token in the Go process matches the new config.

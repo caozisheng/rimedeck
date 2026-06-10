@@ -236,15 +236,21 @@ function AppContent() {
   // empty slug set, wipe the persisted `activeWorkspaceSlug`, then fall
   // back to `workspaces[0]` once the real list arrives — losing the user's
   // last-opened workspace on every app start.
+  //
+  // Skip validation when the list is empty AND we're on a remote server —
+  // an empty list on a remote server likely means a transient network/auth
+  // error, not "zero workspaces". Wiping persisted slugs in that case
+  // leaves the user on a blank page with no recovery path.
   useLayoutEffect(() => {
     if (!workspaceListFetched) return;
+    if (workspaces.length === 0 && isRemote) return;
     const validSlugs = new Set(workspaces.map((w) => w.slug));
     useTabStore.getState().validateWorkspaceSlugs(validSlugs);
     const { activeWorkspaceSlug, switchWorkspace } = useTabStore.getState();
     if (!activeWorkspaceSlug && workspaces.length > 0) {
       switchWorkspace(workspaces[0].slug);
     }
-  }, [workspaces, workspaceListFetched]);
+  }, [workspaces, workspaceListFetched, isRemote]);
 
   // null = undecided (pre-login or list hasn't settled yet)
   // true  = session started with zero workspaces; next transition to >=1 triggers restart

@@ -22,34 +22,71 @@ import (
 const pairingCodeChars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 
 // PairingStore holds the active device pairing code. Thread-safe.
+// The code is single-use: a successful Verify consumes it and generates
+// a new one. Failed attempts are rate-limited (max 5 per minute).
 type PairingStore struct {
-	mu   sync.RWMutex
-	code string
+	mu           sync.Mutex
+	code         string
+	failedCount  int
+	windowStart  time.Time
 }
 
+const (
+	pairingMaxAttempts  = 5
+	pairingWindowDuration = time.Minute
+)
+
 func NewPairingStore() *PairingStore {
-	s := &PairingStore{}
-	s.Regenerate()
+	s := &PairingStore{windowStart: time.Now()}
+	s.regenerateLocked()
 	return s
 }
 
 func (s *PairingStore) Code() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.code
 }
 
 func (s *PairingStore) Regenerate() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.regenerateLocked()
+}
+
+func (s *PairingStore) regenerateLocked() string {
 	s.code = generatePairingCode(6)
+	s.failedCount = 0
+	s.windowStart = time.Now()
 	return s.code
 }
 
+// Verify checks the input against the current code. On success the code
+// is consumed and a new one is generated (single-use). Failed attempts
+// are rate-limited: after 5 failures within a minute, all attempts are
+// rejected until the window resets.
 func (s *PairingStore) Verify(input string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return strings.EqualFold(strings.TrimSpace(input), s.code)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Reset window if expired.
+	if time.Since(s.windowStart) > pairingWindowDuration {
+		s.failedCount = 0
+		s.windowStart = time.Now()
+	}
+
+	if s.failedCount >= pairingMaxAttempts {
+		return false
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(input), s.code) {
+		s.failedCount++
+		return false
+	}
+
+	// Success — consume the code and generate a new one.
+	s.regenerateLocked()
+	return true
 }
 
 func generatePairingCode(length int) string {

@@ -573,11 +573,14 @@ func (h *Handler) DaemonDeregister(w http.ResponseWriter, r *http.Request) {
 		// If no active agents are bound, delete the runtime immediately
 		// instead of leaving it offline for 7 days. This keeps the host's
 		// runtime list clean after a remote machine disconnects.
+		// Mark offline first so FailTasksForOfflineRuntimes (sweeper) can
+		// clean up any lingering queued tasks before the CASCADE delete.
 		activeCount, countErr := h.Queries.CountActiveAgentsByRuntime(r.Context(), rt.ID)
 		if countErr == nil && activeCount == 0 {
+			_ = h.Queries.SetAgentRuntimeOffline(r.Context(), rt.ID)
 			_ = h.Queries.DeleteArchivedAgentsByRuntime(r.Context(), rt.ID)
 			if err := h.Queries.DeleteAgentRuntime(r.Context(), rt.ID); err != nil {
-				slog.Warn("deregister: failed to delete unbound runtime", "runtime_id", rid, "error", err)
+				slog.Warn("deregister: failed to delete unbound runtime, left as offline", "runtime_id", rid, "error", err)
 			} else {
 				slog.Info("deregister: deleted unbound runtime", "runtime_id", rid)
 			}

@@ -563,10 +563,11 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                             restart?: () => Promise<unknown>;
                           }>).daemonAPI;
                           await dAPI?.disconnectRuntimeConfig?.();
-                          // Clear the remote JWT so the post-reload auto-login
+                          // Clear remote credentials so the post-reload auto-login
                           // can issue a fresh local token instead of sending a
                           // stale remote JWT to the local server.
                           localStorage.removeItem("multica_token");
+                          localStorage.removeItem("rimedeck_remote_server");
                           try {
                             await daemon?.clearToken?.();
                             await daemon?.setTargetApiUrl?.("");

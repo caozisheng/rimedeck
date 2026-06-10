@@ -52,7 +52,7 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         throw new Error(body || `${redeemRes.status} ${redeemRes.statusText}`);
       }
 
-      const data: { token?: string; auth_token?: string; workspace_id?: string } =
+      const data: { token?: string; auth_token?: string; workspace_id?: string; user_id?: string } =
         await redeemRes.json();
 
       // Switch the frontend API to the remote server.
@@ -82,7 +82,7 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
           | undefined;
         try {
           await daemonAPI?.setTargetApiUrl?.(url);
-          await daemonAPI?.syncToken?.(data.token, "");
+          await daemonAPI?.syncToken?.(data.token, data.user_id ?? "");
           await daemonAPI?.restart?.();
         } catch { /* best effort */ }
       }
