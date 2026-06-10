@@ -41,6 +41,7 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const navigation = useNavigation();
   const newRuntimeIdRef = useRef<string | null>(null);
+  const initialCountRef = useRef<number | null>(null);
 
   // `multica setup` is one blocking command that handles config + login
   // + daemon start; the dialog passively listens for the resulting
@@ -58,6 +59,29 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
     [step, qc, wsId],
   );
   useWSEvent("daemon:register", handleDaemonRegister);
+
+  // Polling fallback: the WS event can be missed if the connection drops
+  // briefly during daemon restart. Poll the runtime list every 3 seconds
+  // and transition to success when a new runtime appears.
+  useEffect(() => {
+    if (step !== "instructions") return;
+    const poll = async () => {
+      try {
+        const runtimes = await api.listRuntimes({ workspace_id: wsId });
+        if (initialCountRef.current === null) {
+          initialCountRef.current = runtimes.length;
+          return;
+        }
+        if (runtimes.length > initialCountRef.current) {
+          qc.invalidateQueries({ queryKey: runtimeKeys.all(wsId) });
+          setStep("success");
+        }
+      } catch { /* ignore */ }
+    };
+    void poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [step, wsId, qc]);
 
   const handleGoToAgents = () => {
     onClose();

@@ -52,8 +52,13 @@ function AppContent() {
   // The Go server accepts the dev verification code (MULTICA_DEV_VERIFICATION_CODE)
   // without a prior sendCode call, so we skip sendCode entirely to avoid the
   // per-email rate limit that would block auto-login on rapid app restarts.
+  // Skip when connected to a remote server — the stored JWT from the invite
+  // redeem flow is the correct credential; auto-login would create a wrong
+  // user (`local@rimedeck.local`) on the remote server.
+  const isRemote = runtimeConfig && !runtimeConfig.apiUrl.includes("127.0.0.1") && !runtimeConfig.apiUrl.includes("localhost");
   useEffect(() => {
     if (isLoading || bootstrapping || user || autoLoginAttempted.current) return;
+    if (isRemote) return;
     autoLoginAttempted.current = true;
     const LOCAL_EMAIL = "local@rimedeck.local";
     const LOCAL_CODE = "000000";
@@ -70,7 +75,7 @@ function AppContent() {
         setBootstrapping(false);
       }
     })();
-  }, [isLoading, bootstrapping, user, qc]);
+  }, [isLoading, bootstrapping, user, isRemote, qc]);
 
   const runtimeConfig = window.desktopAPI.runtimeConfig.ok
     ? window.desktopAPI.runtimeConfig.config
