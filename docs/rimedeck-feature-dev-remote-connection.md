@@ -558,17 +558,20 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 | 1. 入口 | 设置 → 成员 → "邀请成员" → 生成邀请码 | 侧边栏工作区菜单 → "加入工作区" → `JoinWorkspaceDialog` |
 | 2. 邀请 | 显示 6 位邀请码 + 服务器地址 | 输入服务器地址 + 邀请码 |
 | 3. 赎回 | `POST /api/invitations/redeem` → 创建 user + member + 返回 `mdt_*` token + JWT | 收到 `{ member, workspace_id, user_id, token, auth_token }` |
-| 4. 前端切换 | — | `switchRuntimeConfig({ apiUrl, wsUrl })` → 前端指向远端 server |
-| 5. 存储 JWT | — | `localStorage.setItem("multica_token", auth_token)` → 覆盖本机 JWT |
-| 6. Daemon 配置 | — | `setTargetApiUrl(url)` → `syncToken(mdt_token)` → `restart()` |
-| 7. Daemon 注册 | 收到 `daemon:register` 事件 | Daemon 用 token + server_url 注册 |
-| 8. 页面刷新 | 成员列表更新；邀请状态变为"已接受" | `window.location.reload()` → 前端加载远端工作区 |
+| 4. 前端切换 | — | `switchRuntimeConfig({ apiUrl, wsUrl, authToken })` → 持久化到磁盘 |
+| 5. 存储 JWT | — | `localStorage.setItem("multica_token", auth_token)` |
+| 6. 存储 daemon token | — | `localStorage.setItem("rimedeck_pending_daemon_token", ...)` 供 reload 后使用 |
+| 7. 页面刷新 | — | `window.location.reload()` → 立即 reload，不等 daemon |
+| 8. Auth 初始化 | — | `AuthInitializer` 读 JWT → `getMe()` → 用户登录成功 |
+| 9. Daemon 同步 | 收到 `daemon:register` 事件 | App.tsx user-login effect 读取 pending daemon token → `syncToken` → `restart` → daemon 注册 |
 
 **关键文件**：
-- `server/internal/handler/invitation.go` — `RedeemInvitation()` 赎回端点（含 daemon token 生成 + JWT 签发 + `invitation:accepted` 事件广播）
-- `packages/views/workspace/join-workspace-dialog.tsx` — Client 端对话框
+- `server/internal/handler/invitation.go` — `RedeemInvitation()` 赎回端点（含 daemon token 生成 + JWT 签发 + 已有 member 处理）
+- `packages/views/workspace/join-workspace-dialog.tsx` — Client 端对话框（简化版：只做 redeem + switchConfig + reload）
 - `packages/views/layout/app-sidebar.tsx` — "断开远程连接"菜单项
-- `apps/desktop/src/main/index.ts` — `loadRemoteConfig()` / `saveRemoteConfig()` 持久化
+- `apps/desktop/src/main/index.ts` — `loadRemoteConfig()` / `saveRemoteConfig()` 持久化（含 authToken）
+- `apps/desktop/src/renderer/src/App.tsx` — user-login effect 处理 pending daemon token
+- `packages/core/platform/auth-initializer.tsx` — 只在 401 时清除 token，网络错误保留
 
 **连接后状态**：
 
@@ -656,14 +659,12 @@ App 启动 → loadRemoteConfig() → 有远端配置
 ```
 1. fetch POST <remote>/api/invitations/redeem
    → { token: "mdt_*", auth_token: "<jwt>", member, workspace_id, user_id }
-2. switchRuntimeConfig({ apiUrl, wsUrl })   → 主进程指向远端
-3. localStorage.setItem("multica_token", auth_token)  → 覆盖本机 JWT
-4. daemonAPI.setTargetApiUrl(url) + syncToken(mdt_*) + restart()
-5. window.location.reload()
-   → runtime-config:get → 远端 URL
-   → initCore(remoteUrl) → 新 ApiClient
-   → localStorage 读到远端 JWT → api.setToken()
-   → api.getMe() 成功 → 用户已认证为被邀请者身份
+2. switchRuntimeConfig({ apiUrl, wsUrl, authToken })  → 主进程持久化到 remote_connection.json
+3. localStorage.setItem("multica_token", auth_token)
+4. localStorage.setItem("rimedeck_pending_daemon_token", { token, userId, serverUrl })
+5. window.location.reload()  ← 立即 reload，不等 daemon
+   → AuthInitializer 读 JWT → getMe() → user 设置 → DesktopShell 渲染
+   → App.tsx user-login effect 发现 pending daemon token → syncToken → restart → daemon 注册
 ```
 
 **用户身份**：远端用户操作工作区时，使用的是赎回时在 Server DB 上新建的用户身份，而非 Server 本机 owner 或远端机器的本地用户。三者完全独立：

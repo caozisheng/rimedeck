@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, RefreshCw, Unplug, Link2 } from "lucide-react";
+import { useCallback, useState } from "react";
+import { RefreshCw, Unplug, Link2 } from "lucide-react";
 import { DragStrip } from "@multica/views/platform";
 import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
 import { Button } from "@multica/ui/components/ui/button";
@@ -7,94 +7,76 @@ import { Input } from "@multica/ui/components/ui/input";
 import { useAuthStore } from "@multica/core/auth";
 import { JoinWorkspaceDialog } from "@multica/views/workspace/join-workspace-dialog";
 
-type Phase = "connecting" | "failed" | "expired" | "rejoin";
+type Phase = "failed" | "expired" | "rejoin";
 
 interface Props {
   apiUrl: string;
 }
 
 export function RemoteReconnectPage({ apiUrl }: Props) {
-  const [phase, setPhase] = useState<Phase>("connecting");
+  const [phase, setPhase] = useState<Phase>(() => {
+    const hasToken = !!localStorage.getItem("multica_token");
+    return hasToken ? "failed" : "expired";
+  });
   const [newUrl, setNewUrl] = useState("");
-  const [error, setError] = useState("");
-  const attemptedRef = useRef(false);
   const initialize = useAuthStore((s) => s.initialize);
-  const user = useAuthStore((s) => s.user);
 
-  const tryConnect = useCallback(async (targetUrl?: string) => {
-    setPhase("connecting");
-    setError("");
-
-    if (targetUrl && targetUrl !== apiUrl) {
-      const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
-        | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string }) => Promise<void> }
-        | undefined;
-      if (desktopAPI?.switchRuntimeConfig) {
-        const wsUrl = targetUrl.replace(/^http/, "ws") + "/ws";
-        const token = localStorage.getItem("multica_token") ?? undefined;
-        await desktopAPI.switchRuntimeConfig({ apiUrl: targetUrl, wsUrl, authToken: token });
-      }
+  const handleRetry = useCallback(async () => {
+    // Restore token from disk if localStorage was cleared.
+    const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+      | { getRemoteAuthToken?: () => Promise<string | null> }
+      | undefined;
+    const diskToken = await desktopAPI?.getRemoteAuthToken?.();
+    if (diskToken && !localStorage.getItem("multica_token")) {
+      localStorage.setItem("multica_token", diskToken);
     }
 
-    try {
-      await initialize();
-      const currentUser = useAuthStore.getState().user;
-      if (currentUser) {
-        window.location.reload();
-      } else {
-        const token = localStorage.getItem("multica_token");
-        setPhase(token ? "failed" : "expired");
-        setError(token ? "Unable to reach the server" : "Credentials expired");
-      }
-    } catch {
-      setPhase("failed");
-      setError("Connection failed");
+    if (!localStorage.getItem("multica_token")) {
+      setPhase("expired");
+      return;
     }
-  }, [apiUrl, initialize]);
 
-  useEffect(() => {
-    if (attemptedRef.current || user) return;
-    attemptedRef.current = true;
+    await initialize();
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser) {
+      window.location.reload();
+    }
+  }, [initialize]);
 
-    // Restore JWT from disk if localStorage was cleared.
-    (async () => {
-      const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
-        | { getRemoteAuthToken?: () => Promise<string | null> }
-        | undefined;
-      const diskToken = await desktopAPI?.getRemoteAuthToken?.();
-      if (diskToken && !localStorage.getItem("multica_token")) {
-        localStorage.setItem("multica_token", diskToken);
-      }
-      void tryConnect();
-    })();
-  }, [tryConnect, user]);
-
-  const handleRetry = () => void tryConnect();
-
-  const handleChangeUrl = () => {
+  const handleChangeUrl = useCallback(async () => {
     const base = newUrl.trim().replace(/\/+$/, "");
     if (!base) return;
     const url = base.startsWith("http") ? base : `http://${base}`;
-    void tryConnect(url);
-  };
 
-  const handleDisconnect = async () => {
+    const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+      | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string }) => Promise<void> }
+      | undefined;
+    if (desktopAPI?.switchRuntimeConfig) {
+      const wsUrl = url.replace(/^http/, "ws") + "/ws";
+      const token = localStorage.getItem("multica_token") ?? undefined;
+      await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl, authToken: token });
+    }
+    window.location.reload();
+  }, [newUrl]);
+
+  const handleDisconnect = useCallback(async () => {
     const dAPI = (window as unknown as Record<string, { disconnectRuntimeConfig?: () => Promise<void> }>).desktopAPI;
     const daemon = (window as unknown as Record<string, {
-      setTargetApiUrl?: (u: string) => Promise<void>;
       clearToken?: () => Promise<void>;
+      setTargetApiUrl?: (u: string) => Promise<void>;
       restart?: () => Promise<unknown>;
     }>).daemonAPI;
     await dAPI?.disconnectRuntimeConfig?.();
     localStorage.removeItem("multica_token");
     localStorage.removeItem("rimedeck_remote_server");
+    localStorage.removeItem("rimedeck_pending_daemon_token");
     try {
       await daemon?.clearToken?.();
       await daemon?.setTargetApiUrl?.("");
-      await daemon?.restart?.();
+      void daemon?.restart?.();
     } catch { /* best effort */ }
     window.location.reload();
-  };
+  }, []);
 
   if (phase === "rejoin") {
     return <JoinWorkspaceDialog onClose={() => setPhase("expired")} />;
@@ -108,21 +90,11 @@ export function RemoteReconnectPage({ apiUrl }: Props) {
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
         <MulticaIcon bordered size="lg" />
 
-        {phase === "connecting" && (
-          <>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Connecting to {displayUrl}…
-            </div>
-          </>
-        )}
-
         {phase === "failed" && (
           <div className="flex w-full max-w-sm flex-col gap-4 text-center">
             <p className="text-sm text-muted-foreground">
               Cannot reach <span className="font-mono text-foreground">{displayUrl}</span>
             </p>
-            {error && <p className="text-xs text-destructive">{error}</p>}
 
             <Button size="sm" onClick={handleRetry}>
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" />

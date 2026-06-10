@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Loader2, Users } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
 import { useAuthStore } from "@multica/core/auth";
 import { useT } from "../i18n";
 
-type Step = "form" | "joining" | "success" | "error";
+type Step = "form" | "joining" | "error";
 
 export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
   const { t } = useT("settings");
@@ -37,7 +37,6 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
       const base = serverUrl.trim().replace(/\/+$/, "");
       const url = base.startsWith("http") ? base : `http://${base}`;
 
-      // Redeem the invite code on the remote server.
       const redeemRes = await fetch(`${url}/api/invitations/redeem`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,8 +54,13 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
       const data: { token?: string; auth_token?: string; workspace_id?: string; user_id?: string } =
         await redeemRes.json();
 
-      // Switch the frontend API to the remote server and persist the JWT
-      // to remote_connection.json so it survives localStorage clears.
+      if (!data.auth_token) {
+        throw new Error("Server did not return auth credentials");
+      }
+
+      // Persist the remote server URL + JWT to disk and switch the
+      // frontend API. Daemon ops are handled by App.tsx's user-login
+      // effect after the reload — no need to block here.
       const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
         | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string }) => Promise<void> }
         | undefined;
@@ -66,68 +70,26 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl, authToken: data.auth_token });
       }
 
-      // Store the remote server's JWT so the post-reload auth
-      // initializer authenticates against the remote server.
-      if (data.auth_token) {
-        localStorage.setItem("multica_token", data.auth_token);
-      }
+      localStorage.setItem("multica_token", data.auth_token);
 
-      // Tell daemon-manager the remote URL BEFORE syncToken, so
-      // syncToken writes server_url to the daemon CLI profile.
-      // Then restart the daemon to register against the remote server.
+      // Store daemon token for App.tsx's syncToken effect to pick up.
       if (data.token) {
-        const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-          | { setTargetApiUrl?: (u: string) => Promise<void>;
-              syncToken?: (t: string, u: string) => Promise<void>;
-              restart?: () => Promise<unknown> }
-          | undefined;
-        try {
-          await daemonAPI?.setTargetApiUrl?.(url);
-          await daemonAPI?.syncToken?.(data.token, data.user_id ?? "");
-          await daemonAPI?.restart?.();
-        } catch { /* best effort */ }
+        localStorage.setItem("rimedeck_pending_daemon_token", JSON.stringify({
+          token: data.token,
+          userId: data.user_id ?? "",
+          serverUrl: url,
+        }));
       }
 
-      setStep("success");
+      // Reload immediately. After reload:
+      // 1. AuthInitializer reads JWT → getMe() → user is set
+      // 2. App.tsx user-login effect syncs daemon with the stored token
+      window.location.reload();
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setStep("error");
     }
   };
-
-  const handleDone = () => {
-    // reload() must come before onClose(): onClose sets the parent's
-    // showJoinWorkspace=false which unmounts this component, and any
-    // code after that point never executes.
-    window.location.reload();
-  };
-
-  if (step === "success") {
-    return (
-      <Dialog open onOpenChange={(v) => !v && handleDone()}>
-        <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-md">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle className="text-base text-balance">
-              {t(($) => $.members.join_success_title)}
-            </DialogTitle>
-            <DialogDescription className="text-xs text-balance">
-              {t(($) => $.members.join_success_description)}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-3 px-6 py-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/10" aria-hidden>
-              <Check className="h-6 w-6 text-success" />
-            </div>
-          </div>
-          <DialogFooter className="m-0 rounded-b-xl border-t bg-muted/30 px-6 py-3">
-            <Button size="sm" onClick={handleDone}>
-              {t(($) => $.members.join_done)}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>

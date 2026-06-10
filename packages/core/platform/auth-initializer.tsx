@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getApi } from "../api";
+import { getApi, ApiError } from "../api";
 import { useAuthStore } from "../auth";
 import {
   captureSignupSource,
@@ -94,9 +94,15 @@ export function AuthInitializer({
       })
       .catch((err) => {
         logger.error("auth init failed", err);
-        api.setToken(null);
-        setCurrentWorkspace(null, null);
-        storage.removeItem("multica_token");
+        // Only clear the stored token on a genuine auth rejection (401).
+        // Network timeouts and server errors leave the token intact so
+        // RemoteReconnectPage (or the next app restart) can retry with
+        // the same credentials once the server is reachable again.
+        if (err instanceof ApiError && err.status === 401) {
+          api.setToken(null);
+          setCurrentWorkspace(null, null);
+          storage.removeItem("multica_token");
+        }
         onAuthFailure();
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps

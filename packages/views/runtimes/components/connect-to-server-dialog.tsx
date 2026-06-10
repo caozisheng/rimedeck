@@ -65,7 +65,9 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
         try {
           await daemonAPI.setTargetApiUrl?.(url);
           await daemonAPI.syncToken(data.token, "");
-          await daemonAPI.restart?.();
+          // Fire-and-forget: don't await restart — it can take seconds
+          // and the UI should be responsive immediately.
+          void daemonAPI.restart?.();
         } catch { /* best effort */ }
       }
 
