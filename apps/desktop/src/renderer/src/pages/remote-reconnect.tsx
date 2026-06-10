@@ -69,7 +69,6 @@ export function RemoteReconnectPage({ apiUrl }: Props) {
     await dAPI?.disconnectRuntimeConfig?.();
     localStorage.removeItem("multica_token");
     localStorage.removeItem("rimedeck_remote_server");
-    localStorage.removeItem("rimedeck_pending_daemon_token");
     try {
       await daemon?.clearToken?.();
       await daemon?.setTargetApiUrl?.("");

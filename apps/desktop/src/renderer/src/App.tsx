@@ -124,30 +124,13 @@ function AppContent() {
   }, [qc]);
 
   // Sync token and start the daemon whenever the user logs in.
-  // Also picks up pending daemon tokens stored by JoinWorkspaceDialog
-  // (which defers daemon ops to avoid blocking the join UI).
   useEffect(() => {
     if (!user) return;
+    const token = localStorage.getItem("multica_token");
+    if (!token) return;
     const userId = user.id;
     (async () => {
       try {
-        // Check for a pending daemon token from the join-workspace flow.
-        const pendingRaw = localStorage.getItem("rimedeck_pending_daemon_token");
-        if (pendingRaw) {
-          localStorage.removeItem("rimedeck_pending_daemon_token");
-          try {
-            const pending = JSON.parse(pendingRaw) as { token: string; userId: string; serverUrl: string };
-            await window.daemonAPI.setTargetApiUrl(pending.serverUrl);
-            await window.daemonAPI.syncToken(pending.token, pending.userId || userId);
-            await window.daemonAPI.restart();
-            return;
-          } catch (err) {
-            console.warn("[daemon] pending daemon token sync failed:", err);
-          }
-        }
-
-        const token = localStorage.getItem("multica_token");
-        if (!token) return;
         await window.daemonAPI.syncToken(token, userId);
         await window.daemonAPI.autoStart();
       } catch (err) {

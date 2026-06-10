@@ -47,7 +47,7 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
     }).catch(() => {});
   }, []);
 
-  const switchAndReload = async (url: string, authToken: string, daemonToken?: string, userId?: string, workspaceId?: string) => {
+  const switchAndReload = async (url: string, authToken: string, daemonToken?: string, workspaceId?: string) => {
     const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
       | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string; workspaceId?: string }) => Promise<void> }
       | undefined;
@@ -56,13 +56,18 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
       await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl, authToken, workspaceId });
     }
     localStorage.setItem("multica_token", authToken);
+
+    // Register runtimes on the remote server via /remote/add (no daemon
+    // restart needed). Best-effort — the workspace join already succeeded.
     if (daemonToken) {
-      localStorage.setItem("rimedeck_pending_daemon_token", JSON.stringify({
-        token: daemonToken,
-        userId: userId ?? "",
-        serverUrl: url,
-      }));
+      const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
+        | { addRemoteServer?: (url: string, token: string) => Promise<unknown> }
+        | undefined;
+      try {
+        await daemonAPI?.addRemoteServer?.(url, daemonToken);
+      } catch { /* best effort */ }
     }
+
     window.location.reload();
   };
 
@@ -126,7 +131,7 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         throw new Error("Server did not return auth credentials");
       }
 
-      await switchAndReload(url, data.auth_token, data.token, data.user_id, data.workspace_id);
+      await switchAndReload(url, data.auth_token, data.token, data.workspace_id);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setStep("error");

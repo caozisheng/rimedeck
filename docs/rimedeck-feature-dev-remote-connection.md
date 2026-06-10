@@ -514,27 +514,27 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 |------|-----------|-----------|
 | 1. 入口 | 运行时页 → "添加电脑" → `ConnectRemoteDialog` | 运行时页 → "连接到服务器" → `ConnectToServerDialog` |
 | 2. 配对 | 显示 pairing code + 服务器地址，监听 `daemon:register` WS 事件 | 输入服务器地址 + pairing code |
-| 3. 认证 | `POST /api/auth/pair` 验证 code → 返回 `mdt_*` daemon token | 收到 `{ token, workspace_id }` |
-| 4. Daemon 配置 | — | `setTargetApiUrl(url)` → `syncToken(mdt_token)` → `restart()` |
-| 5. Daemon 注册 | 收到 `daemon:register` 事件 → 对话框跳转成功页（同时有 3s 轮询 fallback） | Daemon 用 token + server_url 向 server 注册 |
-| 6. 完成状态 | 运行时列表显示远端 runtime（在线，visibility=public） | **前端不切换**，停留在本地工作区；daemon 在后台共享算力 |
+| 3. 认证 | `POST /api/auth/pair` 验证 code → 返回 `mdt_*` daemon token → 广播 `daemon:register` 事件 | 收到 `{ token, workspace_id }` |
+| 4. Daemon 热添加 | — | `daemonAPI.addRemoteServer(url, token)` → daemon 通过 `/remote/add` 秒级注册 runtime |
+| 5. 完成 | 收到 `daemon:register` 事件 → 对话框跳转成功页 | 运行时列表显示远端 runtime（在线，visibility=public） |
 
 **关键文件**：
-- `server/internal/handler/device_pair.go` — `DevicePair()` 配对端点
-- `packages/views/runtimes/components/connect-remote-dialog.tsx` — Server 端对话框
-- `packages/views/runtimes/components/connect-to-server-dialog.tsx` — Client 端对话框
-- `apps/desktop/src/main/daemon-manager.ts:syncToken()` — `mdt_*` token 透传 + `server_url` 写入
+- `server/internal/handler/device_pair.go` — `DevicePair()` 配对端点（含 `daemon:register` 事件广播）
+- `server/internal/daemon/remote.go` — `AddRemoteServer()` / `RemoveRemoteServer()` 热添加逻辑
+- `server/internal/daemon/health.go` — `/remote/add` + `/remote/remove` 端点
+- `packages/views/runtimes/components/connect-remote-dialog.tsx` — Server 端对话框（WS 事件 + 轮询检测）
+- `packages/views/runtimes/components/connect-to-server-dialog.tsx` — Client 端对话框（调用 `addRemoteServer`）
 
 **连接后状态**：
 
 | 维度 | Server 端 | Client 端 |
 |------|-----------|-----------|
 | 前端 URL | 本地（不变） | 本地（不变） |
-| daemon 连接 | 本地 | **远端 server**（共享算力） |
+| daemon 连接 | 本地 | 本地（不变）+ 远端（通过 `/remote/add` 热添加） |
 | 数据库 | `agent_runtime` 新增远端 runtime 行（visibility=public） | 不变 |
-| 运行时分组 | 远端 runtime 在"远程"分组 | 本机 runtime 保持在"本机"分组（`lastIdentity` 粘性缓存，不被远端 profile 覆盖） |
-| 磁盘持久化 | — | daemon profile config 有 `server_url` + `token`；`localStorage` 有记录 |
-| 重启后 | 不变 | daemon 从 profile config 读 `server_url` + `token`，自动重连 |
+| 运行时分组 | 远端 runtime 在"远程"分组 | 本机 runtime 保持在"本机"分组 |
+| 磁盘持久化 | — | `localStorage` 有 `rimedeck_remote_server` 记录 |
+| 重启后 | 不变 | Desktop 从 `remote_servers.json` 恢复，通过 `/remote/add` 重新注册 |
 
 #### 断开
 
@@ -567,12 +567,11 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 | 1. 入口 | 设置 → 成员 → "邀请成员" → 生成邀请码 | 侧边栏工作区菜单 → "加入工作区" → `JoinWorkspaceDialog` |
 | 2. 邀请 | 显示 6 位邀请码 + 服务器地址 | 输入服务器地址 + 邀请码 |
 | 3. 赎回 | `POST /api/invitations/redeem` → 创建 user + member + 返回 `mdt_*` token + JWT | 收到 `{ member, workspace_id, user_id, token, auth_token }` |
-| 4. 前端切换 | — | `switchRuntimeConfig({ apiUrl, wsUrl, authToken })` → 持久化到磁盘 |
+| 4. 前端切换 | — | `switchRuntimeConfig({ apiUrl, wsUrl, authToken, workspaceId })` → 持久化到磁盘 |
 | 5. 存储 JWT | — | `localStorage.setItem("multica_token", auth_token)` |
-| 6. 存储 daemon token | — | `localStorage.setItem("rimedeck_pending_daemon_token", ...)` 供 reload 后使用 |
-| 7. 页面刷新 | — | `window.location.reload()` → 立即 reload，不等 daemon |
-| 8. Auth 初始化 | — | `AuthInitializer` 读 JWT → `getMe()` → 用户登录成功 |
-| 9. Daemon 同步 | 收到 `daemon:register` 事件 | App.tsx user-login effect 读取 pending daemon token → `syncToken` → `restart` → daemon 注册 |
+| 6. Daemon 热添加 | — | `daemonAPI.addRemoteServer(url, mdt_token)` → 无需重启，秒级注册 |
+| 7. 页面刷新 | — | `window.location.reload()` |
+| 8. Auth 初始化 | 成员列表更新 | `AuthInitializer` 读 JWT → `getMe()` → 用户登录成功 |
 
 **关键文件**：
 - `server/internal/handler/invitation.go` — `RedeemInvitation()` 赎回端点（含 daemon token 生成 + JWT 签发 + 已有 member 处理）
@@ -689,12 +688,11 @@ JoinWorkspaceDialog 打开 → getRemoteHistory()
 ```
 1. fetch POST <remote>/api/invitations/redeem
    → { token: "mdt_*", auth_token: "<jwt>", member, workspace_id, user_id }
-2. switchRuntimeConfig({ apiUrl, wsUrl, authToken })  → 主进程持久化到 remote_connection.json
+2. switchRuntimeConfig({ apiUrl, wsUrl, authToken, workspaceId })  → 持久化到磁盘
 3. localStorage.setItem("multica_token", auth_token)
-4. localStorage.setItem("rimedeck_pending_daemon_token", { token, userId, serverUrl })
-5. window.location.reload()  ← 立即 reload，不等 daemon
+4. daemonAPI.addRemoteServer(url, mdt_token)  ← 热添加，无需重启
+5. window.location.reload()
    → AuthInitializer 读 JWT → getMe() → user 设置 → DesktopShell 渲染
-   → App.tsx user-login effect 发现 pending daemon token → syncToken → restart → daemon 注册
 ```
 
 **用户身份**：远端用户操作工作区时，使用的是赎回时在 Server DB 上新建的用户身份，而非 Server 本机 owner 或远端机器的本地用户。三者完全独立：
