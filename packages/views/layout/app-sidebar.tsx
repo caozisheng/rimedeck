@@ -537,6 +537,30 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                     <DropdownMenuLabel className="text-xs text-muted-foreground">
                       {t(($) => $.sidebar.workspaces_label)}
                     </DropdownMenuLabel>
+                    {isRemoteConnection && (
+                      <DropdownMenuItem
+                        onClick={async () => {
+                          const dAPI = (window as unknown as Record<string, {
+                            disconnectRuntimeConfig?: () => Promise<void>;
+                            runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } };
+                          }>).desktopAPI;
+                          const daemon = (window as unknown as Record<string, {
+                            removeRemoteServer?: (url: string) => Promise<void>;
+                          }>).daemonAPI;
+                          const currentUrl = dAPI?.runtimeConfig?.ok ? dAPI.runtimeConfig.config?.apiUrl : null;
+                          if (currentUrl && daemon?.removeRemoteServer) {
+                            try { await daemon.removeRemoteServer(currentUrl); } catch { /* best effort */ }
+                          }
+                          await dAPI?.disconnectRuntimeConfig?.();
+                          localStorage.removeItem("multica_token");
+                          localStorage.removeItem("rimedeck_remote_server");
+                          window.location.reload();
+                        }}
+                      >
+                        <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="flex-1 truncate">{t(($) => $.sidebar.local_workspace)}</span>
+                      </DropdownMenuItem>
+                    )}
                     {workspaces.map((ws) => (
                       <DropdownMenuItem
                         key={ws.id}

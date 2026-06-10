@@ -27,6 +27,7 @@
     "workspaces_label": "Workspaces",
     "create_workspace": "Create workspace",
     "join_workspace": "Join workspace",
+    "local_workspace": "Local workspace",
     "disconnect_remote": "Disconnect remote",
     "leave_workspace": "Leave workspace",
     "pending_invitations_label": "Pending invitations",

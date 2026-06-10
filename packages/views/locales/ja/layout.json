@@ -27,6 +27,7 @@
     "workspaces_label": "ワークスペース",
     "create_workspace": "ワークスペースを作成",
     "join_workspace": "ワークスペースに参加",
+    "local_workspace": "ローカルワークスペース",
     "disconnect_remote": "リモート接続を解除",
     "leave_workspace": "ワークスペースを退出",
     "pending_invitations_label": "保留中の招待",
