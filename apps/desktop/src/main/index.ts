@@ -84,11 +84,13 @@ interface RemoteConfig {
   apiUrl: string;
   wsUrl: string;
   authToken?: string;
+  workspaceId?: string;
 }
 
 interface RemoteServerEntry {
   apiUrl: string;
   authToken?: string;
+  workspaceId?: string;
   label?: string;
   lastConnected: string;
 }
@@ -128,6 +130,7 @@ function addToRemoteHistory(config: RemoteConfig): void {
     const entry: RemoteServerEntry = {
       apiUrl: config.apiUrl,
       authToken: config.authToken,
+      workspaceId: config.workspaceId,
       lastConnected: new Date().toISOString(),
     };
     if (existing >= 0) {
@@ -138,6 +141,15 @@ function addToRemoteHistory(config: RemoteConfig): void {
     mkdirSync(join(homedir(), ".rimedeck"), { recursive: true });
     writeFileSync(REMOTE_HISTORY_PATH, JSON.stringify(history));
   } catch { /* best effort */ }
+}
+
+function removeFromRemoteHistory(apiUrl: string): RemoteServerEntry[] {
+  try {
+    const history = loadRemoteHistory().filter((e) => e.apiUrl !== apiUrl);
+    mkdirSync(join(homedir(), ".rimedeck"), { recursive: true });
+    writeFileSync(REMOTE_HISTORY_PATH, JSON.stringify(history));
+    return history;
+  } catch { return []; }
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -488,7 +500,7 @@ if (!gotTheLock) {
 
     ipcMain.handle(
       "runtime-config:switch",
-      (_event, config: { apiUrl: string; wsUrl: string; authToken?: string }) => {
+      (_event, config: { apiUrl: string; wsUrl: string; authToken?: string; workspaceId?: string }) => {
         const wsUrl = config.apiUrl.replace(/^http/, "ws") + "/ws";
         runtimeConfigResult = {
           ok: true,
@@ -499,7 +511,7 @@ if (!gotTheLock) {
             appUrl: config.apiUrl,
           },
         };
-        saveRemoteConfig({ apiUrl: config.apiUrl, wsUrl, authToken: config.authToken });
+        saveRemoteConfig({ apiUrl: config.apiUrl, wsUrl, authToken: config.authToken, workspaceId: config.workspaceId });
         mainWindow?.webContents.send("runtime-config:changed", runtimeConfigResult);
       },
     );
@@ -511,6 +523,10 @@ if (!gotTheLock) {
 
     ipcMain.handle("runtime-config:get-remote-history", () => {
       return loadRemoteHistory();
+    });
+
+    ipcMain.handle("runtime-config:remove-remote-server", (_event, apiUrl: string) => {
+      return removeFromRemoteHistory(apiUrl);
     });
 
     ipcMain.handle("runtime-config:disconnect", () => {

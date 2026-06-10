@@ -162,13 +162,17 @@ const desktopAPI = {
     apiUrl: string;
     wsUrl: string;
     authToken?: string;
+    workspaceId?: string;
   }): Promise<void> => ipcRenderer.invoke("runtime-config:switch", config),
   /** Retrieve the persisted auth token from remote_connection.json. */
   getRemoteAuthToken: (): Promise<string | null> =>
     ipcRenderer.invoke("runtime-config:get-auth-token"),
   /** Retrieve the list of previously connected remote servers. */
-  getRemoteHistory: (): Promise<Array<{ apiUrl: string; authToken?: string; label?: string; lastConnected: string }>> =>
+  getRemoteHistory: (): Promise<Array<{ apiUrl: string; authToken?: string; workspaceId?: string; label?: string; lastConnected: string }>> =>
     ipcRenderer.invoke("runtime-config:get-remote-history"),
+  /** Remove a remote server from history. */
+  removeRemoteServer: (apiUrl: string): Promise<Array<{ apiUrl: string; authToken?: string; workspaceId?: string; label?: string; lastConnected: string }>> =>
+    ipcRenderer.invoke("runtime-config:remove-remote-server", apiUrl),
   /** Disconnect from the remote server and restore the local backend. */
   disconnectRuntimeConfig: (): Promise<void> =>
     ipcRenderer.invoke("runtime-config:disconnect"),

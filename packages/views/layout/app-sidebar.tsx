@@ -381,6 +381,9 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   // write (our own optimistic update, or a WS refetch) cannot reorder the
   // DOM under dnd-kit while its drop animation is still interpolating.
   const [showJoinWorkspace, setShowJoinWorkspace] = useState(false);
+  const [remoteServers, setRemoteServers] = useState<Array<{
+    apiUrl: string; authToken?: string; workspaceId?: string; label?: string; lastConnected: string;
+  }>>([]);
   const isRemoteConnection = useMemo(() => {
     if (typeof window === "undefined") return false;
     const d = (window as unknown as Record<string, unknown>).desktopAPI as
@@ -390,6 +393,15 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
     return !!url && !url.includes("127.0.0.1") && !url.includes("localhost");
   }, []);
   const [localPinned, setLocalPinned] = useState<PinnedItem[]>(pinnedItems);
+
+  // Load remote server history for workspace list display.
+  useEffect(() => {
+    const d = (window as unknown as Record<string, unknown>).desktopAPI as
+      | { getRemoteHistory?: () => Promise<typeof remoteServers> }
+      | undefined;
+    d?.getRemoteHistory?.().then(setRemoteServers).catch(() => {});
+  }, []);
+
   const isDraggingRef = useRef(false);
   useEffect(() => {
     if (!isDraggingRef.current) {
@@ -537,6 +549,61 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         {ws.id === workspace?.id && (
                           <Check className="h-3.5 w-3.5 text-primary" />
                         )}
+                      </DropdownMenuItem>
+                    ))}
+                    {remoteServers.filter((rs) => {
+                      // Don't show entries for the currently connected remote server
+                      // (it already shows as the active workspace above).
+                      const currentUrl = isRemoteConnection
+                        ? ((window as unknown as Record<string, { runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } } }>).desktopAPI?.runtimeConfig?.config?.apiUrl)
+                        : null;
+                      return rs.apiUrl !== currentUrl;
+                    }).map((rs) => (
+                      <DropdownMenuItem
+                        key={rs.apiUrl}
+                        className="group"
+                        onClick={async () => {
+                          if (!rs.authToken) {
+                            setShowJoinWorkspace(true);
+                            return;
+                          }
+                          const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+                            | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string; workspaceId?: string }) => Promise<void> }
+                            | undefined;
+                          if (desktopAPI?.switchRuntimeConfig) {
+                            const wsUrl = rs.apiUrl.replace(/^http/, "ws") + "/ws";
+                            await desktopAPI.switchRuntimeConfig({ apiUrl: rs.apiUrl, wsUrl, authToken: rs.authToken, workspaceId: rs.workspaceId });
+                          }
+                          localStorage.setItem("multica_token", rs.authToken);
+                          window.location.reload();
+                        }}
+                      >
+                        <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="flex-1 truncate font-mono text-xs">
+                          {rs.apiUrl.replace(/^https?:\/\//, "")}
+                        </span>
+                        <button
+                          type="button"
+                          className="ml-1 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Call leave API on the remote server to remove membership.
+                            if (rs.authToken && rs.workspaceId) {
+                              try {
+                                await fetch(`${rs.apiUrl}/api/workspaces/${rs.workspaceId}/leave`, {
+                                  method: "POST",
+                                  headers: { Authorization: `Bearer ${rs.authToken}` },
+                                });
+                              } catch { /* best effort */ }
+                            }
+                            const dAPI = (window as unknown as Record<string, { removeRemoteServer?: (url: string) => Promise<unknown> }>).desktopAPI;
+                            await dAPI?.removeRemoteServer?.(rs.apiUrl);
+                            setRemoteServers((prev) => prev.filter((s) => s.apiUrl !== rs.apiUrl));
+                          }}
+                          aria-label={t(($) => $.sidebar.leave_workspace)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
                       </DropdownMenuItem>
                     ))}
                     {!workspaceCreationDisabled && (

@@ -28,6 +28,7 @@
     "create_workspace": "创建工作区",
     "join_workspace": "加入工作区",
     "disconnect_remote": "断开远程连接",
+    "leave_workspace": "退出工作区",
     "pending_invitations_label": "待处理的邀请",
     "invitation_workspace_fallback": "工作区",
     "invitation_join": "加入",

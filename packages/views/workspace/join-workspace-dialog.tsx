@@ -47,13 +47,13 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
     }).catch(() => {});
   }, []);
 
-  const switchAndReload = async (url: string, authToken: string, daemonToken?: string, userId?: string) => {
+  const switchAndReload = async (url: string, authToken: string, daemonToken?: string, userId?: string, workspaceId?: string) => {
     const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
-      | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string }) => Promise<void> }
+      | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string; workspaceId?: string }) => Promise<void> }
       | undefined;
     if (desktopAPI?.switchRuntimeConfig) {
       const wsUrl = url.replace(/^http/, "ws") + "/ws";
-      await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl, authToken });
+      await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl, authToken, workspaceId });
     }
     localStorage.setItem("multica_token", authToken);
     if (daemonToken) {
@@ -126,7 +126,7 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         throw new Error("Server did not return auth credentials");
       }
 
-      await switchAndReload(url, data.auth_token, data.token, data.user_id);
+      await switchAndReload(url, data.auth_token, data.token, data.user_id, data.workspace_id);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setStep("error");
