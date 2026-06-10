@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // pairingCodeChars excludes ambiguous characters (O/0, I/1, L).
@@ -174,6 +175,14 @@ func (h *Handler) DevicePair(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("device paired", "daemon_id", daemonID, "workspace_id", uuidToString(wsUUID))
+
+	// Notify frontends so ConnectRemoteDialog can detect the pairing
+	// immediately, without waiting for the remote daemon to restart and
+	// register (which can take 10-20 seconds).
+	h.publish(protocol.EventDaemonRegister, uuidToString(wsUUID), "system", "", map[string]any{
+		"action":    "paired",
+		"daemon_id": daemonID,
+	})
 
 	writeJSON(w, http.StatusOK, DevicePairResponse{
 		Token:       rawToken,
