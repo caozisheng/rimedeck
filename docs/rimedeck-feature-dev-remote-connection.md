@@ -418,27 +418,33 @@ runtimeConfigResult = {
 - `apps/desktop/src/main/local-backend/backend-manager.ts` — server 监听地址 `127.0.0.1` → `0.0.0.0`
 - `apps/desktop/src/main/index.ts` — `runtime-config:switch` / `disconnect` IPC + `loadRemoteConfig()` / `saveRemoteConfig()`
 - `apps/desktop/src/main/daemon-manager.ts` — `syncToken()`、`setTargetApiUrl()`、`clearToken()`
-- `apps/desktop/src/preload/index.ts` — 暴露 runtime-config 切换方法给 renderer
-- `apps/desktop/src/renderer/src/App.tsx` — auto-login 跳过远端连接（`isRemote` guard）
+- `apps/desktop/src/preload/index.ts` — 暴露 runtime-config 切换 / authToken / history IPC
+- `apps/desktop/src/renderer/src/App.tsx` — auto-login guard + user-login effect（pending daemon token）
+- `apps/desktop/src/renderer/src/pages/remote-reconnect.tsx` — 远端连接失败时的重连页
 - `apps/desktop/src/renderer/src/components/desktop-runtimes-page.tsx` — daemon_id 粘性缓存（仅本地时更新）
 - `apps/desktop/src/renderer/src/components/desktop-agents-page.tsx` — 同上
-- `server/internal/handler/invitation.go` — 邀请码生成 + redeem 端点 + JWT 签发
+- `server/internal/handler/invitation.go` — 邀请码生成 + redeem 端点 + JWT 签发 + 已有 member 处理
 - `server/internal/handler/daemon.go` — daemon token runtime 自动 public + deregister 立即删除
+- `server/internal/handler/device_pair.go` — 配对码单次使用 + 限流
 - `server/cmd/server/router.go` — 注册新路由
-- `packages/views/settings/components/members-tab.tsx` — 邀请码 UI
-- `packages/views/runtimes/components/connect-remote-dialog.tsx` — 显示 self-host 命令 + 轮询 fallback
-- `packages/views/layout/app-sidebar.tsx` — 断开连接（含 localStorage 清除）
-- `packages/core/api/client.ts` — 新增 API 方法（`redeemInvitation` 含 `auth_token`）
+- `packages/core/platform/auth-initializer.tsx` — 401 时清 token，网络错误保留
+- `packages/views/workspace/join-workspace-dialog.tsx` — 简化（无 daemon ops）+ 历史列表
+- `packages/views/runtimes/components/connect-remote-dialog.tsx` — 轮询 fallback
+- `packages/views/runtimes/components/connect-to-server-dialog.tsx` — daemon restart fire-and-forget
+- `packages/views/layout/app-sidebar.tsx` — 断开连接（含 localStorage + remote_server 清除）
+- `packages/core/api/client.ts` — `redeemInvitation` 含 `auth_token`
 
 ---
 
 ## 六、验证方式
 
-1. **认证配对**：启动 Desktop → 查看认证码 → 另一台机器用认证码连接 daemon → 验证 daemon token 颁发和后续免码使用
-2. **添加电脑 (A)**：打开"添加电脑" → 确认显示正确的 self-host 命令和认证码 → 远端执行 → 确认 runtime 出现在列表中 → 验证远端只能跑任务、不能看工作区 UI
-3. **邀请成员**：Admin 生成邀请码 → 被邀请人输入 server 地址 + 邀请码 → 确认前端切换到远程 server → 确认能看到完整工作区 UI → 确认出现在成员列表
-4. **完整协作**：邀请成员后 → 被邀请人同时添加电脑 → 确认既能操作 UI 又贡献算力
-5. **断开恢复**：被邀请人点"断开连接" → 确认前端恢复到本机 server → 本地数据完好
+1. **认证配对**：启动 Desktop → 查看认证码 → 另一台机器用认证码连接 daemon → 验证 daemon token 颁发 → 认证码已更新（单次使用）
+2. **添加电脑**：打开"添加电脑" → 远端"连接到服务器" → daemon 重启后自动注册 → 主机运行时列表显示远端 runtime（public）
+3. **邀请成员**：Admin 生成邀请码 → 被邀请人输入地址+邀请码 → 页面立即 reload → 看到远端工作区 → daemon 自动同步
+4. **断开恢复**：点"断开连接" → 回到本机 → 再次"加入工作区" → 显示历史列表 → 选择条目 → JWT 有效则直接连上
+5. **JWT 过期重连**：断开后等 30 天（或手动清 token 模拟） → "加入工作区" → 历史条目 JWT 失效 → 提示输入新邀请码 → 连上
+6. **地址变更**：远端重启后 IP 变了 → RemoteReconnectPage → 输入新地址 → 用已存 JWT 连上
+7. **网络闪断**：断网 → WebSocket + daemon 心跳自动重连 → 恢复后无需操作
 
 ---
 
@@ -580,7 +586,7 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 | 前端 URL | 本地（不变） | **远端 server**（完整工作区 UI） |
 | daemon 连接 | 本地 | **远端 server**（共享算力） |
 | 数据库 | `user` + `member` + `daemon_token` + `agent_runtime` 新增 | 不变 |
-| 磁盘持久化 | — | `~/.rimedeck/remote_connection.json`（前端 URL）；`localStorage` 中的 JWT；daemon profile config（`server_url` + `token`） |
+| 磁盘持久化 | — | `~/.rimedeck/remote_connection.json`（前端 URL + authToken）；`~/.rimedeck/remote_servers.json`（连接历史）；`localStorage` 中的 JWT；daemon profile config（`server_url` + `token`） |
 | 重启后 | 不变 | 前端从 `remote_connection.json` 恢复远端 URL；auth store 从 `localStorage` 读取远端 JWT 自动认证；daemon 从 profile config 自动重连 |
 
 #### 断开
@@ -604,7 +610,7 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 | 成员记录 | member 行保留（需管理员手动移除） | — |
 | daemon token | 数据库中 token 仍然有效（365天） | config 已清除，无法使用 |
 | JWT | — | localStorage 已清除 |
-| 磁盘 | — | `remote_connection.json` 已删；`multica_token` 已清除；daemon profile config 已清除 `token` + `server_url` |
+| 磁盘 | — | `remote_connection.json` 已删；`multica_token` 已清除；daemon profile config 已清除；**`remote_servers.json` 保留**（供下次快速重连） |
 
 **断开后能否操作远端工作区**：**不能**。六层保护：
 1. 前端 URL → 指向本地，API 请求不到远端
@@ -616,30 +622,49 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 
 #### 重连
 
-**自动重连**（App 重启时）：
+**自动重连**（App 重启时，有 `remote_connection.json`）：
 
-`remote_connection.json` 持久化 `{ apiUrl, wsUrl, authToken }`。App 启动时检测到远端连接后进入重连流程（`RemoteReconnectPage`），而非显示邮箱登录页：
+App 启动时 `loadRemoteConfig()` 发现远端配置 → 使用远端 URL 初始化 `CoreProvider` → `AuthInitializer` 读 JWT → `getMe()` 尝试认证：
 
 ```
 App 启动 → loadRemoteConfig() → 有远端配置
-  → 恢复 JWT（remote_connection.json.authToken → localStorage）
-  → api.getMe() 尝试连接
-  ┌─ 成功 → 正常进入工作区
-  ├─ 网络错误（地址不通）→ 显示重连页：
-  │   ├─ "重试" → 再次 getMe()
-  │   ├─ "更换地址" → 输入新 IP/域名 → switchRuntimeConfig → 用已存 JWT 重试
+  → CoreProvider(remoteApiUrl) → AuthInitializer 读 localStorage JWT
+  ┌─ getMe() 成功 → user 设置 → DesktopShell 渲染 → 正常使用
+  ├─ 网络错误 → token 保留（不清除）→ RemoteReconnectPage 显示：
+  │   ├─ "重试" → 从磁盘恢复 token（如 localStorage 被清） → initialize() 
+  │   ├─ "更换地址" → 输入新 IP/域名 → switchRuntimeConfig → reload
   │   └─ "断开连接" → disconnect 流程 → 回到本机
-  └─ 401（JWT 过期）→ 显示重连页：
-      ├─ "重新加入" → JoinWorkspaceDialog（地址预填）→ 用新邀请码获取新 JWT
+  └─ 401（JWT 过期）→ token 清除 → RemoteReconnectPage 显示：
+      ├─ "重新加入" → JoinWorkspaceDialog → 用新邀请码获取新 JWT
       └─ "断开连接" → disconnect 流程 → 回到本机
 ```
 
-**关键设计**：
-- JWT 同时存储在 `localStorage` 和 `remote_connection.json.authToken`（磁盘备份，防止浏览器缓存清理丢失）
-- 地址变更只需输入新地址，不需要新邀请码（JWT 仍然有效）
-- 推荐使用 Tailscale 域名连接（地址不变，重连始终成功）
-- `RedeemInvitation` 已有 member 时不返回 409，而是签发新 JWT + daemon token（允许用新邀请码重新获取凭据）
-- auto-login（`local@rimedeck.local`）在 `isRemote=true` 时跳过，不会误创建远端用户
+**关键机制**：
+- `AuthInitializer` 只在 401 时清除 token，网络错误保留（允许重试）
+- JWT 同时存储在 `localStorage` 和 `remote_connection.json.authToken`（磁盘备份）
+- `RemoteReconnectPage` 不独立调用 `initialize()`，只在用户点"重试"时触发
+
+**手动重连**（断开后，通过 JoinWorkspaceDialog）：
+
+断开后 `remote_connection.json` 被删除，但 `~/.rimedeck/remote_servers.json` 保留连接历史。用户点"加入工作区"时：
+
+```
+JoinWorkspaceDialog 打开 → getRemoteHistory()
+  ┌─ 有历史 → 显示"最近连接"列表：
+  │   ├─ 选择条目 → fetch /api/me(authToken) → 成功 → switchConfig + reload（无需邀请码）
+  │   ├─ 选择条目 → JWT 过期(401) → 预填地址 → 提示输入新邀请码
+  │   └─ "连接新服务器" → 显示地址+邀请码表单
+  └─ 无历史 → 直接显示地址+邀请码表单
+```
+
+**`remote_servers.json` 格式**：
+```json
+[
+  { "apiUrl": "http://192.168.1.100:18080", "authToken": "<jwt>", "lastConnected": "2026-06-10T..." }
+]
+```
+
+每次 `saveRemoteConfig()` 时自动追加/更新到历史列表。disconnect 不删除历史。
 
 **其他重连场景**：
 
@@ -653,7 +678,9 @@ App 启动 → loadRemoteConfig() → 有远端配置
 
 **问题**：每个 Desktop 实例在首次启动时生成独立的随机 JWT secret（`local-backend/config.ts` — `randomBytes(32)`）。机器 A 签发的 JWT 在机器 B 的 server 上**必定验签失败**。如果 `RedeemInvitation` 不签发 JWT，远端用户 reload 后 localStorage 中的本机 JWT 在远端 server 上 401，无法操作工作区。
 
-**方案**：`RedeemInvitation` 在创建 user + member 后，调用 `issueJWT(user)` 签发由远端 server 自己密钥签名的 JWT，通过 `auth_token` 字段返回。前端在 `switchRuntimeConfig` 之后、reload 之前，将此 JWT 写入 `localStorage`，覆盖本机 JWT。
+**方案**：`RedeemInvitation` 在创建 user + member 后，调用 `issueJWT(user)` 签发由远端 server 自己密钥签名的 JWT，通过 `auth_token` 字段返回。已有 member 时不返回 409，而是查找已有记录继续签发凭据（允许用新邀请码刷新过期 JWT）。
+
+前端 dialog 只做 redeem + switchConfig + store JWT + reload（不阻塞 daemon 操作）。Daemon 同步由 App.tsx 的 user-login effect 在 reload 后处理。
 
 **时序**：
 ```
@@ -726,8 +753,9 @@ daemon token（`mdt_*`）注册的 runtime 没有 `owner_id`（`daemon.go` 中 d
 
 ### 已知限制
 
-1. **JWT 过期需重新邀请**：JWT 默认 30 天过期。重连页会引导用户输入新邀请码重新获取 JWT（`RedeemInvitation` 对已有 member 签发新凭据，不需要主机删除旧 member）。未来可考虑 token refresh 端点
+1. **JWT 过期需重新邀请**：JWT 默认 30 天过期。重连页引导用户输入新邀请码（`RedeemInvitation` 对已有 member 签发新凭据）。断开后再加入时，历史列表自动尝试已存 JWT，过期则提示输入新邀请码
 2. **成员记录不自动清理**：断开后 Server 端的 member 行保留，需管理员手动移除
 3. **单 daemon 单 server**：daemon 一次只能连一个 server（本地或远端），不支持同时服务多个 server。切换到远端后本机 server 的 runtime 会因无心跳而被标记 offline
 4. **daemon token 注册的 runtime 无 owner_id**：普通 member 无法通过 `canEditRuntime` 检查删除这些 runtime，需 owner/admin 操作
 5. **占位邮箱不可登录**：赎回时创建的 `<code>@local.rimedeck` 用户无法通过邮箱验证码流程登录，只能依赖 JWT 或重新邀请
+6. **IP 地址变化需手动处理**：局域网 IP 变化后，自动重连失败，需通过重连页输入新地址或使用 Tailscale 域名（域名不变）
