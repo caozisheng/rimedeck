@@ -78,11 +78,19 @@ if (process.platform === "win32") {
 
 const PROTOCOL = "rimedeck";
 const REMOTE_CONFIG_PATH = join(homedir(), ".rimedeck", "remote_connection.json");
+const REMOTE_HISTORY_PATH = join(homedir(), ".rimedeck", "remote_servers.json");
 
 interface RemoteConfig {
   apiUrl: string;
   wsUrl: string;
   authToken?: string;
+}
+
+interface RemoteServerEntry {
+  apiUrl: string;
+  authToken?: string;
+  label?: string;
+  lastConnected: string;
 }
 
 function loadRemoteConfig(): RemoteConfig | null {
@@ -99,9 +107,36 @@ function saveRemoteConfig(config: RemoteConfig | null): void {
     if (config) {
       mkdirSync(join(homedir(), ".rimedeck"), { recursive: true });
       writeFileSync(REMOTE_CONFIG_PATH, JSON.stringify(config));
+      addToRemoteHistory(config);
     } else {
       unlinkSync(REMOTE_CONFIG_PATH);
     }
+  } catch { /* best effort */ }
+}
+
+function loadRemoteHistory(): RemoteServerEntry[] {
+  try {
+    const raw = readFileSync(REMOTE_HISTORY_PATH, "utf-8");
+    return JSON.parse(raw) ?? [];
+  } catch { return []; }
+}
+
+function addToRemoteHistory(config: RemoteConfig): void {
+  try {
+    const history = loadRemoteHistory();
+    const existing = history.findIndex((e) => e.apiUrl === config.apiUrl);
+    const entry: RemoteServerEntry = {
+      apiUrl: config.apiUrl,
+      authToken: config.authToken,
+      lastConnected: new Date().toISOString(),
+    };
+    if (existing >= 0) {
+      history[existing] = { ...history[existing], ...entry };
+    } else {
+      history.push(entry);
+    }
+    mkdirSync(join(homedir(), ".rimedeck"), { recursive: true });
+    writeFileSync(REMOTE_HISTORY_PATH, JSON.stringify(history));
   } catch { /* best effort */ }
 }
 
@@ -472,6 +507,10 @@ if (!gotTheLock) {
     ipcMain.handle("runtime-config:get-auth-token", () => {
       const cfg = loadRemoteConfig();
       return cfg?.authToken ?? null;
+    });
+
+    ipcMain.handle("runtime-config:get-remote-history", () => {
+      return loadRemoteHistory();
     });
 
     ipcMain.handle("runtime-config:disconnect", () => {

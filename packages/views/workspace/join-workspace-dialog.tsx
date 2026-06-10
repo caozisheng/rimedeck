@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, Users, Clock, ChevronRight } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,14 @@ import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
 import { useAuthStore } from "@multica/core/auth";
 import { useT } from "../i18n";
 
-type Step = "form" | "joining" | "error";
+type Step = "history" | "form" | "joining" | "reconnecting" | "error";
+
+interface HistoryEntry {
+  apiUrl: string;
+  authToken?: string;
+  label?: string;
+  lastConnected: string;
+}
 
 export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
   const { t } = useT("settings");
@@ -26,9 +33,70 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
   const [serverUrl, setServerUrl] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
 
-  const canSubmit =
-    serverUrl.trim().length > 0 && inviteCode.trim().length >= 4;
+  useEffect(() => {
+    const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+      | { getRemoteHistory?: () => Promise<HistoryEntry[]> }
+      | undefined;
+    desktopAPI?.getRemoteHistory?.().then((h) => {
+      if (h && h.length > 0) {
+        setHistory(h);
+        setStep("history");
+      }
+    }).catch(() => {});
+  }, []);
+
+  const switchAndReload = async (url: string, authToken: string, daemonToken?: string, userId?: string) => {
+    const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+      | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string }) => Promise<void> }
+      | undefined;
+    if (desktopAPI?.switchRuntimeConfig) {
+      const wsUrl = url.replace(/^http/, "ws") + "/ws";
+      await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl, authToken });
+    }
+    localStorage.setItem("multica_token", authToken);
+    if (daemonToken) {
+      localStorage.setItem("rimedeck_pending_daemon_token", JSON.stringify({
+        token: daemonToken,
+        userId: userId ?? "",
+        serverUrl: url,
+      }));
+    }
+    window.location.reload();
+  };
+
+  const handleReconnect = async (entry: HistoryEntry) => {
+    if (!entry.authToken) {
+      setServerUrl(entry.apiUrl.replace(/^https?:\/\//, ""));
+      setStep("form");
+      return;
+    }
+    setStep("reconnecting");
+    setErrorMsg("");
+    try {
+      const url = entry.apiUrl;
+      const res = await fetch(`${url}/api/me`, {
+        headers: { Authorization: `Bearer ${entry.authToken}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        await switchAndReload(url, entry.authToken);
+        return;
+      }
+      if (res.status === 401) {
+        setServerUrl(url.replace(/^https?:\/\//, ""));
+        setErrorMsg(t(($) => $.members.join_token_expired));
+        setStep("form");
+        return;
+      }
+      throw new Error(`${res.status} ${res.statusText}`);
+    } catch {
+      setServerUrl(entry.apiUrl.replace(/^https?:\/\//, ""));
+      setErrorMsg(t(($) => $.members.join_reconnect_failed));
+      setStep("form");
+    }
+  };
 
   const handleJoin = async () => {
     setStep("joining");
@@ -58,38 +126,73 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
         throw new Error("Server did not return auth credentials");
       }
 
-      // Persist the remote server URL + JWT to disk and switch the
-      // frontend API. Daemon ops are handled by App.tsx's user-login
-      // effect after the reload — no need to block here.
-      const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
-        | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string }) => Promise<void> }
-        | undefined;
-
-      if (desktopAPI?.switchRuntimeConfig) {
-        const wsUrl = url.replace(/^http/, "ws") + "/ws";
-        await desktopAPI.switchRuntimeConfig({ apiUrl: url, wsUrl, authToken: data.auth_token });
-      }
-
-      localStorage.setItem("multica_token", data.auth_token);
-
-      // Store daemon token for App.tsx's syncToken effect to pick up.
-      if (data.token) {
-        localStorage.setItem("rimedeck_pending_daemon_token", JSON.stringify({
-          token: data.token,
-          userId: data.user_id ?? "",
-          serverUrl: url,
-        }));
-      }
-
-      // Reload immediately. After reload:
-      // 1. AuthInitializer reads JWT → getMe() → user is set
-      // 2. App.tsx user-login effect syncs daemon with the stored token
-      window.location.reload();
+      await switchAndReload(url, data.auth_token, data.token, data.user_id);
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : String(e));
       setStep("error");
     }
   };
+
+  if (step === "history") {
+    return (
+      <Dialog open onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-md">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="text-base text-balance">
+              {t(($) => $.members.join_title)}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-balance">
+              {t(($) => $.members.join_history_description)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 space-y-2 px-6 py-4">
+            {history.map((entry) => (
+              <button
+                key={entry.apiUrl}
+                type="button"
+                onClick={() => handleReconnect(entry)}
+                className="flex w-full items-center gap-3 rounded-lg border bg-card px-3 py-2.5 text-left transition-colors hover:bg-accent/40"
+              >
+                <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium font-mono">
+                    {entry.apiUrl.replace(/^https?:\/\//, "")}
+                  </div>
+                  {entry.label && (
+                    <div className="truncate text-xs text-muted-foreground">{entry.label}</div>
+                  )}
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+          </div>
+
+          <DialogFooter className="m-0 rounded-b-xl border-t bg-muted/30 px-6 py-3">
+            <Button variant="outline" size="sm" onClick={onClose}>
+              {t(($) => $.members.join_cancel)}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setStep("form")}>
+              {t(($) => $.members.join_new_server)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (step === "reconnecting") {
+    return (
+      <Dialog open onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-md">
+          <div className="flex flex-col items-center gap-3 px-6 py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{t(($) => $.members.join_reconnecting)}</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -132,16 +235,22 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          {step === "error" && errorMsg && (
+          {(step === "error" || errorMsg) && errorMsg && (
             <p className="text-xs text-destructive">{errorMsg}</p>
           )}
         </div>
 
         <DialogFooter className="m-0 rounded-b-xl border-t bg-muted/30 px-6 py-3">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={step === "joining"}>
-            {t(($) => $.members.join_cancel)}
-          </Button>
-          <Button size="sm" onClick={handleJoin} disabled={!canSubmit || step === "joining"}>
+          {history.length > 0 ? (
+            <Button variant="outline" size="sm" onClick={() => { setErrorMsg(""); setStep("history"); }}>
+              {t(($) => $.members.join_back_to_history)}
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={onClose} disabled={step === "joining"}>
+              {t(($) => $.members.join_cancel)}
+            </Button>
+          )}
+          <Button size="sm" onClick={handleJoin} disabled={!serverUrl.trim() || !inviteCode.trim() || step === "joining"}>
             {step === "joining" ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

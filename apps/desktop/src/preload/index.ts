@@ -166,6 +166,9 @@ const desktopAPI = {
   /** Retrieve the persisted auth token from remote_connection.json. */
   getRemoteAuthToken: (): Promise<string | null> =>
     ipcRenderer.invoke("runtime-config:get-auth-token"),
+  /** Retrieve the list of previously connected remote servers. */
+  getRemoteHistory: (): Promise<Array<{ apiUrl: string; authToken?: string; label?: string; lastConnected: string }>> =>
+    ipcRenderer.invoke("runtime-config:get-remote-history"),
   /** Disconnect from the remote server and restore the local backend. */
   disconnectRuntimeConfig: (): Promise<void> =>
     ipcRenderer.invoke("runtime-config:disconnect"),
