@@ -58,14 +58,27 @@ export async function startBackend(
 
   if (process.platform === "win32") {
     const ruleName = "RimeDeck Backend";
-    const cmd = `netsh advfirewall firewall delete rule name='${ruleName}' >$null 2>&1; netsh advfirewall firewall add rule name='${ruleName}' dir=in action=allow protocol=TCP localport=${port} profile=any`;
+    // First check if the rule already exists (no elevation needed for query).
     execFile(
       "powershell",
-      ["-Command", `Start-Process powershell -ArgumentList '-Command','${cmd.replace(/'/g, "''")}' -Verb RunAs -WindowStyle Hidden -Wait`],
-      { timeout: 30_000 },
-      (err) => {
-        if (err) console.warn("[local-backend] firewall rule (non-fatal):", err.message);
-        else console.log(`[local-backend] firewall rule added for port ${port}`);
+      ["-NoProfile", "-Command", `netsh advfirewall firewall show rule name="${ruleName}" dir=in | Select-String -Pattern "Rule Name" -Quiet`],
+      { timeout: 10_000 },
+      (_checkErr, stdout) => {
+        const ruleExists = stdout?.trim() === "True";
+        if (ruleExists) {
+          console.log(`[local-backend] firewall rule already exists for "${ruleName}"`);
+          return;
+        }
+        // Rule doesn't exist — add it with elevation.
+        execFile(
+          "powershell",
+          ["-NoProfile", "-Command", `Start-Process -FilePath 'netsh' -ArgumentList 'advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${port} profile=any' -Verb RunAs -WindowStyle Hidden -Wait`],
+          { timeout: 30_000 },
+          (err) => {
+            if (err) console.warn("[local-backend] firewall rule failed (remote connections may be blocked):", err.message);
+            else console.log(`[local-backend] firewall rule added for port ${port}`);
+          },
+        );
       },
     );
   }
