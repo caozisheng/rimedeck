@@ -151,13 +151,22 @@ function renderActionsCell(row: RuntimeRow) {
 describe("runtime list row menu", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("hides the kebab menu for an online local runtime (self-healing)", () => {
-    // Deleting an online local runtime is a no-op (daemon re-registers in
-    // seconds), so the row menu drops the only action — Delete — entirely.
+  it("hides the kebab menu for an online local runtime owned by current user (self-healing)", () => {
+    // Deleting an online local runtime owned by the current user is a no-op
+    // (daemon re-registers in seconds), so the row menu drops Delete entirely.
     renderActionsCell(
-      makeRow(makeRuntime({ runtime_mode: "local", status: "online" })),
+      makeRow(makeRuntime({ runtime_mode: "local", status: "online", owner_id: "user-me" })),
     );
     expect(screen.queryByLabelText("Row actions")).not.toBeInTheDocument();
+  });
+
+  it("renders the kebab menu for an online local runtime owned by another user", () => {
+    // Remote daemon runtimes are mode=local + status=online but owned by
+    // someone else — they DON'T self-heal when deleted from the host.
+    renderActionsCell(
+      makeRow(makeRuntime({ runtime_mode: "local", status: "online", owner_id: "user-1" })),
+    );
+    expect(screen.getByLabelText("Row actions")).toBeInTheDocument();
   });
 
   it("renders the kebab menu for an offline local runtime", () => {
