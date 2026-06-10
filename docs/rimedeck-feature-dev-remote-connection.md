@@ -116,7 +116,7 @@ Desktop 内嵌 server + PostgreSQL（启动链：`local-backend/index.ts` → PG
            完全独立，互不连通
 ```
 
-关键限制：`backend-manager.ts:32` 硬编码 `http://127.0.0.1:{port}`，server 仅本机可访问。
+关键限制：~~`backend-manager.ts:32` 硬编码 `http://127.0.0.1:{port}`，server 仅本机可访问。~~ （已改为 `0.0.0.0`，支持局域网访问）
 
 ### 目标架构（连接后）
 
@@ -152,11 +152,12 @@ Desktop 内嵌 server + PostgreSQL（启动链：`local-backend/index.ts` → PG
 
 「添加电脑」和「邀请成员」都需要让对方知道本机 server 的 IP 和端口。需要在 UI 上统一展示。
 
-### 当前状况
+### 当前状况（已实现）
 
 - 端口：在 `~/.rimedeck/config.json` 中持久化（`backendPort`，默认 `18080`，端口冲突时动态分配）
-- IP：`backend-manager.ts` 硬编码 `127.0.0.1`，无局域网 IP 检测
-- `MULTICA_PUBLIC_URL` 环境变量也设为 `http://127.0.0.1:{port}`
+- IP：server 监听 `0.0.0.0`，支持局域网访问
+- `GET /api/server-info` 端点已实现，返回本机网络地址 + pairing code
+- `<ServerAddressBar />` 组件已实现，展示在 ConnectRemoteDialog 中
 
 ### 方案
 
@@ -289,13 +290,19 @@ Desktop 内嵌 server + PostgreSQL（启动链：`local-backend/index.ts` → PG
 - `server/internal/handler/config.go`：内嵌模式下返回 `daemon_server_url` = 本机地址
 - 新增：本机 IP 检测逻辑（前端或通过 server API 返回）
 
-### 模式 B：本机 daemon 贡献算力给远程工作区（P3+，暂不实施）
+### 模式 B：本机 daemon 贡献算力给远程工作区（已实现）
 
-> **延后原因**：daemon 同时服务本地和远程 server 需要多 client 架构（当前是单 `ServerBaseURL` + 单 `Client`），且跨 server 的 agent 绑定关系复杂（一个 runtime 同时出现在两个 server 的 agent 列表中，任务调度、并发控制、heartbeat 都需要独立管理）。放到 P3+ 处理。
->
-> 当前"连接到服务器"按钮已在 UI 中就位（`connect-to-server-dialog.tsx`），但仅用于 daemon token 配对，尚未实现 daemon 重配 + 多 server 并行。
+当前实现为**单 server 切换**：daemon 一次只能连一个 server。通过 `ConnectToServerDialog` 输入远端地址 + pairing code 完成配对后，daemon 切换到远端 server，本机 server 不再收到心跳。
 
-**未来设计方向**：
+**实现方式**：
+- `connect-to-server-dialog.tsx`：输入 server 地址 + pairing code → `POST /api/auth/pair` → 获取 `mdt_*` token
+- `daemonAPI.setTargetApiUrl(url)` → `daemonAPI.syncToken(token, "")` → `daemonAPI.restart()`
+- daemon 重启后使用远端 profile（`desktop-<remote-host>`），在远端 server 注册 runtime
+- 前端不切换，仍指向本机 server
+
+**限制**：daemon 切换到远端后，本机 server 的 runtime 不再收到心跳，150s 后被 sweeper 标记 offline。未来可考虑多 server 并行（需多 client 架构）。
+
+**未来设计方向（多 server 并行）**：
 ```
 Daemon
 ├── localClient  → 127.0.0.1:18080（本机内嵌 server）
@@ -394,31 +401,34 @@ runtimeConfigResult = {
 | **P0** | 添加电脑 — 模式 A（改造 connect-remote-dialog 显示 self-host 命令 + 认证码） | 低 | P0 认证 |
 | **P1** | 邀请成员 — 邀请码（DB migration + redeem API + 前端改造） | 中 | 无 |
 | **P1** | 前端 API 切换（`runtime-config:switch` IPC + 持久化 + 断开恢复） | 中 | P1 邀请 |
-| **P3+** | 添加电脑 — 模式 B（daemon 多 server 支持 + 同时服务本地和远程） | 高 | P0 认证 |
+| ~~P3+~~ ✅ | 添加电脑 — 模式 B（daemon 单 server 切换，共享算力到远端） | 中 | P0 认证 |
 
 ---
 
 ## 五、关键文件清单
 
 ### 新增文件
-- `server/internal/handler/server_info.go` — `GET /api/server-info`，Go 侧检测本机网络接口
+- `server/internal/handler/server_info.go` — `GET /api/server-info`，Go 侧检测本机网络接口 + pairing code
+- `server/internal/handler/device_pair.go` — `POST /api/auth/pair`，设备认证码配对
 - `packages/views/common/server-address-bar.tsx` — 共用的服务器地址展示组件
-- `server/migrations/0XX_invitation_invite_code.up.sql` — 邀请码列
-- `packages/views/runtimes/components/connect-to-server-dialog.tsx` — daemon 连远程 server UI
+- `packages/views/runtimes/components/connect-to-server-dialog.tsx` — daemon 连远程 server UI（Client 端）
 - `packages/views/workspace/join-workspace-dialog.tsx` — 输入邀请码 + 切换前端 API
 
 ### 修改文件
 - `apps/desktop/src/main/local-backend/backend-manager.ts` — server 监听地址 `127.0.0.1` → `0.0.0.0`
-- `apps/desktop/src/main/index.ts` — 新增 `runtime-config:switch` / `disconnect` IPC
+- `apps/desktop/src/main/index.ts` — `runtime-config:switch` / `disconnect` IPC + `loadRemoteConfig()` / `saveRemoteConfig()`
+- `apps/desktop/src/main/daemon-manager.ts` — `syncToken()`、`setTargetApiUrl()`、`clearToken()`
 - `apps/desktop/src/preload/index.ts` — 暴露 runtime-config 切换方法给 renderer
-- `server/internal/handler/invitation.go` — 邀请码生成 + redeem 端点
-- `server/pkg/db/queries/invitation.sql` — 新查询
+- `apps/desktop/src/renderer/src/App.tsx` — auto-login 跳过远端连接（`isRemote` guard）
+- `apps/desktop/src/renderer/src/components/desktop-runtimes-page.tsx` — daemon_id 粘性缓存（仅本地时更新）
+- `apps/desktop/src/renderer/src/components/desktop-agents-page.tsx` — 同上
+- `server/internal/handler/invitation.go` — 邀请码生成 + redeem 端点 + JWT 签发
+- `server/internal/handler/daemon.go` — daemon token runtime 自动 public + deregister 立即删除
 - `server/cmd/server/router.go` — 注册新路由
 - `packages/views/settings/components/members-tab.tsx` — 邀请码 UI
-- `packages/views/runtimes/components/connect-remote-dialog.tsx` — 显示 self-host 命令
-- `packages/views/runtimes/components/runtimes-page.tsx` — 添加按钮入口
-- `server/internal/handler/config.go` — 内嵌模式返回自身地址
-- `packages/core/api/client.ts` — 新增 API 方法
+- `packages/views/runtimes/components/connect-remote-dialog.tsx` — 显示 self-host 命令 + 轮询 fallback
+- `packages/views/layout/app-sidebar.tsx` — 断开连接（含 localStorage 清除）
+- `packages/core/api/client.ts` — 新增 API 方法（`redeemInvitation` 含 `auth_token`）
 
 ---
 
@@ -440,11 +450,11 @@ runtimeConfigResult = {
 
 方案中多处涉及跨机器通信（添加电脑、连接远程服务器），需要评估是否在 Rimedeck 中内嵌 Tailscale 以简化网络层。
 
-### 现状
+### 现状（已实现远程连接）
 
 - 代码库中零 Tailscale 代码，`go.mod` 无 `tailscale.com` 依赖
-- Desktop 内嵌 server 绑定 `127.0.0.1:{port}`（`apps/desktop/src/main/local-backend/backend-manager.ts:32`），仅本机可访问
-- Daemon 默认连接 `ws://localhost:8080/ws`
+- Desktop 内嵌 server 已改为绑定 `0.0.0.0:{port}`，支持局域网访问
+- `GET /api/server-info` 自动检测 Tailscale 地址并展示
 - 网络层是纯 HTTP + WebSocket，无 P2P/VPN/NAT 穿透能力
 
 ### 内嵌 Tailscale 的潜在好处
@@ -472,7 +482,7 @@ runtimeConfigResult = {
 
 Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 
-1. **Server 监听地址改为 `0.0.0.0`**：当前 `backend-manager.ts` 硬编码 `127.0.0.1`，必须改为 `0.0.0.0` 才能被其他机器（包括 Tailscale 网络）访问
+1. **Server 监听地址改为 `0.0.0.0`**：~~当前 `backend-manager.ts` 硬编码 `127.0.0.1`~~ 已完成，支持局域网和 Tailscale 网络访问
 2. **UI 接受任意地址输入**："添加电脑"和"连接到远程服务器"中的地址输入框支持 IP、域名、Tailscale 域名（如 `my-pc.tailnet.ts.net`）
 3. **文档说明**：在帮助文档中说明支持 Tailscale/ZeroTier 等 VPN 分配的地址，引导跨公网用户自行安装
 4. **认证仍用认证码配对**：不依赖 Tailscale 的设备认证，保持方案独立性
@@ -497,8 +507,8 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 | 2. 配对 | 显示 pairing code + 服务器地址，监听 `daemon:register` WS 事件 | 输入服务器地址 + pairing code |
 | 3. 认证 | `POST /api/auth/pair` 验证 code → 返回 `mdt_*` daemon token | 收到 `{ token, workspace_id }` |
 | 4. Daemon 配置 | — | `setTargetApiUrl(url)` → `syncToken(mdt_token)` → `restart()` |
-| 5. Daemon 注册 | 收到 `daemon:register` 事件 → 对话框跳转成功页 | Daemon 用 token + server_url 向 server 注册 |
-| 6. 完成状态 | 运行时列表显示远端 runtime（在线） | **前端不切换**，停留在本地工作区；daemon 在后台共享算力 |
+| 5. Daemon 注册 | 收到 `daemon:register` 事件 → 对话框跳转成功页（同时有 3s 轮询 fallback） | Daemon 用 token + server_url 向 server 注册 |
+| 6. 完成状态 | 运行时列表显示远端 runtime（在线，visibility=public） | **前端不切换**，停留在本地工作区；daemon 在后台共享算力 |
 
 **关键文件**：
 - `server/internal/handler/device_pair.go` — `DevicePair()` 配对端点
@@ -512,7 +522,8 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 |------|-----------|-----------|
 | 前端 URL | 本地（不变） | 本地（不变） |
 | daemon 连接 | 本地 | **远端 server**（共享算力） |
-| 数据库 | `agent_runtime` 新增远端 runtime 行 | 不变 |
+| 数据库 | `agent_runtime` 新增远端 runtime 行（visibility=public） | 不变 |
+| 运行时分组 | 远端 runtime 在"远程"分组 | 本机 runtime 保持在"本机"分组（`lastIdentity` 粘性缓存，不被远端 profile 覆盖） |
 | 磁盘持久化 | — | daemon profile config 有 `server_url` + `token`；`localStorage` 有记录 |
 | 重启后 | 不变 | daemon 从 profile config 读 `server_url` + `token`，自动重连 |
 
@@ -520,17 +531,21 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 
 | 端 | 操作 | 效果 |
 |----|------|------|
-| **Server 端** | 运行时页 → 选中远端 runtime → 删除 | runtime 从列表消失；daemon 心跳 404 → `handleRuntimeGone` 触发但无法重注册（runtime 已删） |
-| **Client 端** | 暂无直接 UI（daemon 算力共享是后台行为） | 需手动停止 daemon 或清除 daemon profile config |
+| **Server 端** | 运行时页 → 选中远端 runtime → 删除 | runtime 从列表消失；daemon 心跳收到 `RuntimeGone` 标志 → 丢弃该 runtime |
+| **Client 端** | 停止 daemon 或清除 daemon profile config | daemon 调用 `deregister` → 无 agent 绑定的 runtime 立即删除；有 agent 绑定的标记 offline |
 
-**已知限制**：Client 端没有"停止共享算力"的 UI 按钮。daemon 在后台持续共享直到手动干预。
+**Daemon deregister 行为**（`daemon.go:DaemonDeregister`）：
+- daemon 关闭时自动调用（`defer d.deregisterRuntimes()`，5s 超时）
+- 对每个 runtime 检查 `CountActiveAgentsByRuntime`
+  - `== 0`：先清理已归档 agent，再 `DeleteAgentRuntime`（立即从 DB 删除）
+  - `> 0`：`SetAgentRuntimeOffline`（保留行，等 sweeper 在 7 天后删除）
 
 #### 重连
 
 - **网络闪断**：daemon 心跳 15s 重试 + WebSocket 指数退避（1s→30s），自动恢复
 - **Client 重启**：daemon 从 profile config 读取 `server_url` + `token`，自动重连
 - **Server 重启**：daemon 心跳失败 → `handleRuntimeGone` → `registerRuntimesForWorkspace` → `RecoverOrphans` → 恢复
-- **Runtime 被 Server 删除**：daemon 心跳 404 → `handleRuntimeGone` → 重注册（如果有 token），或者 Server 端 runtime sweeper 150s 后标记 offline
+- **Runtime 被 Server 删除**：daemon 心跳收到 `RuntimeGone` 标志 → `handleRuntimeGone` → 从本地状态移除该 runtime；如果有 token 则重新注册新 runtime 行
 
 ---
 
@@ -571,27 +586,30 @@ Rimedeck 不感知 Tailscale 的存在，但在 UI 和网络层做好兼容：
 |------|------|------|
 | 1 | Client 侧边栏 → 工作区菜单 → "断开远程连接" | — |
 | 2 | `disconnectRuntimeConfig()` | 删除 `~/.rimedeck/remote_connection.json`；内存 `runtimeConfigResult` 恢复本地 |
-| 3 | `clearToken()` | 删除 daemon profile config 中的 `token` + `server_url` |
-| 4 | `setTargetApiUrl("")` | 内存中清空 `targetApiBaseUrl` |
-| 5 | `restart()` | daemon 重启，连回本地 backend |
-| 6 | `window.location.reload()` | 前端刷新，加载本地工作区 |
+| 3 | `localStorage.removeItem("multica_token")` | 清除远端 JWT，防止 reload 后用过期凭证请求本地 server |
+| 4 | `clearToken()` | 删除 daemon profile config 中的 `token` + `server_url` |
+| 5 | `setTargetApiUrl("")` | 内存中清空 `targetApiBaseUrl` |
+| 6 | `restart()` | daemon 重启 → 调用 `deregister`（远端 runtime 立即删除）→ 连回本地 backend |
+| 7 | `window.location.reload()` | 前端刷新 → `isRemote=false` → auto-login 触发 → 以 `local@rimedeck.local` 登录本机 server |
 
 **断开后状态**：
 
 | 维度 | Server 端 | Client 端 |
 |------|-----------|-----------|
 | 前端 URL | 不变 | 恢复本地 |
-| daemon | runtime 150s 后标记 offline | 连回本地 |
+| daemon | 远端 runtime 立即删除（无 agent 绑定时）或标记 offline | 连回本地 |
 | 成员记录 | member 行保留（需管理员手动移除） | — |
 | daemon token | 数据库中 token 仍然有效（365天） | config 已清除，无法使用 |
-| 磁盘 | — | `remote_connection.json` 已删；daemon profile config 已清除 `token` + `server_url` |
+| JWT | — | localStorage 已清除 |
+| 磁盘 | — | `remote_connection.json` 已删；`multica_token` 已清除；daemon profile config 已清除 `token` + `server_url` |
 
-**断开后能否操作远端工作区**：**不能**。五层保护：
+**断开后能否操作远端工作区**：**不能**。六层保护：
 1. 前端 URL → 指向本地，API 请求不到远端
 2. `remote_connection.json` → 已删，重启不恢复
-3. daemon `token` → 已清除，无法认证
-4. daemon `server_url` → 已清除，不知道远端地址
-5. daemon 进程 → 已重启，连到本地
+3. `localStorage("multica_token")` → 已清除，无法携带远端 JWT
+4. daemon `token` → 已清除，无法认证
+5. daemon `server_url` → 已清除，不知道远端地址
+6. daemon 进程 → 已重启，连到本地
 
 #### 重连
 
@@ -640,6 +658,36 @@ JWT 的 `sub` claim 写的是赎回时新建 user 的 UUID，Auth middleware 据
 
 ---
 
+### 运行时状态管理
+
+#### 远端 runtime 的 visibility 和 owner_id
+
+daemon token（`mdt_*`）注册的 runtime 没有 `owner_id`（`daemon.go` 中 daemon token 认证路径不设置 ownerID，`COALESCE` 保留已有值或 NULL）。为解决"智能体选择器中远端 runtime 显示为私有"的问题：
+
+- **首次注册时自动设为 `public`**：`daemon.go:RegisterDaemonRuntimes` 在 `row.Inserted == true` 且认证为 daemon token 时，调用 `UpdateAgentRuntimeVisibility` 设为 `"public"`
+- owner/admin 可在运行时页手动切换 public/private（`PATCH /api/runtimes/:id`，检查 `canEditRuntime`）
+- `owner_id = NULL` 的 runtime：普通 member 无法删除（`canEditRuntime` 需要 owner 匹配或 admin 角色），需 owner/admin 操作
+
+#### 远端 runtime 的生命周期
+
+| 事件 | 行为 |
+|------|------|
+| daemon 注册 | `UpsertAgentRuntime` → 新行 visibility=public（daemon token 认证时） |
+| daemon 心跳 | `last_seen_at` 刷新（15s 周期） |
+| daemon 正常关闭 | `deregister` → 无 agent 绑定则立即删除，有绑定则标记 offline |
+| daemon 异常退出（没有 deregister） | sweeper 150s 后标记 offline → 7 天后删除（无 agent 绑定时） |
+| Server 端手动删除 | runtime 行删除 → daemon 心跳收到 `RuntimeGone` → 从本地状态移除 |
+
+#### 客户端 daemon_id 保持
+
+`DesktopRuntimesPage` 和 `DesktopAgentsPage` 使用 `lastIdentity` 粘性缓存记住本地 daemon_id。缓存 **只在 daemon 指向本地 server 时更新**（检查 `status.serverUrl` 是否为 `127.0.0.1` 或 `localhost`）。当 daemon 切换到远端 server 共享算力时，缓存不被覆盖，本机 runtime 继续匹配 `isCurrent` → 显示在"本机"分组下。
+
+#### 前端 auto-login 保护
+
+`App.tsx` 中的 auto-login（用 `local@rimedeck.local` + `000000` 自动登录）在检测到远端连接时跳过（`isRemote` 检查 `runtimeConfig.apiUrl` 是否为非本地地址）。这防止在远端 server 上误创建 `local@rimedeck.local` 用户。断开后 `isRemote` 恢复为 false，auto-login 正常触发。
+
+---
+
 ### 角色权限对比
 
 | 角色 | 说明 | 权限 |
@@ -652,7 +700,8 @@ JWT 的 `sub` claim 写的是赎回时新建 user 的 UUID，Auth middleware 据
 
 ### 已知限制
 
-1. **Flow 1 无 Client 端断开 UI**：共享算力后，Client 没有"停止共享"按钮，需手动停 daemon 或清 config
-2. **JWT 过期无刷新机制**：赎回时签发的 JWT 默认 30 天过期。过期后远端用户被登出，只能通过新邀请码重新加入。未来可考虑 token refresh 端点
-3. **成员记录不自动清理**：断开后 Server 端的 member 行保留，需管理员手动移除
-4. **单 daemon 单 server**：daemon 一次只能连一个 server（本地或远端），不支持同时服务多个 server
+1. **JWT 过期无刷新机制**：赎回时签发的 JWT 默认 30 天过期。过期后远端用户被登出，只能通过新邀请码重新加入。未来可考虑 token refresh 端点
+2. **成员记录不自动清理**：断开后 Server 端的 member 行保留，需管理员手动移除
+3. **单 daemon 单 server**：daemon 一次只能连一个 server（本地或远端），不支持同时服务多个 server。切换到远端后本机 server 的 runtime 会因无心跳而被标记 offline
+4. **daemon token 注册的 runtime 无 owner_id**：普通 member 无法通过 `canEditRuntime` 检查删除这些 runtime，需 owner/admin 操作
+5. **占位邮箱不可登录**：赎回时创建的 `<code>@local.rimedeck` 用户无法通过邮箱验证码流程登录，只能依赖 JWT 或重新邀请
