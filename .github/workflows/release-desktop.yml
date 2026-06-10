@@ -43,10 +43,7 @@ jobs:
       - name: Create or find release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "GH_TOKEN length: ${#GH_TOKEN}"
-          gh auth status || true
           TAG="${{ steps.version.outputs.tag }}"
           if [ -n "${{ github.event.inputs.version }}" ]; then
             git tag "$TAG" || true
@@ -88,12 +85,19 @@ jobs:
 
       - name: Bundle PostgreSQL
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "GH_TOKEN length: ${#GH_TOKEN}"
-          gh auth status || true
-          gh release download $PG_RELEASE_TAG --pattern "pg-17-darwin-arm64.tar.gz" --repo ${{ github.repository }}
+          # Use GitHub API + curl instead of `gh release download` to avoid
+          # gh CLI auth issues on macOS runners.
+          ASSET_URL=$(curl -sL \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$PG_RELEASE_TAG" \
+            | jq -r '.assets[] | select(.name == "pg-17-darwin-arm64.tar.gz") | .url')
+          curl -sL -o pg-17-darwin-arm64.tar.gz \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$ASSET_URL"
           tar xzf pg-17-darwin-arm64.tar.gz
           mkdir -p apps/desktop/resources/pgsql
           cp -R pgsql/* apps/desktop/resources/pgsql/
@@ -162,10 +166,17 @@ jobs:
       - name: Bundle PostgreSQL
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download $PG_RELEASE_TAG --pattern "pg-17-windows-x64.zip" --repo ${{ github.repository }}
+          ASSET_URL=$(curl -sL \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$PG_RELEASE_TAG" \
+            | jq -r '.assets[] | select(.name == "pg-17-windows-x64.zip") | .url')
+          curl -sL -o pg-17-windows-x64.zip \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$ASSET_URL"
           unzip -qo pg-17-windows-x64.zip
           mkdir -p apps/desktop/resources/pgsql
           cp -R pgsql/* apps/desktop/resources/pgsql/
@@ -238,12 +249,17 @@ jobs:
 
       - name: Bundle PostgreSQL
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "GH_TOKEN length: ${#GH_TOKEN}"
-          gh auth status || true
-          gh release download $PG_RELEASE_TAG --pattern "pg-17-linux-x64.tar.gz" --repo ${{ github.repository }}
+          ASSET_URL=$(curl -sL \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$PG_RELEASE_TAG" \
+            | jq -r '.assets[] | select(.name == "pg-17-linux-x64.tar.gz") | .url')
+          curl -sL -o pg-17-linux-x64.tar.gz \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/octet-stream" \
+            "$ASSET_URL"
           tar xzf pg-17-linux-x64.tar.gz
           mkdir -p apps/desktop/resources/pgsql
           cp -R pgsql/* apps/desktop/resources/pgsql/
