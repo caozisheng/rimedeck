@@ -41,7 +41,7 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const navigation = useNavigation();
   const newRuntimeIdRef = useRef<string | null>(null);
-  const initialCountRef = useRef<number | null>(null);
+  const initialDaemonIdsRef = useRef<Set<string> | null>(null);
 
   // `multica setup` is one blocking command that handles config + login
   // + daemon start; the dialog passively listens for the resulting
@@ -51,8 +51,14 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
       if (step !== "instructions") return;
       qc.invalidateQueries({ queryKey: runtimeKeys.all(wsId) });
       const p = payload as Record<string, unknown> | null;
+      // Server sends {"runtimes": [...]} or {"runtime_id": "..."}
       if (p?.runtime_id && typeof p.runtime_id === "string") {
         newRuntimeIdRef.current = p.runtime_id;
+      } else if (Array.isArray(p?.runtimes) && (p.runtimes as Array<Record<string, unknown>>).length > 0) {
+        const first = (p.runtimes as Array<Record<string, unknown>>)[0];
+        if (first?.id && typeof first.id === "string") {
+          newRuntimeIdRef.current = first.id;
+        }
       }
       setStep("success");
     },
@@ -62,17 +68,19 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
 
   // Polling fallback: the WS event can be missed if the connection drops
   // briefly during daemon restart. Poll the runtime list every 3 seconds
-  // and transition to success when a new runtime appears.
+  // and transition to success when a new daemon_id appears.
   useEffect(() => {
     if (step !== "instructions") return;
     const poll = async () => {
       try {
         const runtimes = await api.listRuntimes({ workspace_id: wsId });
-        if (initialCountRef.current === null) {
-          initialCountRef.current = runtimes.length;
+        const currentIds = new Set(runtimes.map((r) => r.daemon_id ?? r.id));
+        if (initialDaemonIdsRef.current === null) {
+          initialDaemonIdsRef.current = currentIds;
           return;
         }
-        if (runtimes.length > initialCountRef.current) {
+        const hasNew = [...currentIds].some((id) => !initialDaemonIdsRef.current!.has(id));
+        if (hasNew) {
           qc.invalidateQueries({ queryKey: runtimeKeys.all(wsId) });
           setStep("success");
         }
