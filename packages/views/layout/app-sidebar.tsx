@@ -537,31 +537,36 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                     <DropdownMenuLabel className="text-xs text-muted-foreground">
                       {t(($) => $.sidebar.workspaces_label)}
                     </DropdownMenuLabel>
-                    {isRemoteConnection && (
-                      <DropdownMenuItem
-                        onClick={async () => {
-                          const dAPI = (window as unknown as Record<string, {
-                            disconnectRuntimeConfig?: () => Promise<void>;
-                            runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } };
-                          }>).desktopAPI;
-                          const daemon = (window as unknown as Record<string, {
-                            removeRemoteServer?: (url: string) => Promise<void>;
-                          }>).daemonAPI;
-                          const currentUrl = dAPI?.runtimeConfig?.ok ? dAPI.runtimeConfig.config?.apiUrl : null;
-                          if (currentUrl && daemon?.removeRemoteServer) {
-                            try { await daemon.removeRemoteServer(currentUrl); } catch { /* best effort */ }
-                          }
-                          await dAPI?.disconnectRuntimeConfig?.();
-                          localStorage.removeItem("multica_token");
-                          localStorage.removeItem("rimedeck_remote_server");
-                          window.location.reload();
-                        }}
-                      >
-                        <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="flex-1 truncate">{t(($) => $.sidebar.local_workspace)}</span>
-                      </DropdownMenuItem>
-                    )}
-                    {workspaces.map((ws) => (
+                    {/* ── Local workspace ── */}
+                    <DropdownMenuItem
+                      onClick={isRemoteConnection ? async () => {
+                        const dAPI = (window as unknown as Record<string, {
+                          disconnectRuntimeConfig?: () => Promise<void>;
+                          runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } };
+                        }>).desktopAPI;
+                        const daemon = (window as unknown as Record<string, {
+                          removeRemoteServer?: (url: string) => Promise<void>;
+                        }>).daemonAPI;
+                        const currentUrl = dAPI?.runtimeConfig?.ok ? dAPI.runtimeConfig.config?.apiUrl : null;
+                        if (currentUrl && daemon?.removeRemoteServer) {
+                          try { await daemon.removeRemoteServer(currentUrl); } catch { /* best effort */ }
+                        }
+                        await dAPI?.disconnectRuntimeConfig?.();
+                        localStorage.removeItem("multica_token");
+                        localStorage.removeItem("rimedeck_remote_server");
+                        window.location.reload();
+                      } : undefined}
+                      {...(!isRemoteConnection && workspaces[0] ? { render: <AppLink href={paths.workspace(workspaces[0].slug).issues()} /> } : {})}
+                    >
+                      <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="flex-1 truncate">{t(($) => $.sidebar.local_workspace)}</span>
+                      {!isRemoteConnection && (
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      )}
+                    </DropdownMenuItem>
+
+                    {/* ── Current server workspaces (only when remote) ── */}
+                    {isRemoteConnection && workspaces.map((ws) => (
                       <DropdownMenuItem
                         key={ws.id}
                         render={
@@ -575,61 +580,78 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         )}
                       </DropdownMenuItem>
                     ))}
+
+                    {/* ── Local workspaces (only when local) ── */}
+                    {!isRemoteConnection && workspaces.map((ws) => (
+                      <DropdownMenuItem
+                        key={ws.id}
+                        render={
+                          <AppLink href={paths.workspace(ws.slug).issues()} />
+                        }
+                      >
+                        <WorkspaceAvatar name={ws.name} avatarUrl={ws.avatar_url} size="sm" />
+                        <span className="flex-1 truncate">{ws.name}</span>
+                        {ws.id === workspace?.id && (
+                          <Check className="h-3.5 w-3.5 text-primary" />
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+
+                    {/* ── Remote servers from history (non-current) ── */}
                     {remoteServers.filter((rs) => {
-                      // Don't show entries for the currently connected remote server
-                      // (it already shows as the active workspace above).
                       const currentUrl = isRemoteConnection
                         ? ((window as unknown as Record<string, { runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } } }>).desktopAPI?.runtimeConfig?.config?.apiUrl)
                         : null;
                       return rs.apiUrl !== currentUrl;
                     }).map((rs) => (
-                      <DropdownMenuItem
-                        key={rs.apiUrl}
-                        className="group"
-                        onClick={async () => {
-                          if (!rs.authToken) {
-                            setShowJoinWorkspace(true);
-                            return;
-                          }
-                          const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
-                            | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string; workspaceId?: string }) => Promise<void> }
-                            | undefined;
-                          if (desktopAPI?.switchRuntimeConfig) {
-                            const wsUrl = rs.apiUrl.replace(/^http/, "ws") + "/ws";
-                            await desktopAPI.switchRuntimeConfig({ apiUrl: rs.apiUrl, wsUrl, authToken: rs.authToken, workspaceId: rs.workspaceId });
-                          }
-                          localStorage.setItem("multica_token", rs.authToken);
-                          window.location.reload();
-                        }}
-                      >
-                        <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="flex-1 truncate font-mono text-xs">
-                          {rs.apiUrl.replace(/^https?:\/\//, "")}
-                        </span>
-                        <button
-                          type="button"
-                          className="ml-1 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            // Call leave API on the remote server to remove membership.
-                            if (rs.authToken && rs.workspaceId) {
-                              try {
-                                await fetch(`${rs.apiUrl}/api/workspaces/${rs.workspaceId}/leave`, {
-                                  method: "POST",
-                                  headers: { Authorization: `Bearer ${rs.authToken}` },
-                                });
-                              } catch { /* best effort */ }
+                        <DropdownMenuItem
+                          key={rs.apiUrl}
+                          className="group"
+                          onClick={async () => {
+                            if (!rs.authToken) {
+                              setShowJoinWorkspace(true);
+                              return;
                             }
-                            const dAPI = (window as unknown as Record<string, { removeRemoteServer?: (url: string) => Promise<unknown> }>).desktopAPI;
-                            await dAPI?.removeRemoteServer?.(rs.apiUrl);
-                            setRemoteServers((prev) => prev.filter((s) => s.apiUrl !== rs.apiUrl));
+                            const desktopAPI = (window as unknown as Record<string, unknown>).desktopAPI as
+                              | { switchRuntimeConfig?: (c: { apiUrl: string; wsUrl: string; authToken?: string; workspaceId?: string }) => Promise<void> }
+                              | undefined;
+                            if (desktopAPI?.switchRuntimeConfig) {
+                              const wsUrl = rs.apiUrl.replace(/^http/, "ws") + "/ws";
+                              await desktopAPI.switchRuntimeConfig({ apiUrl: rs.apiUrl, wsUrl, authToken: rs.authToken, workspaceId: rs.workspaceId });
+                            }
+                            localStorage.setItem("multica_token", rs.authToken);
+                            window.location.reload();
                           }}
-                          aria-label={t(($) => $.sidebar.leave_workspace)}
                         >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </DropdownMenuItem>
+                          <Monitor className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="flex-1 truncate font-mono text-xs">
+                            {rs.apiUrl.replace(/^https?:\/\//, "")}
+                          </span>
+                          <button
+                            type="button"
+                            className="ml-1 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (rs.authToken && rs.workspaceId) {
+                                try {
+                                  await fetch(`${rs.apiUrl}/api/workspaces/${rs.workspaceId}/leave`, {
+                                    method: "POST",
+                                    headers: { Authorization: `Bearer ${rs.authToken}` },
+                                  });
+                                } catch { /* best effort */ }
+                              }
+                              const dAPI = (window as unknown as Record<string, { removeRemoteServer?: (url: string) => Promise<unknown> }>).desktopAPI;
+                              await dAPI?.removeRemoteServer?.(rs.apiUrl);
+                              setRemoteServers((prev) => prev.filter((s) => s.apiUrl !== rs.apiUrl));
+                            }}
+                            aria-label={t(($) => $.sidebar.leave_workspace)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </DropdownMenuItem>
                     ))}
+
+                    {/* ── Actions ── */}
                     {!workspaceCreationDisabled && (
                       <DropdownMenuItem
                         onClick={() =>
@@ -644,34 +666,6 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                       <Link2 className="h-3.5 w-3.5" />
                       {t(($) => $.sidebar.join_workspace)}
                     </DropdownMenuItem>
-                    {isRemoteConnection && (
-                      <DropdownMenuItem
-                        onClick={async () => {
-                          const dAPI = (window as unknown as Record<string, {
-                            disconnectRuntimeConfig?: () => Promise<void>;
-                            runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } };
-                          }>).desktopAPI;
-                          const daemon = (window as unknown as Record<string, {
-                            removeRemoteServer?: (url: string) => Promise<void>;
-                          }>).daemonAPI;
-
-                          // Remove the remote server from daemon (deregister runtimes + stop heartbeats).
-                          const currentUrl = dAPI?.runtimeConfig?.ok ? dAPI.runtimeConfig.config?.apiUrl : null;
-                          if (currentUrl && daemon?.removeRemoteServer) {
-                            try { await daemon.removeRemoteServer(currentUrl); } catch { /* best effort */ }
-                          }
-
-                          await dAPI?.disconnectRuntimeConfig?.();
-                          localStorage.removeItem("multica_token");
-                          localStorage.removeItem("rimedeck_remote_server");
-                          window.location.reload();
-                        }}
-                        className="text-destructive"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                        {t(($) => $.sidebar.disconnect_remote)}
-                      </DropdownMenuItem>
-                    )}
                   </DropdownMenuGroup>
                   {myInvitations.length > 0 && (
                     <>
