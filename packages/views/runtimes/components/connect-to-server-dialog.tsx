@@ -103,7 +103,7 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <DialogFooter className="m-0 rounded-b-xl border-t bg-muted/30 px-6 py-3">
-            <Button size="sm" onClick={() => { onClose(); window.location.reload(); }}>
+            <Button size="sm" onClick={() => window.location.reload()}>
               {t(($) => $.connect_to_server.done)}
             </Button>
           </DialogFooter>

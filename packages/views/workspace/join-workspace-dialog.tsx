@@ -96,7 +96,9 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
   };
 
   const handleDone = () => {
-    onClose();
+    // reload() must come before onClose(): onClose sets the parent's
+    // showJoinWorkspace=false which unmounts this component, and any
+    // code after that point never executes.
     window.location.reload();
   };
 
