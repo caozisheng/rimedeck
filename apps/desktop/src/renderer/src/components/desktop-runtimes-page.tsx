@@ -35,17 +35,11 @@ export function DesktopRuntimesPage() {
   const [hostName, setHostName] = useState<string | null>(null);
 
   useEffect(() => {
-    const isLocalServer = (url?: string) =>
-      !url || url.includes("127.0.0.1") || url.includes("localhost");
-
     const apply = (s: DaemonStatus) => {
       setStatus(s);
-      // Only update the sticky identity cache when the daemon targets the
-      // local server. When sharing compute to a remote server, the daemon
-      // runs under a different profile (different daemonId). Overwriting
-      // lastIdentity would cause local runtimes to lose their "isCurrent"
-      // match and appear under the "Remote" section.
-      if (s.daemonId && isLocalServer(s.serverUrl)) {
+      // Sticky cache: remember the last known daemonId so the local row
+      // doesn't disappear when the daemon is stopped.
+      if (s.daemonId) {
         setLastIdentity({
           daemonId: s.daemonId,
           deviceName: s.deviceName ?? null,

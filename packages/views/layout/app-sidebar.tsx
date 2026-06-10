@@ -623,23 +623,23 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                     {isRemoteConnection && (
                       <DropdownMenuItem
                         onClick={async () => {
-                          const dAPI = (window as unknown as Record<string, { disconnectRuntimeConfig?: () => Promise<void> }>).desktopAPI;
+                          const dAPI = (window as unknown as Record<string, {
+                            disconnectRuntimeConfig?: () => Promise<void>;
+                            runtimeConfig?: { ok: boolean; config?: { apiUrl?: string } };
+                          }>).desktopAPI;
                           const daemon = (window as unknown as Record<string, {
-                            setTargetApiUrl?: (u: string) => Promise<void>;
-                            clearToken?: () => Promise<void>;
-                            restart?: () => Promise<unknown>;
+                            removeRemoteServer?: (url: string) => Promise<void>;
                           }>).daemonAPI;
+
+                          // Remove the remote server from daemon (deregister runtimes + stop heartbeats).
+                          const currentUrl = dAPI?.runtimeConfig?.ok ? dAPI.runtimeConfig.config?.apiUrl : null;
+                          if (currentUrl && daemon?.removeRemoteServer) {
+                            try { await daemon.removeRemoteServer(currentUrl); } catch { /* best effort */ }
+                          }
+
                           await dAPI?.disconnectRuntimeConfig?.();
-                          // Clear remote credentials so the post-reload auto-login
-                          // can issue a fresh local token instead of sending a
-                          // stale remote JWT to the local server.
                           localStorage.removeItem("multica_token");
                           localStorage.removeItem("rimedeck_remote_server");
-                          try {
-                            await daemon?.clearToken?.();
-                            await daemon?.setTargetApiUrl?.("");
-                            await daemon?.restart?.();
-                          } catch { /* best effort */ }
                           window.location.reload();
                         }}
                         className="text-destructive"

@@ -60,22 +60,21 @@ export function RemoteReconnectPage({ apiUrl }: Props) {
   }, [newUrl]);
 
   const handleDisconnect = useCallback(async () => {
-    const dAPI = (window as unknown as Record<string, { disconnectRuntimeConfig?: () => Promise<void> }>).desktopAPI;
+    const dAPI = (window as unknown as Record<string, {
+      disconnectRuntimeConfig?: () => Promise<void>;
+    }>).desktopAPI;
     const daemon = (window as unknown as Record<string, {
-      clearToken?: () => Promise<void>;
-      setTargetApiUrl?: (u: string) => Promise<void>;
-      restart?: () => Promise<unknown>;
+      removeRemoteServer?: (url: string) => Promise<void>;
     }>).daemonAPI;
+
+    if (daemon?.removeRemoteServer) {
+      try { await daemon.removeRemoteServer(apiUrl); } catch { /* best effort */ }
+    }
     await dAPI?.disconnectRuntimeConfig?.();
     localStorage.removeItem("multica_token");
     localStorage.removeItem("rimedeck_remote_server");
-    try {
-      await daemon?.clearToken?.();
-      await daemon?.setTargetApiUrl?.("");
-      void daemon?.restart?.();
-    } catch { /* best effort */ }
     window.location.reload();
-  }, []);
+  }, [apiUrl]);
 
   if (phase === "rejoin") {
     return <JoinWorkspaceDialog onClose={() => setPhase("expired")} />;

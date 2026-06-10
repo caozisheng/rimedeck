@@ -189,19 +189,17 @@ export function RuntimesPage({
   });
 
   const handleStopSharing = useCallback(async () => {
+    if (!sharingRemote) return;
     const daemon = (window as unknown as Record<string, {
-      clearToken?: () => Promise<void>;
-      setTargetApiUrl?: (u: string) => Promise<void>;
-      restart?: () => Promise<unknown>;
+      removeRemoteServer?: (url: string) => Promise<void>;
     }>).daemonAPI;
     try {
-      await daemon?.clearToken?.();
-      await daemon?.setTargetApiUrl?.("");
-      await daemon?.restart?.();
+      const url = sharingRemote.startsWith("http") ? sharingRemote : `http://${sharingRemote}`;
+      await daemon?.removeRemoteServer?.(url);
     } catch { /* best effort */ }
     localStorage.removeItem("rimedeck_remote_server");
     setSharingRemote(null);
-  }, []);
+  }, [sharingRemote]);
 
   if (isLoading || fetching) return <RuntimesPageSkeleton />;
 

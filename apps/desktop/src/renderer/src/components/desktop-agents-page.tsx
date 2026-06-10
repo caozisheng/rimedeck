@@ -26,12 +26,9 @@ export function DesktopAgentsPage() {
   const [hostName, setHostName] = useState<string | null>(null);
 
   useEffect(() => {
-    const isLocalServer = (url?: string) =>
-      !url || url.includes("127.0.0.1") || url.includes("localhost");
-
     const apply = (s: DaemonStatus) => {
       setStatus(s);
-      if (s.daemonId && isLocalServer(s.serverUrl)) {
+      if (s.daemonId) {
         setLastIdentity({
           daemonId: s.daemonId,
           deviceName: s.deviceName ?? null,
