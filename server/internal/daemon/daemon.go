@@ -735,6 +735,7 @@ func (d *Daemon) registerRuntimesForWorkspace(ctx context.Context, workspaceID s
 	d.logger.Debug("registering runtimes for workspace", "workspace_id", workspaceID, "agent_count", len(d.cfg.Agents))
 	var runtimes []map[string]string
 	for name, entry := range d.cfg.Agents {
+		d.logger.Info("probing agent runtime", "name", name, "path", entry.Path, "wsl", entry.IsWSL)
 		var version string
 		var err error
 		if entry.IsWSL {
@@ -743,15 +744,15 @@ func (d *Daemon) registerRuntimesForWorkspace(ctx context.Context, workspaceID s
 			version, err = detectAgentVersion(ctx, entry.Path)
 		}
 		if err != nil {
-			d.logger.Warn("skip registering runtime", "name", name, "error", err)
+			d.logger.Warn("skip registering runtime: version detection failed", "name", name, "path", entry.Path, "wsl", entry.IsWSL, "error", err)
 			continue
 		}
 		if err := checkAgentMinVersion(name, version); err != nil {
-			d.logger.Warn("skip registering runtime: version too old", "name", name, "version", version, "error", err)
+			d.logger.Warn("skip registering runtime: version too old", "name", name, "version", version, "path", entry.Path, "wsl", entry.IsWSL, "error", err)
 			continue
 		}
 		d.setAgentVersion(name, version)
-		d.logger.Debug("agent version detected", "name", name, "version", version, "path", entry.Path)
+		d.logger.Info("agent runtime registered", "name", name, "version", version, "path", entry.Path, "wsl", entry.IsWSL)
 		displayName := strings.ToUpper(name[:1]) + name[1:]
 		if d.cfg.DeviceName != "" {
 			displayName = fmt.Sprintf("%s (%s)", displayName, d.cfg.DeviceName)
