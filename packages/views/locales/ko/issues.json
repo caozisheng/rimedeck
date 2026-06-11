@@ -105,7 +105,10 @@
     "status_title": "상태 분포",
     "priority_title": "우선순위 분포",
     "workload_title": "담당자 워크로드",
-    "trend_title": "이슈 트렌드"
+    "trend_title": "이슈 트렌드",
+    "legend_open": "미처리",
+    "legend_active": "진행 중",
+    "legend_done": "완료"
   },
   "actor_issues": {
     "scope": {

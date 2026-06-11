@@ -103,7 +103,10 @@
     "status_title": "ステータス分布",
     "priority_title": "優先度分布",
     "workload_title": "担当者ワークロード",
-    "trend_title": "イシュートレンド"
+    "trend_title": "イシュートレンド",
+    "legend_open": "未着手",
+    "legend_active": "進行中",
+    "legend_done": "完了"
   },
   "actor_issues": {
     "scope": {

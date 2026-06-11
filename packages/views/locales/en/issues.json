@@ -105,7 +105,10 @@
     "status_title": "Status distribution",
     "priority_title": "Priority distribution",
     "workload_title": "Workload by assignee",
-    "trend_title": "Issue trend"
+    "trend_title": "Issue trend",
+    "legend_open": "Open",
+    "legend_active": "Active",
+    "legend_done": "Done"
   },
   "actor_issues": {
     "scope": {

@@ -2,6 +2,7 @@
 
 import { useRef, useMemo, useState, useCallback, useSyncExternalStore } from "react";
 import type { Issue, IssueStatus } from "@multica/core/types";
+import { useT } from "../../../i18n";
 
 type TimeRange = "14d" | "30d" | "90d";
 
@@ -48,6 +49,7 @@ function useContainerWidth(ref: React.RefObject<HTMLDivElement | null>) {
 }
 
 export function TrendChart({ issues }: { issues: Issue[] }) {
+  const { t } = useT("issues");
   const containerRef = useRef<HTMLDivElement>(null);
   const containerW = useContainerWidth(containerRef);
   const [range, setRange] = useState<TimeRange>("30d");
@@ -136,7 +138,8 @@ export function TrendChart({ issues }: { issues: Issue[] }) {
       });
     }
     return labels;
-  }, [buckets, range, containerW]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toX is stable for a given drawableW
+  }, [buckets, range, containerW, drawableW]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -204,15 +207,15 @@ export function TrendChart({ issues }: { issues: Issue[] }) {
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: GROUP_COLORS.open }} />
-          Open
+          {t(($) => $.analytics.legend_open)}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: GROUP_COLORS.active }} />
-          Active
+          {t(($) => $.analytics.legend_active)}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: GROUP_COLORS.done }} />
-          Done
+          {t(($) => $.analytics.legend_done)}
         </span>
       </div>
     </div>

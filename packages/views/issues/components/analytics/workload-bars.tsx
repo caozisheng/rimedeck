@@ -103,11 +103,11 @@ export function WorkloadBars({ issues }: { issues: Issue[] }) {
         <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full bg-warning/70" />
-            Open
+            {t(($) => $.analytics.legend_open)}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2 w-2 rounded-full bg-info/70" />
-            Done
+            {t(($) => $.analytics.legend_done)}
           </span>
         </div>
       )}

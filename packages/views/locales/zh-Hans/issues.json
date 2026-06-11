@@ -103,7 +103,10 @@
     "status_title": "状态分布",
     "priority_title": "优先级分布",
     "workload_title": "负责人工作量",
-    "trend_title": "Issue 趋势"
+    "trend_title": "Issue 趋势",
+    "legend_open": "待处理",
+    "legend_active": "进行中",
+    "legend_done": "已完成"
   },
   "actor_issues": {
     "scope": {
