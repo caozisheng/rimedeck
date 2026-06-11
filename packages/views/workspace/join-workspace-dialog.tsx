@@ -59,12 +59,12 @@ export function JoinWorkspaceDialog({ onClose }: { onClose: () => void }) {
 
     // Register runtimes on the remote server via /remote/add (no daemon
     // restart needed). Best-effort — the workspace join already succeeded.
-    if (daemonToken) {
+    if (daemonToken && workspaceId) {
       const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-        | { addRemoteServer?: (url: string, token: string) => Promise<unknown> }
+        | { addRemoteServer?: (url: string, token: string, wsId: string) => Promise<unknown> }
         | undefined;
       try {
-        await daemonAPI?.addRemoteServer?.(url, daemonToken);
+        await daemonAPI?.addRemoteServer?.(url, daemonToken, workspaceId);
       } catch { /* best effort */ }
     }
 

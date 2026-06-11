@@ -210,19 +210,20 @@ func (d *Daemon) remoteAddHandler() http.HandlerFunc {
 			return
 		}
 		var req struct {
-			ServerURL string `json:"server_url"`
-			Token     string `json:"token"`
+			ServerURL   string `json:"server_url"`
+			Token       string `json:"token"`
+			WorkspaceID string `json:"workspace_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if req.ServerURL == "" || req.Token == "" {
-			http.Error(w, "server_url and token are required", http.StatusBadRequest)
+		if req.ServerURL == "" || req.Token == "" || req.WorkspaceID == "" {
+			http.Error(w, "server_url, token, and workspace_id are required", http.StatusBadRequest)
 			return
 		}
 
-		runtimes, err := d.AddRemoteServer(r.Context(), req.ServerURL, req.Token)
+		runtimes, err := d.AddRemoteServer(r.Context(), req.ServerURL, req.Token, req.WorkspaceID)
 		if err != nil {
 			d.logger.Warn("remote/add failed", "server_url", req.ServerURL, "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)

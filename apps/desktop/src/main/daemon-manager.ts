@@ -1024,13 +1024,13 @@ export function setupDaemonManager(
   ipcMain.handle("daemon:restart", () => withGuard(() => restartDaemon()));
   ipcMain.handle("daemon:get-status", () => fetchHealth());
 
-  ipcMain.handle("daemon:add-remote-server", async (_e, serverUrl: string, token: string) => {
+  ipcMain.handle("daemon:add-remote-server", async (_e, serverUrl: string, token: string, workspaceId: string) => {
     const active = await ensureActiveProfile();
     try {
       const res = await fetch(`http://127.0.0.1:${active.port}/remote/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ server_url: serverUrl, token }),
+        body: JSON.stringify({ server_url: serverUrl, token, workspace_id: workspaceId }),
         signal: AbortSignal.timeout(30_000),
       });
       if (!res.ok) {

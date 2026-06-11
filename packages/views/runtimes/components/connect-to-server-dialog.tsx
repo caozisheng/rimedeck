@@ -57,11 +57,11 @@ export function ConnectToServerDialog({ onClose }: { onClose: () => void }) {
       // /remote/add endpoint. No daemon restart needed — runtimes and
       // heartbeats start immediately.
       const daemonAPI = (window as unknown as Record<string, unknown>).daemonAPI as
-        | { addRemoteServer?: (url: string, token: string) => Promise<unknown> }
+        | { addRemoteServer?: (url: string, token: string, workspaceId: string) => Promise<unknown> }
         | undefined;
       if (daemonAPI?.addRemoteServer && data.token) {
         try {
-          await daemonAPI.addRemoteServer(url, data.token);
+          await daemonAPI.addRemoteServer(url, data.token, data.workspace_id);
         } catch (err) {
           console.warn("[connect-to-server] addRemoteServer failed:", err);
         }

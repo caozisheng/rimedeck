@@ -25,8 +25,9 @@ type remoteServer struct {
 
 // AddRemoteServer connects to a remote server, registers runtimes, and
 // starts heartbeat goroutines. Called from the /remote/add health endpoint.
-// The registration happens synchronously; heartbeats run in the background.
-func (d *Daemon) AddRemoteServer(ctx context.Context, serverURL, token string) ([]Runtime, error) {
+// workspaceID is the target workspace (from the pairing response); daemon
+// tokens (mdt_*) cannot call /api/workspaces, so the caller must provide it.
+func (d *Daemon) AddRemoteServer(ctx context.Context, serverURL, token, workspaceID string) ([]Runtime, error) {
 	d.remotesMu.Lock()
 	if _, exists := d.remoteServers[serverURL]; exists {
 		d.remotesMu.Unlock()
@@ -38,28 +39,20 @@ func (d *Daemon) AddRemoteServer(ctx context.Context, serverURL, token string) (
 	client.SetToken(token)
 	client.SetVersion(d.cfg.CLIVersion)
 
-	// Discover workspaces on the remote server.
-	workspaces, err := client.ListWorkspaces(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list remote workspaces: %w", err)
+	if workspaceID == "" {
+		return nil, fmt.Errorf("workspace_id is required for remote server registration")
 	}
-	if len(workspaces) == 0 {
-		return nil, fmt.Errorf("no workspaces found on remote server")
+
+	resp, err := d.registerRuntimesWithClient(ctx, client, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("register on remote workspace: %w", err)
 	}
 
 	var allRuntimes []Runtime
 	var allRuntimeIDs []string
-
-	for _, ws := range workspaces {
-		resp, err := d.registerRuntimesWithClient(ctx, client, ws.ID)
-		if err != nil {
-			d.logger.Warn("failed to register on remote workspace", "server_url", serverURL, "workspace_id", ws.ID, "error", err)
-			continue
-		}
-		for _, rt := range resp.Runtimes {
-			allRuntimes = append(allRuntimes, rt)
-			allRuntimeIDs = append(allRuntimeIDs, rt.ID)
-		}
+	for _, rt := range resp.Runtimes {
+		allRuntimes = append(allRuntimes, rt)
+		allRuntimeIDs = append(allRuntimeIDs, rt.ID)
 	}
 
 	if len(allRuntimeIDs) == 0 {

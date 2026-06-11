@@ -213,8 +213,8 @@ const daemonAPI = {
   restart: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("daemon:restart"),
   /** Add a remote server for compute sharing without daemon restart. */
-  addRemoteServer: (serverUrl: string, token: string): Promise<{ status: string; runtimes: unknown[] }> =>
-    ipcRenderer.invoke("daemon:add-remote-server", serverUrl, token),
+  addRemoteServer: (serverUrl: string, token: string, workspaceId: string): Promise<{ status: string; runtimes: unknown[] }> =>
+    ipcRenderer.invoke("daemon:add-remote-server", serverUrl, token, workspaceId),
   /** Remove a remote server and deregister its runtimes. */
   removeRemoteServer: (serverUrl: string): Promise<void> =>
     ipcRenderer.invoke("daemon:remove-remote-server", serverUrl),
