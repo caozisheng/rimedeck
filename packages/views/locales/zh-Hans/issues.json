@@ -82,11 +82,13 @@
     "tooltip_list": "列表视图",
     "tooltip_gantt": "甘特图",
     "tooltip_swimlane": "泳道视图",
+    "tooltip_analytics": "统计视图",
     "section": "视图",
     "board": "看板",
     "list": "列表",
     "gantt": "甘特图",
-    "swimlane": "泳道"
+    "swimlane": "泳道",
+    "analytics": "统计"
   },
   "gantt": {
     "header_issue": "Issue",
@@ -96,6 +98,12 @@
     "show_completed": "显示已完成",
     "empty": "暂无已排期的 issue — 给任意 issue 设置开始或截止日期，即可显示在时间轴上。",
     "inverted_dates_warning": "开始日期晚于截止日期 — 已按区间最小/最大端绘制。"
+  },
+  "analytics": {
+    "status_title": "状态分布",
+    "priority_title": "优先级分布",
+    "workload_title": "负责人工作量",
+    "trend_title": "Issue 趋势"
   },
   "actor_issues": {
     "scope": {

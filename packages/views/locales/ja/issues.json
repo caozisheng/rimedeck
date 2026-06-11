@@ -82,11 +82,13 @@
     "tooltip_list": "リスト表示",
     "tooltip_gantt": "ガント表示",
     "tooltip_swimlane": "スイムレーン表示",
+    "tooltip_analytics": "統計表示",
     "section": "表示",
     "board": "ボード",
     "list": "リスト",
     "gantt": "ガント",
-    "swimlane": "スイムレーン"
+    "swimlane": "スイムレーン",
+    "analytics": "統計"
   },
   "gantt": {
     "header_issue": "イシュー",
@@ -96,6 +98,12 @@
     "show_completed": "完了済みを表示",
     "empty": "スケジュールされたイシューがまだありません。いずれかのイシューに開始日または期限を設定すると、タイムラインに表示されます。",
     "inverted_dates_warning": "開始日が期限より後になっています。バーは早い日付から遅い日付まで表示されます。"
+  },
+  "analytics": {
+    "status_title": "ステータス分布",
+    "priority_title": "優先度分布",
+    "workload_title": "担当者ワークロード",
+    "trend_title": "イシュートレンド"
   },
   "actor_issues": {
     "scope": {

@@ -32,10 +32,12 @@
     "view_board": "看板视图",
     "view_list": "列表视图",
     "view_swimlane": "泳道视图",
+    "view_analytics": "统计视图",
     "view_label": "视图",
     "view_board_short": "看板",
     "view_list_short": "列表",
     "view_swimlane_short": "泳道",
+    "view_analytics_short": "统计",
     "sort_manual": "手动"
   },
   "errors": {

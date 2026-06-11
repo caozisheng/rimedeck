@@ -15,6 +15,7 @@ import { useIssueSelectionStore } from "@multica/core/issues/stores/selection-st
 import { BoardView } from "../../issues/components/board-view";
 import { ListView } from "../../issues/components/list-view";
 import { SwimLaneView } from "../../issues/components/swimlane-view";
+import { AnalyticsView } from "../../issues/components/analytics-view";
 import { BatchActionToolbar } from "../../issues/components/batch-action-toolbar";
 import { useClearFiltersOnWorkspaceChange } from "@multica/core/issues/stores/view-store";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -277,6 +278,8 @@ export function MyIssuesPage() {
                 myIssuesFilter={filter}
                 sort={sort}
               />
+            ) : viewMode === "analytics" ? (
+              <AnalyticsView issues={issues} />
             ) : (
               <ListView
                 issues={issues}

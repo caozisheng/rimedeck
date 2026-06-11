@@ -21,6 +21,7 @@ import { IssuesHeader } from "./issues-header";
 import { BoardView } from "./board-view";
 import { ListView } from "./list-view";
 import { SwimLaneView } from "./swimlane-view";
+import { AnalyticsView } from "./analytics-view";
 import { BatchActionToolbar } from "./batch-action-toolbar";
 import type { ChildProgress } from "./list-row";
 import { useT } from "../../i18n";
@@ -228,6 +229,8 @@ export function IssuesPage() {
                 childProgressMap={childProgressMap}
                 sort={sort}
               />
+            ) : viewMode === "analytics" ? (
+              <AnalyticsView issues={issues} />
             ) : (
               <ListView issues={issues} visibleStatuses={visibleStatuses} childProgressMap={childProgressMap} sort={sort} onMoveIssue={handleMoveIssue} />
             )}

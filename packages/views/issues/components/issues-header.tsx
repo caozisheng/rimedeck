@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChartGantt,
+  ChartPie,
   Check,
   ChevronDown,
   CircleDot,
@@ -1080,6 +1081,8 @@ export function IssueDisplayControls({
                           <Waves className="size-3.5" />
                         ) : viewMode === "gantt" && allowGantt ? (
                           <ChartGantt className="size-3.5" />
+                        ) : viewMode === "analytics" ? (
+                          <ChartPie className="size-3.5" />
                         ) : (
                           <List className="size-3.5" />
                         )}
@@ -1090,6 +1093,8 @@ export function IssueDisplayControls({
                             ? t(($) => $.view.swimlane)
                             : viewMode === "gantt" && allowGantt
                             ? t(($) => $.view.gantt)
+                            : viewMode === "analytics"
+                            ? t(($) => $.view.analytics)
                             : t(($) => $.view.list)}
                         </span>
                       </Button>
@@ -1104,6 +1109,8 @@ export function IssueDisplayControls({
                   ? t(($) => $.view.tooltip_swimlane)
                   : viewMode === "gantt" && allowGantt
                   ? t(($) => $.view.tooltip_gantt)
+                  : viewMode === "analytics"
+                  ? t(($) => $.view.tooltip_analytics)
                   : t(($) => $.view.tooltip_list)}
               </TooltipContent>
             </Tooltip>
@@ -1123,6 +1130,10 @@ export function IssueDisplayControls({
                 <DropdownMenuRadioItem value="swimlane">
                   <Waves />
                   {t(($) => $.view.swimlane)}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="analytics">
+                  <ChartPie />
+                  {t(($) => $.view.analytics)}
                 </DropdownMenuRadioItem>
                 {allowGantt && (
                   <DropdownMenuRadioItem value="gantt">

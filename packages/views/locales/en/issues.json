@@ -84,11 +84,13 @@
     "tooltip_list": "List view",
     "tooltip_gantt": "Gantt view",
     "tooltip_swimlane": "Swimlane view",
+    "tooltip_analytics": "Analytics view",
     "section": "View",
     "board": "Board",
     "list": "List",
     "gantt": "Gantt",
-    "swimlane": "Swimlane"
+    "swimlane": "Swimlane",
+    "analytics": "Analytics"
   },
   "gantt": {
     "header_issue": "Issue",
@@ -98,6 +100,12 @@
     "show_completed": "Show completed",
     "empty": "No scheduled issues yet — set a start or due date on any issue to see it on the timeline.",
     "inverted_dates_warning": "Start date is after due date — bar shown from min to max."
+  },
+  "analytics": {
+    "status_title": "Status distribution",
+    "priority_title": "Priority distribution",
+    "workload_title": "Workload by assignee",
+    "trend_title": "Issue trend"
   },
   "actor_issues": {
     "scope": {

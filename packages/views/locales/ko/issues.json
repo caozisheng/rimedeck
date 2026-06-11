@@ -84,11 +84,13 @@
     "tooltip_list": "리스트 보기",
     "tooltip_gantt": "간트 보기",
     "tooltip_swimlane": "스윔레인 보기",
+    "tooltip_analytics": "통계 보기",
     "section": "보기",
     "board": "보드",
     "list": "리스트",
     "gantt": "간트",
-    "swimlane": "스윔레인"
+    "swimlane": "스윔레인",
+    "analytics": "통계"
   },
   "gantt": {
     "header_issue": "이슈",
@@ -98,6 +100,12 @@
     "show_completed": "완료 항목 표시",
     "empty": "일정이 잡힌 이슈가 없습니다. 이슈에 시작일이나 마감일을 설정하면 타임라인에 표시됩니다.",
     "inverted_dates_warning": "시작일이 마감일보다 늦습니다. 막대는 더 이른 날짜부터 더 늦은 날짜까지 표시됩니다."
+  },
+  "analytics": {
+    "status_title": "상태 분포",
+    "priority_title": "우선순위 분포",
+    "workload_title": "담당자 워크로드",
+    "trend_title": "이슈 트렌드"
   },
   "actor_issues": {
     "scope": {
