@@ -151,16 +151,13 @@ export async function startPostgres(pgPort: number): Promise<string> {
   }
 
   console.log(`[local-backend] Starting PostgreSQL on port ${pgPort}...`);
-  await execAsync(pgPaths.pg_ctl, [
-    "start",
-    "-D",
-    dataDir,
-    "-w",
-    "-t",
-    "30",
-    "-l",
-    join(logDir, "postgresql.log"),
-  ]);
+  await execAsync(
+    pgPaths.pg_ctl,
+    ["start", "-D", dataDir, "-w", "-t", "30", "-l", join(logDir, "postgresql.log")],
+    {
+      env: { ...process.env, LC_ALL: "C" },
+    },
+  );
 
   // Wait for readiness
   let pgReady = false;
