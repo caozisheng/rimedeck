@@ -195,9 +195,9 @@
     "copy_aria": "Copy",
     "cancel": "Cancel",
     "success_title": "Computer connected",
-    "success_description": "Your computer is online and ready. Create an agent and it can start picking up tasks here.",
-    "view_runtime": "View runtime",
-    "create_agent": "Create an agent"
+    "success_description": "The remote computer is now online and sharing compute power.",
+    "success_hint": "Go to the Agents page to assign agents to this runtime.",
+    "done": "Done"
   },
   "cloud_runtime": {
     "action": "Cloud Runtime",

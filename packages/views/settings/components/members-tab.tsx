@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Crown, Shield, User, Plus, MoreHorizontal, UserMinus, Users, Clock, X, Mail, Check, Copy } from "lucide-react";
 import { useEffect } from "react";
 import { ActorAvatar } from "../../common/actor-avatar";
@@ -46,6 +46,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { memberListOptions, invitationListOptions, workspaceKeys } from "@multica/core/workspace/queries";
 import { api } from "@multica/core/api";
+import { useWSEvent } from "@multica/core/realtime";
 import { useT } from "../../i18n";
 
 const ROLE_ICONS: Record<MemberRole, typeof Crown> = {
@@ -298,6 +299,15 @@ export function MembersTab() {
   const canManageWorkspace = currentMember?.role === "owner" || currentMember?.role === "admin";
   const isOwner = currentMember?.role === "owner";
   const ownerCount = members.filter((m) => m.role === "owner").length;
+
+  // Auto-collapse the invite code panel when the invited user joins.
+  const handleInvitationAccepted = useCallback(() => {
+    setGeneratedCode(null);
+    qc.invalidateQueries({ queryKey: workspaceKeys.invitations(wsId) });
+    qc.invalidateQueries({ queryKey: workspaceKeys.members(wsId) });
+  }, [qc, wsId]);
+  useWSEvent("invitation:accepted", handleInvitationAccepted);
+  useWSEvent("member:added", handleInvitationAccepted);
 
   const handleGenerateCode = async () => {
     if (!workspace) return;

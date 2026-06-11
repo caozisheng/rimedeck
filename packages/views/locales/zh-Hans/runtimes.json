@@ -183,9 +183,9 @@
     "copy_aria": "复制",
     "cancel": "取消",
     "success_title": "电脑已连接",
-    "success_description": "电脑已经上线就绪。创建一个智能体，task 就可以派发到这里运行。",
-    "view_runtime": "查看运行时",
-    "create_agent": "创建智能体"
+    "success_description": "远程电脑已上线，正在共享算力。",
+    "success_hint": "前往智能体页面将智能体分配到此运行时。",
+    "done": "完成"
   },
   "cloud_runtime": {
     "action": "云端运行时",

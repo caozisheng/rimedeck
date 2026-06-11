@@ -6,7 +6,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { runtimeKeys } from "@multica/core/runtimes/queries";
 import { useWSEvent } from "@multica/core/realtime";
-import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { api } from "@multica/core/api";
 import {
   Dialog,
@@ -20,7 +19,6 @@ import { Button } from "@multica/ui/components/ui/button";
 import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { cn } from "@multica/ui/lib/utils";
-import { useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
 import { ServerAddressBar } from "../../common/server-address-bar";
 
@@ -37,29 +35,16 @@ multica daemon start`,
 export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("instructions");
   const wsId = useWorkspaceId();
-  const slug = useWorkspaceSlug();
   const qc = useQueryClient();
-  const navigation = useNavigation();
-  const newRuntimeIdRef = useRef<string | null>(null);
   const initialDaemonIdsRef = useRef<Set<string> | null>(null);
 
   // `multica setup` is one blocking command that handles config + login
   // + daemon start; the dialog passively listens for the resulting
   // `daemon:register` WS event and auto-advances to success.
   const handleDaemonRegister = useCallback(
-    (payload: unknown) => {
+    () => {
       if (step !== "instructions") return;
       qc.invalidateQueries({ queryKey: runtimeKeys.all(wsId) });
-      const p = payload as Record<string, unknown> | null;
-      // Server sends {"runtimes": [...]} or {"runtime_id": "..."}
-      if (p?.runtime_id && typeof p.runtime_id === "string") {
-        newRuntimeIdRef.current = p.runtime_id;
-      } else if (Array.isArray(p?.runtimes) && (p.runtimes as Array<Record<string, unknown>>).length > 0) {
-        const first = (p.runtimes as Array<Record<string, unknown>>)[0];
-        if (first?.id && typeof first.id === "string") {
-          newRuntimeIdRef.current = first.id;
-        }
-      }
       setStep("success");
     },
     [step, qc, wsId],
@@ -96,33 +81,12 @@ export function ConnectRemoteDialog({ onClose }: { onClose: () => void }) {
     return () => clearInterval(id);
   }, [step, wsId, qc]);
 
-  const handleGoToAgents = () => {
-    onClose();
-    if (slug) {
-      navigation.push(paths.workspace(slug).agents());
-    }
-  };
-
-  const handleGoToRuntime = () => {
-    onClose();
-    if (slug && newRuntimeIdRef.current) {
-      navigation.push(
-        paths.workspace(slug).runtimeDetail(newRuntimeIdRef.current),
-      );
-    }
-  };
-
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="flex max-h-[85vh] flex-col gap-0 p-0 sm:max-w-lg">
         {step === "instructions" && <InstructionsStep onClose={onClose} />}
         {step === "success" && (
-          <SuccessStep
-            onGoToAgents={handleGoToAgents}
-            onGoToRuntime={
-              newRuntimeIdRef.current ? handleGoToRuntime : undefined
-            }
-          />
+          <SuccessStep onClose={onClose} />
         )}
       </DialogContent>
     </Dialog>
@@ -345,11 +309,9 @@ function LiveListening() {
 // ---------------------------------------------------------------------------
 
 function SuccessStep({
-  onGoToAgents,
-  onGoToRuntime,
+  onClose,
 }: {
-  onGoToAgents: () => void;
-  onGoToRuntime?: () => void;
+  onClose: () => void;
 }) {
   const { t } = useT("runtimes");
   return (
@@ -370,17 +332,14 @@ function SuccessStep({
         >
           <Check className="h-6 w-6 text-success" />
         </div>
+        <p className="text-xs text-muted-foreground text-center">
+          {t(($) => $.connect.success_hint)}
+        </p>
       </div>
 
       <DialogFooter className="m-0 rounded-b-xl border-t bg-muted/30 px-6 py-3">
-        {onGoToRuntime && (
-          <Button variant="ghost" size="sm" onClick={onGoToRuntime}>
-            {t(($) => $.connect.view_runtime)}
-          </Button>
-        )}
-        <Button size="sm" onClick={onGoToAgents}>
-          {t(($) => $.connect.create_agent)}
-          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        <Button size="sm" onClick={onClose}>
+          {t(($) => $.connect.done)}
         </Button>
       </DialogFooter>
     </>
