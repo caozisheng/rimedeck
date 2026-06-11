@@ -65,7 +65,7 @@ const (
 // like `dist/`, `build/`, `.cache/` or `.venv/` may legitimately hold source or
 // release output in some repos and are NOT included by default — set
 // MULTICA_GC_ARTIFACT_PATTERNS to extend the list per deployment.
-var DefaultGCArtifactPatterns = []string{"node_modules", ".next", ".turbo"}
+var DefaultGCArtifactPatterns = []string{"node_modules", ".next", ".turbo", ".sandbox-bin"}
 
 // Config holds all daemon configuration.
 type Config struct {
