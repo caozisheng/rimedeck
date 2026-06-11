@@ -1045,16 +1045,15 @@ export function SwimLaneView({
     [cells, cellSet, laneByKey, laneGroups, onMoveIssue, swimlaneGrouping, viewStoreApi],
   );
 
-  // Grid template: one column per status, fixed width COLUMN_WIDTH, gap COLUMN_GAP.
-  const trackWidth = sortedStatuses.length * COLUMN_WIDTH + Math.max(0, sortedStatuses.length - 1) * COLUMN_GAP;
+  // Grid template: one column per status, min width COLUMN_WIDTH, grows to fill.
+  const trackMinWidth = sortedStatuses.length * COLUMN_WIDTH + Math.max(0, sortedStatuses.length - 1) * COLUMN_GAP;
   const gridStyle = useMemo(
     () => ({
       display: "grid",
-      gridTemplateColumns: `repeat(${sortedStatuses.length}, ${COLUMN_WIDTH}px)`,
+      gridTemplateColumns: `repeat(${sortedStatuses.length}, minmax(${COLUMN_WIDTH}px, 1fr))`,
       columnGap: `${COLUMN_GAP}px`,
-      width: `${trackWidth}px`,
     }) as const,
-    [sortedStatuses.length, trackWidth],
+    [sortedStatuses.length],
   );
 
   return (
@@ -1066,7 +1065,7 @@ export function SwimLaneView({
       onDragEnd={handleDragEnd}
     >
       <div className="flex flex-1 min-h-0 gap-4 overflow-auto p-4">
-        <div className="flex shrink-0 flex-col" style={{ width: `${trackWidth}px` }}>
+        <div className="flex min-w-0 flex-1 flex-col" style={{ minWidth: `${trackMinWidth}px` }}>
         {/* Sticky status header row — visually matches the top of a BoardColumn */}
         <div className="sticky top-0 z-10 mb-2 bg-background/95 pb-2 backdrop-blur supports-[backdrop-filter]:bg-background/75">
           <div style={gridStyle}>
