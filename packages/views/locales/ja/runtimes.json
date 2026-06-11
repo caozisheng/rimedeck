@@ -183,9 +183,9 @@
     "copy_aria": "コピー",
     "cancel": "キャンセル",
     "success_title": "コンピュータを接続しました",
-    "success_description": "コンピュータがオンラインになり、準備ができました。エージェントを作成すると、ここでタスクを引き受け始められます。",
-    "view_runtime": "ランタイムを表示",
-    "create_agent": "エージェントを作成"
+    "success_description": "リモートコンピュータがオンラインになり、演算能力を共有しています。",
+    "success_hint": "エージェントページでこのランタイムにエージェントを割り当ててください。",
+    "done": "完了"
   },
   "cloud_runtime": {
     "action": "クラウドランタイム",
