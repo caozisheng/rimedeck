@@ -85,12 +85,14 @@
     "tooltip_gantt": "Gantt view",
     "tooltip_swimlane": "Swimlane view",
     "tooltip_analytics": "Analytics view",
+    "tooltip_calendar": "Calendar view",
     "section": "View",
     "board": "Board",
     "list": "List",
     "gantt": "Gantt",
     "swimlane": "Swimlane",
-    "analytics": "Analytics"
+    "analytics": "Analytics",
+    "calendar": "Calendar"
   },
   "gantt": {
     "header_issue": "Issue",
@@ -109,6 +111,17 @@
     "legend_open": "Open",
     "legend_active": "Active",
     "legend_done": "Done"
+  },
+  "calendar": {
+    "today": "Today",
+    "empty": "No issues have dates set — add a start or due date to see issues on the calendar.",
+    "wd_mon": "Mon",
+    "wd_tue": "Tue",
+    "wd_wed": "Wed",
+    "wd_thu": "Thu",
+    "wd_fri": "Fri",
+    "wd_sat": "Sat",
+    "wd_sun": "Sun"
   },
   "actor_issues": {
     "scope": {

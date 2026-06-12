@@ -83,12 +83,14 @@
     "tooltip_gantt": "甘特图",
     "tooltip_swimlane": "泳道视图",
     "tooltip_analytics": "统计视图",
+    "tooltip_calendar": "日历视图",
     "section": "视图",
     "board": "看板",
     "list": "列表",
     "gantt": "甘特图",
     "swimlane": "泳道",
-    "analytics": "统计"
+    "analytics": "统计",
+    "calendar": "日历"
   },
   "gantt": {
     "header_issue": "Issue",
@@ -107,6 +109,17 @@
     "legend_open": "待处理",
     "legend_active": "进行中",
     "legend_done": "已完成"
+  },
+  "calendar": {
+    "today": "今天",
+    "empty": "还没有 issue 设置了日期 — 添加开始或截止日期即可在日历上显示。",
+    "wd_mon": "一",
+    "wd_tue": "二",
+    "wd_wed": "三",
+    "wd_thu": "四",
+    "wd_fri": "五",
+    "wd_sat": "六",
+    "wd_sun": "日"
   },
   "actor_issues": {
     "scope": {

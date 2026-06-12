@@ -83,12 +83,14 @@
     "tooltip_gantt": "ガント表示",
     "tooltip_swimlane": "スイムレーン表示",
     "tooltip_analytics": "統計表示",
+    "tooltip_calendar": "カレンダー表示",
     "section": "表示",
     "board": "ボード",
     "list": "リスト",
     "gantt": "ガント",
     "swimlane": "スイムレーン",
-    "analytics": "統計"
+    "analytics": "統計",
+    "calendar": "カレンダー"
   },
   "gantt": {
     "header_issue": "イシュー",
@@ -107,6 +109,17 @@
     "legend_open": "未着手",
     "legend_active": "進行中",
     "legend_done": "完了"
+  },
+  "calendar": {
+    "today": "今日",
+    "empty": "日付が設定されたイシューがありません。開始日または期限を追加すると、カレンダーに表示されます。",
+    "wd_mon": "月",
+    "wd_tue": "火",
+    "wd_wed": "水",
+    "wd_thu": "木",
+    "wd_fri": "金",
+    "wd_sat": "土",
+    "wd_sun": "日"
   },
   "actor_issues": {
     "scope": {

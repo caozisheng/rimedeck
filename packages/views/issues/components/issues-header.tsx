@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  CalendarDays,
   ChartGantt,
   ChartPie,
   Check,
@@ -621,6 +622,7 @@ export function IssueDisplayControls({
   allowGantt?: boolean;
 }) {
   const { t } = useT("issues");
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const viewMode = useViewStore((s) => s.viewMode);
   const statusFilters = useViewStore((s) => s.statusFilters);
   const priorityFilters = useViewStore((s) => s.priorityFilters);
@@ -1068,7 +1070,7 @@ export function IssueDisplayControls({
             this surface doesn't render Gantt, fall back to "list" so the
             trigger icon matches what's actually on screen. */}
         {!hideViewToggle && (
-          <DropdownMenu>
+          <DropdownMenu open={viewMenuOpen} onOpenChange={setViewMenuOpen}>
             <Tooltip>
               <DropdownMenuTrigger
                 render={
@@ -1083,6 +1085,8 @@ export function IssueDisplayControls({
                           <ChartGantt className="size-3.5" />
                         ) : viewMode === "analytics" ? (
                           <ChartPie className="size-3.5" />
+                        ) : viewMode === "calendar" ? (
+                          <CalendarDays className="size-3.5" />
                         ) : (
                           <List className="size-3.5" />
                         )}
@@ -1095,6 +1099,8 @@ export function IssueDisplayControls({
                             ? t(($) => $.view.gantt)
                             : viewMode === "analytics"
                             ? t(($) => $.view.analytics)
+                            : viewMode === "calendar"
+                            ? t(($) => $.view.calendar)
                             : t(($) => $.view.list)}
                         </span>
                       </Button>
@@ -1111,6 +1117,8 @@ export function IssueDisplayControls({
                   ? t(($) => $.view.tooltip_gantt)
                   : viewMode === "analytics"
                   ? t(($) => $.view.tooltip_analytics)
+                  : viewMode === "calendar"
+                  ? t(($) => $.view.tooltip_calendar)
                   : t(($) => $.view.tooltip_list)}
               </TooltipContent>
             </Tooltip>
@@ -1118,7 +1126,7 @@ export function IssueDisplayControls({
               <DropdownMenuGroup>
                 <DropdownMenuLabel>{t(($) => $.view.section)}</DropdownMenuLabel>
               </DropdownMenuGroup>
-              <DropdownMenuRadioGroup value={viewMode} onValueChange={(v) => act.setViewMode(v as ViewMode)}>
+              <DropdownMenuRadioGroup value={viewMode} onValueChange={(v) => { act.setViewMode(v as ViewMode); setViewMenuOpen(false); }}>
                 <DropdownMenuRadioItem value="board">
                   <Columns3 />
                   {t(($) => $.view.board)}
@@ -1130,6 +1138,10 @@ export function IssueDisplayControls({
                 <DropdownMenuRadioItem value="swimlane">
                   <Waves />
                   {t(($) => $.view.swimlane)}
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="calendar">
+                  <CalendarDays />
+                  {t(($) => $.view.calendar)}
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="analytics">
                   <ChartPie />

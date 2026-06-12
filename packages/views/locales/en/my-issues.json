@@ -34,11 +34,13 @@
     "view_list": "List view",
     "view_swimlane": "Swimlane view",
     "view_analytics": "Analytics view",
+    "view_calendar": "Calendar view",
     "view_label": "View",
     "view_board_short": "Board",
     "view_list_short": "List",
     "view_swimlane_short": "Swimlane",
     "view_analytics_short": "Analytics",
+    "view_calendar_short": "Calendar",
     "sort_manual": "Manual"
   },
   "errors": {

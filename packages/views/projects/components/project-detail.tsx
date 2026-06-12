@@ -47,6 +47,7 @@ import { ListView } from "../../issues/components/list-view";
 import { GanttView } from "../../issues/components/gantt-view";
 import { SwimLaneView } from "../../issues/components/swimlane-view";
 import { AnalyticsView } from "../../issues/components/analytics-view";
+import { CalendarView } from "../../issues/components/calendar-view";
 import { BatchActionToolbar } from "../../issues/components/batch-action-toolbar";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { Button } from "@multica/ui/components/ui/button";
@@ -281,6 +282,7 @@ function ProjectIssuesContent({
           projectId={projectId}
         />
       )}
+      {viewMode === "calendar" && <CalendarView issues={issues} />}
       {viewMode === "analytics" && <AnalyticsView issues={issues} />}
     </div>
   );

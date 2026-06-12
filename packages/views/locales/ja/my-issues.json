@@ -33,11 +33,13 @@
     "view_list": "リスト表示",
     "view_swimlane": "スイムレーン表示",
     "view_analytics": "統計表示",
+    "view_calendar": "カレンダー表示",
     "view_label": "表示",
     "view_board_short": "ボード",
     "view_list_short": "リスト",
     "view_swimlane_short": "スイムレーン",
     "view_analytics_short": "統計",
+    "view_calendar_short": "カレンダー",
     "sort_manual": "手動"
   },
   "errors": {

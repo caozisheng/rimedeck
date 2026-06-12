@@ -85,12 +85,14 @@
     "tooltip_gantt": "간트 보기",
     "tooltip_swimlane": "스윔레인 보기",
     "tooltip_analytics": "통계 보기",
+    "tooltip_calendar": "캘린더 보기",
     "section": "보기",
     "board": "보드",
     "list": "리스트",
     "gantt": "간트",
     "swimlane": "스윔레인",
-    "analytics": "통계"
+    "analytics": "통계",
+    "calendar": "캘린더"
   },
   "gantt": {
     "header_issue": "이슈",
@@ -109,6 +111,17 @@
     "legend_open": "미처리",
     "legend_active": "진행 중",
     "legend_done": "완료"
+  },
+  "calendar": {
+    "today": "오늘",
+    "empty": "날짜가 설정된 이슈가 없습니다. 시작일이나 마감일을 추가하면 캘린더에 표시됩니다.",
+    "wd_mon": "월",
+    "wd_tue": "화",
+    "wd_wed": "수",
+    "wd_thu": "목",
+    "wd_fri": "금",
+    "wd_sat": "토",
+    "wd_sun": "일"
   },
   "actor_issues": {
     "scope": {

@@ -22,6 +22,7 @@ import { BoardView } from "./board-view";
 import { ListView } from "./list-view";
 import { SwimLaneView } from "./swimlane-view";
 import { AnalyticsView } from "./analytics-view";
+import { CalendarView } from "./calendar-view";
 import { BatchActionToolbar } from "./batch-action-toolbar";
 import type { ChildProgress } from "./list-row";
 import { useT } from "../../i18n";
@@ -231,6 +232,8 @@ export function IssuesPage() {
               />
             ) : viewMode === "analytics" ? (
               <AnalyticsView issues={issues} />
+            ) : viewMode === "calendar" ? (
+              <CalendarView issues={issues} />
             ) : (
               <ListView issues={issues} visibleStatuses={visibleStatuses} childProgressMap={childProgressMap} sort={sort} onMoveIssue={handleMoveIssue} />
             )}
