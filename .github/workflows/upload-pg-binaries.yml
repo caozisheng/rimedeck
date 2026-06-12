@@ -43,51 +43,70 @@ jobs:
             [ -f "$dep" ] && cp -H "$dep" pgsql/lib/ && echo "copied $dep"
           done
 
-          # Rewrite dylib paths in ALL binaries
-          find pgsql/bin -type f -perm +111 | while read binpath; do
-            otool -L "$binpath" 2>/dev/null | awk 'NR>1{print $1}' | while read dep; do
-              case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
-              libname=$(basename "$dep")
-              if [ -f "pgsql/lib/$libname" ]; then
-                install_name_tool -change "$dep" "@loader_path/../lib/$libname" "$binpath"
-              elif [ -f "pgsql/lib/postgresql/$libname" ]; then
-                install_name_tool -change "$dep" "@loader_path/../lib/postgresql/$libname" "$binpath"
-              fi
+          # Diagnostic: show unrewritten deps before rewrite
+          echo "=== Pre-rewrite: initdb deps ==="
+          otool -L pgsql/bin/initdb 2>/dev/null || true
+
+          # Rewrite dylib paths in ALL binaries (use -perm /111 for BSD find)
+          find pgsql/bin -type f -perm /111 -exec sh -c '
+            for binpath; do
+              otool -L "$binpath" 2>/dev/null | awk "NR>1{print \$1}" | while read dep; do
+                case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
+                libname=$(basename "$dep")
+                if [ -f "pgsql/lib/$libname" ]; then
+                  install_name_tool -change "$dep" "@loader_path/../lib/$libname" "$binpath"
+                elif [ -f "pgsql/lib/postgresql/$libname" ]; then
+                  install_name_tool -change "$dep" "@loader_path/../lib/postgresql/$libname" "$binpath"
+                fi
+              done
             done
-          done
+          ' _ {} +
 
           # Rewrite dylib paths in lib/*.dylib (top-level)
-          find pgsql/lib -maxdepth 1 -name '*.dylib' | while read libpath; do
-            libfile=$(basename "$libpath")
-            install_name_tool -id "@loader_path/$libfile" "$libpath" 2>/dev/null || true
-            otool -L "$libpath" 2>/dev/null | awk 'NR>1{print $1}' | while read dep; do
-              case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
-              depname=$(basename "$dep")
-              if [ -f "pgsql/lib/$depname" ]; then
-                install_name_tool -change "$dep" "@loader_path/$depname" "$libpath"
-              fi
+          find pgsql/lib -maxdepth 1 -name '*.dylib' -exec sh -c '
+            for libpath; do
+              libfile=$(basename "$libpath")
+              install_name_tool -id "@loader_path/$libfile" "$libpath" 2>/dev/null || true
+              otool -L "$libpath" 2>/dev/null | awk "NR>1{print \$1}" | while read dep; do
+                case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
+                depname=$(basename "$dep")
+                if [ -f "pgsql/lib/$depname" ]; then
+                  install_name_tool -change "$dep" "@loader_path/$depname" "$libpath"
+                fi
+              done
             done
-          done
+          ' _ {} +
 
           # Rewrite dylib paths in lib/postgresql/ — refs to lib/ need ../
-          find pgsql/lib/postgresql -type f \( -name '*.dylib' -o -perm +111 \) | while read libpath; do
-            libfile=$(basename "$libpath")
-            install_name_tool -id "@loader_path/$libfile" "$libpath" 2>/dev/null || true
-            otool -L "$libpath" 2>/dev/null | awk 'NR>1{print $1}' | while read dep; do
-              case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
-              depname=$(basename "$dep")
-              if [ -f "pgsql/lib/postgresql/$depname" ]; then
-                install_name_tool -change "$dep" "@loader_path/$depname" "$libpath"
-              elif [ -f "pgsql/lib/$depname" ]; then
-                install_name_tool -change "$dep" "@loader_path/../$depname" "$libpath"
-              fi
+          find pgsql/lib/postgresql -type f \( -name '*.dylib' -o -perm /111 \) -exec sh -c '
+            for libpath; do
+              libfile=$(basename "$libpath")
+              install_name_tool -id "@loader_path/$libfile" "$libpath" 2>/dev/null || true
+              otool -L "$libpath" 2>/dev/null | awk "NR>1{print \$1}" | while read dep; do
+                case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
+                depname=$(basename "$dep")
+                if [ -f "pgsql/lib/postgresql/$depname" ]; then
+                  install_name_tool -change "$dep" "@loader_path/$depname" "$libpath"
+                elif [ -f "pgsql/lib/$depname" ]; then
+                  install_name_tool -change "$dep" "@loader_path/../$depname" "$libpath"
+                fi
+              done
             done
-          done
+          ' _ {} +
+
+          # Diagnostic: show deps after rewrite
+          echo "=== Post-rewrite: initdb deps ==="
+          otool -L pgsql/bin/initdb 2>/dev/null || true
+
+          # Verify no absolute Homebrew/Cellar paths remain
+          if otool -L pgsql/bin/initdb 2>/dev/null | grep -q '/opt/homebrew\|/usr/local/Cellar'; then
+            echo "::error::initdb still has absolute Homebrew paths after rewrite!"
+            otool -L pgsql/bin/initdb
+            exit 1
+          fi
 
           # Re-codesign after modifying
-          find pgsql/bin pgsql/lib -type f \( -perm +111 -o -name '*.dylib' \) | while read f; do
-            codesign -s - --force "$f" 2>/dev/null || true
-          done
+          find pgsql/bin pgsql/lib -type f \( -perm /111 -o -name '*.dylib' \) -exec codesign -s - --force {} \; 2>/dev/null || true
 
           tar czf pg-17-darwin-arm64.tar.gz pgsql
 

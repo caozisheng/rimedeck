@@ -119,7 +119,9 @@ export async function startPostgres(pgPort: number): Promise<string> {
       "--locale=C",
       "-D",
       dataDir,
-    ]);
+    ], {
+      env: { ...process.env, LC_ALL: "C" },
+    });
   }
 
   const confOverrides = [
