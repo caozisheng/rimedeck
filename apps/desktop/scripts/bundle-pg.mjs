@@ -95,7 +95,6 @@ try {
   // inside the app bundle instead of /opt/homebrew/... or /Library/...
   if (targetPlatform === "darwin") {
     const libDir = join(destDir, "lib");
-    const libPgDir = join(destDir, "lib", "postgresql");
     const binDir = join(destDir, "bin");
     const bins = ["pg_ctl", "initdb", "createdb", "pg_isready", "postgres", "psql"];
     for (const bin of bins) {
@@ -110,13 +109,10 @@ try {
           // Only rewrite absolute paths (not @executable_path, @rpath, /usr/lib)
           if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
           const libName = dep.split("/").pop();
-          if (existsSync(join(libDir, libName))) {
+          const localLib = join(libDir, libName);
+          if (existsSync(localLib)) {
             execFileSync("install_name_tool", [
               "-change", dep, `@executable_path/../lib/${libName}`, binPath,
-            ], { stdio: "pipe" });
-          } else if (existsSync(join(libPgDir, libName))) {
-            execFileSync("install_name_tool", [
-              "-change", dep, `@executable_path/../lib/postgresql/${libName}`, binPath,
             ], { stdio: "pipe" });
           }
         }
@@ -143,7 +139,8 @@ try {
             const dep = match[1];
             if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
             const depName = dep.split("/").pop();
-            if (existsSync(join(libDir, depName))) {
+            const localDep = join(libDir, depName);
+            if (existsSync(localDep)) {
               execFileSync("install_name_tool", [
                 "-change", dep, `@executable_path/../lib/${depName}`, libPath,
               ], { stdio: "pipe" });
@@ -151,37 +148,6 @@ try {
           }
         } catch {
           // Non-fatal per-lib
-        }
-      }
-      // Fix dylibs in lib/postgresql/ that reference other dylibs
-      if (existsSync(libPgDir)) {
-        for (const libFile of readdirSync(libPgDir)) {
-          if (!libFile.endsWith(".dylib")) continue;
-          const libPath = join(libPgDir, libFile);
-          try {
-            execFileSync("install_name_tool", [
-              "-id", `@executable_path/../lib/postgresql/${libFile}`, libPath,
-            ], { stdio: "pipe" });
-            const otoolOut = execFileSync("otool", ["-L", libPath], { encoding: "utf-8" });
-            for (const line of otoolOut.split("\n")) {
-              const match = line.trim().match(/^(.+\.dylib)\s/);
-              if (!match) continue;
-              const dep = match[1];
-              if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
-              const depName = dep.split("/").pop();
-              if (existsSync(join(libPgDir, depName))) {
-                execFileSync("install_name_tool", [
-                  "-change", dep, `@executable_path/../lib/postgresql/${depName}`, libPath,
-                ], { stdio: "pipe" });
-              } else if (existsSync(join(libDir, depName))) {
-                execFileSync("install_name_tool", [
-                  "-change", dep, `@executable_path/../lib/${depName}`, libPath,
-                ], { stdio: "pipe" });
-              }
-            }
-          } catch {
-            // Non-fatal per-lib
-          }
         }
       }
     } catch {
@@ -211,16 +177,6 @@ try {
         try {
           execFileSync("codesign", ["-s", "-", "--force", join(destDir, "lib", f)], { stdio: "pipe" });
         } catch { /* non-fatal */ }
-      }
-      // Codesign lib/postgresql/ dylibs
-      const pgLibDir = join(destDir, "lib", "postgresql");
-      if (existsSync(pgLibDir)) {
-        for (const f of readdirSync(pgLibDir)) {
-          if (!f.endsWith(".dylib")) continue;
-          try {
-            execFileSync("codesign", ["-s", "-", "--force", join(pgLibDir, f)], { stdio: "pipe" });
-          } catch { /* non-fatal */ }
-        }
       }
     } catch { /* non-fatal */ }
   }
