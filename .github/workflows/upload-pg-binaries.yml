@@ -47,8 +47,8 @@ jobs:
           echo "=== Pre-rewrite: initdb deps ==="
           otool -L pgsql/bin/initdb 2>/dev/null || true
 
-          # Rewrite dylib paths in ALL binaries (use -perm /111 for BSD find)
-          find pgsql/bin -type f -perm /111 -exec sh -c '
+          # Rewrite dylib paths in ALL binaries (use -perm +111 for BSD find)
+          find pgsql/bin -type f -perm +111 -exec sh -c '
             for binpath; do
               otool -L "$binpath" 2>/dev/null | awk "NR>1{print \$1}" | while read dep; do
                 case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
@@ -78,7 +78,7 @@ jobs:
           ' _ {} +
 
           # Rewrite dylib paths in lib/postgresql/ — refs to lib/ need ../
-          find pgsql/lib/postgresql -type f \( -name '*.dylib' -o -perm /111 \) -exec sh -c '
+          find pgsql/lib/postgresql -type f \( -name '*.dylib' -o -perm +111 \) -exec sh -c '
             for libpath; do
               libfile=$(basename "$libpath")
               install_name_tool -id "@loader_path/$libfile" "$libpath" 2>/dev/null || true
@@ -106,7 +106,7 @@ jobs:
           fi
 
           # Re-codesign after modifying
-          find pgsql/bin pgsql/lib -type f \( -perm /111 -o -name '*.dylib' \) -exec codesign -s - --force {} \; 2>/dev/null || true
+          find pgsql/bin pgsql/lib -type f \( -perm +111 -o -name '*.dylib' \) -exec codesign -s - --force {} \; 2>/dev/null || true
 
           tar czf pg-17-darwin-arm64.tar.gz pgsql
 
