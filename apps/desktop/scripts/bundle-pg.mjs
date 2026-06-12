@@ -95,90 +95,116 @@ try {
   // inside the app bundle instead of /opt/homebrew/... or /Library/...
   if (targetPlatform === "darwin") {
     const libDir = join(destDir, "lib");
+    const libPgDir = join(destDir, "lib", "postgresql");
     const binDir = join(destDir, "bin");
-    const bins = ["pg_ctl", "initdb", "createdb", "pg_isready", "postgres", "psql"];
-    for (const bin of bins) {
+
+    // Helper: given an absolute dep path, return the rewritten @executable_path
+    // reference if the matching file exists in our bundled lib/ or lib/postgresql/.
+    function rewrittenDep(dep, relativeTo) {
+      const libName = dep.split("/").pop();
+      if (existsSync(join(libPgDir, libName))) {
+        return relativeTo === "bin"
+          ? `@executable_path/../lib/postgresql/${libName}`
+          : relativeTo === "lib"
+          ? `@loader_path/postgresql/${libName}`
+          : `@loader_path/${libName}`;
+      }
+      if (existsSync(join(libDir, libName))) {
+        return relativeTo === "bin"
+          ? `@executable_path/../lib/${libName}`
+          : relativeTo === "lib"
+          ? `@loader_path/${libName}`
+          : `@loader_path/../${libName}`;
+      }
+      return null;
+    }
+
+    // Rewrite all binaries in bin/
+    const { readdirSync } = await import("node:fs");
+    for (const bin of readdirSync(binDir)) {
       const binPath = join(binDir, bin);
-      if (!existsSync(binPath)) continue;
       try {
         const otoolOut = execFileSync("otool", ["-L", binPath], { encoding: "utf-8" });
         for (const line of otoolOut.split("\n")) {
           const match = line.trim().match(/^(.+\.dylib)\s/);
           if (!match) continue;
           const dep = match[1];
-          // Only rewrite absolute paths (not @executable_path, @rpath, /usr/lib)
           if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
-          const libName = dep.split("/").pop();
-          const localLib = join(libDir, libName);
-          if (existsSync(localLib)) {
-            execFileSync("install_name_tool", [
-              "-change", dep, `@executable_path/../lib/${libName}`, binPath,
-            ], { stdio: "pipe" });
+          const newDep = rewrittenDep(dep, "bin");
+          if (newDep) {
+            execFileSync("install_name_tool", ["-change", dep, newDep, binPath], { stdio: "pipe" });
           }
         }
       } catch (err) {
         console.warn(`[bundle-pg] rewrite dylib for ${bin} (non-fatal):`, err.message);
       }
     }
-    // Also fix dylibs that reference other dylibs with absolute paths
-    try {
-      const { readdirSync } = await import("node:fs");
-      for (const libFile of readdirSync(libDir)) {
+
+    // Rewrite dylibs in lib/ (top-level)
+    for (const libFile of readdirSync(libDir)) {
+      if (!libFile.endsWith(".dylib")) continue;
+      const libPath = join(libDir, libFile);
+      try {
+        execFileSync("install_name_tool", [
+          "-id", `@executable_path/../lib/${libFile}`, libPath,
+        ], { stdio: "pipe" });
+        const otoolOut = execFileSync("otool", ["-L", libPath], { encoding: "utf-8" });
+        for (const line of otoolOut.split("\n")) {
+          const match = line.trim().match(/^(.+\.dylib)\s/);
+          if (!match) continue;
+          const dep = match[1];
+          if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
+          const newDep = rewrittenDep(dep, "lib");
+          if (newDep) {
+            execFileSync("install_name_tool", ["-change", dep, newDep, libPath], { stdio: "pipe" });
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // Rewrite dylibs in lib/postgresql/
+    if (existsSync(libPgDir)) {
+      for (const libFile of readdirSync(libPgDir)) {
         if (!libFile.endsWith(".dylib")) continue;
-        const libPath = join(libDir, libFile);
+        const libPath = join(libPgDir, libFile);
         try {
-          // Fix the install name of the lib itself
           execFileSync("install_name_tool", [
-            "-id", `@executable_path/../lib/${libFile}`, libPath,
+            "-id", `@loader_path/${libFile}`, libPath,
           ], { stdio: "pipe" });
-          // Fix references to other libs
           const otoolOut = execFileSync("otool", ["-L", libPath], { encoding: "utf-8" });
           for (const line of otoolOut.split("\n")) {
             const match = line.trim().match(/^(.+\.dylib)\s/);
             if (!match) continue;
             const dep = match[1];
             if (dep.startsWith("@") || dep.startsWith("/usr/lib") || dep.startsWith("/System")) continue;
-            const depName = dep.split("/").pop();
-            const localDep = join(libDir, depName);
-            if (existsSync(localDep)) {
-              execFileSync("install_name_tool", [
-                "-change", dep, `@executable_path/../lib/${depName}`, libPath,
-              ], { stdio: "pipe" });
+            const newDep = rewrittenDep(dep, "libpg");
+            if (newDep) {
+              execFileSync("install_name_tool", ["-change", dep, newDep, libPath], { stdio: "pipe" });
             }
           }
-        } catch {
-          // Non-fatal per-lib
-        }
+        } catch { /* non-fatal */ }
       }
-    } catch {
-      // Non-fatal
     }
   }
 
   // macOS: ad-hoc codesign PG binaries + libs to avoid Gatekeeper issues
   // (must run AFTER install_name_tool — codesign invalidates on modification)
   if (process.platform === "darwin" && targetPlatform === "darwin") {
-    const bins = ["pg_ctl", "initdb", "createdb", "pg_isready", "postgres", "psql"];
-    for (const bin of bins) {
-      const binPath = join(destDir, "bin", bin);
-      if (existsSync(binPath)) {
+    const { readdirSync } = await import("node:fs");
+    const signDirs = [
+      join(destDir, "bin"),
+      join(destDir, "lib"),
+      join(destDir, "lib", "postgresql"),
+    ];
+    for (const dir of signDirs) {
+      if (!existsSync(dir)) continue;
+      for (const f of readdirSync(dir)) {
+        const fp = join(dir, f);
         try {
-          execFileSync("codesign", ["-s", "-", "--force", binPath], { stdio: "pipe" });
-        } catch {
-          // Non-fatal
-        }
-      }
-    }
-    // Codesign dylibs too
-    try {
-      const { readdirSync } = await import("node:fs");
-      for (const f of readdirSync(join(destDir, "lib"))) {
-        if (!f.endsWith(".dylib")) continue;
-        try {
-          execFileSync("codesign", ["-s", "-", "--force", join(destDir, "lib", f)], { stdio: "pipe" });
+          execFileSync("codesign", ["-s", "-", "--force", fp], { stdio: "pipe" });
         } catch { /* non-fatal */ }
       }
-    } catch { /* non-fatal */ }
+    }
   }
 
   console.log(`[bundle-pg] PostgreSQL ${PG_VERSION} bundled at ${destDir}`);
