@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { access, writeFile, mkdir } from "node:fs/promises";
 import { constants } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { getRimedeckDir } from "./config";
 import { bundledPgBinDir, isBundledPgAvailable } from "./pg-installer";
 
@@ -117,6 +117,8 @@ export async function startPostgres(pgPort: number): Promise<string> {
       "--auth=trust",
       "--encoding=UTF8",
       "--locale=C",
+      "-L",
+      join(dirname(pgPaths.initdb), "..", "share"),
       "-D",
       dataDir,
     ], {
