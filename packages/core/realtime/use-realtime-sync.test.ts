@@ -72,7 +72,7 @@ describe("applyChatDoneToCache", () => {
     applyChatDoneToCache(qc, donePayload());
 
     expect(setQueryData.mock.calls[0]?.[0]).toEqual(messagesKey);
-    expect(setQueryData.mock.calls[2]?.[0]).toEqual(pendingKey);
+    expect(setQueryData.mock.calls[1]?.[0]).toEqual(pendingKey);
     expect(qc.getQueryData<ChatPendingTask>(pendingKey)).toEqual({});
     expect(qc.getQueryData<ChatMessage[]>(messagesKey)).toEqual([
       userMessage(),
