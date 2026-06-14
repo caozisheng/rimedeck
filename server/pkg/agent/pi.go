@@ -178,14 +178,8 @@ func (b *piBackend) Execute(ctx context.Context, prompt string, opts ExecOptions
 	if execName == "" {
 		execName = "pi"
 	}
-	if b.cfg.IsWSL {
-		if err := wslLookPath(execName); err != nil {
-			return nil, fmt.Errorf("pi executable not found in WSL at %q: %w", execName, err)
-		}
-	} else {
-		if _, err := exec.LookPath(execName); err != nil {
-			return nil, fmt.Errorf("pi executable not found at %q: %w", execName, err)
-		}
+	if _, err := exec.LookPath(execName); err != nil {
+		return nil, fmt.Errorf("pi executable not found at %q: %w", execName, err)
 	}
 
 	timeout := opts.Timeout
@@ -209,20 +203,14 @@ func (b *piBackend) Execute(ctx context.Context, prompt string, opts ExecOptions
 
 	args := buildPiArgs(prompt, sessionPath, opts, b.cfg.Logger)
 
-	var cmd *exec.Cmd
-	if b.cfg.IsWSL {
-		cmd = wslCommand(runCtx, execName, args, opts.Cwd, b.cfg.Env)
-		b.cfg.Logger.Info("agent command", "exec", execName, "args", args, "wsl", true)
-	} else {
-		lookedUp, _ := exec.LookPath(execName)
-		argv0, cmdArgs := choosePiInvocation(execName, lookedUp, args, b.cfg.Logger)
-		cmd = exec.CommandContext(runCtx, argv0, cmdArgs...)
-		if opts.Cwd != "" {
-			cmd.Dir = opts.Cwd
-		}
-		cmd.Env = buildEnv(b.cfg.Env)
-		b.cfg.Logger.Info("agent command", "exec", argv0, "args", cmdArgs)
+	lookedUp, _ := exec.LookPath(execName)
+	argv0, cmdArgs := choosePiInvocation(execName, lookedUp, args, b.cfg.Logger)
+	cmd := exec.CommandContext(runCtx, argv0, cmdArgs...)
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
 	}
+	cmd.Env = buildEnv(b.cfg.Env)
+	b.cfg.Logger.Info("agent command", "exec", argv0, "args", cmdArgs)
 	hideAgentWindow(cmd)
 	cmd.WaitDelay = 10 * time.Second
 

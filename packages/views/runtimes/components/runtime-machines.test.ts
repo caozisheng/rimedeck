@@ -220,11 +220,12 @@ describe("runtime machine grouping", () => {
     });
   });
 
-  it("consolidates an out-of-band local daemon (WSL2) by host name and suppresses the placeholder", () => {
-    // The desktop doesn't manage this daemon (it runs in WSL2), so
-    // localDaemonId never matches. localMachineName falls back to the OS
-    // hostname, and the runtime is owned by the viewing user — so it must
-    // consolidate into the local section, and no empty placeholder appears.
+  it("consolidates a WSL shared-compute daemon by host name and suppresses the placeholder", () => {
+    // The desktop doesn't manage this daemon directly (it runs as a WSL
+    // shared-compute node with its own health port). localDaemonId never
+    // matches. localMachineName falls back to the OS hostname, and the
+    // runtime is owned by the viewing user — so it must consolidate into
+    // the local section, and no empty placeholder appears.
     const machines = buildRuntimeMachines(
       [
         makeRuntime({

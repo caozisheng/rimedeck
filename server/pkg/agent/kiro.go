@@ -40,11 +40,7 @@ func (b *kiroBackend) Execute(ctx context.Context, prompt string, opts ExecOptio
 	if execPath == "" {
 		execPath = "kiro-cli"
 	}
-	if b.cfg.IsWSL {
-		if err := wslLookPath(execPath); err != nil {
-			return nil, fmt.Errorf("kiro executable not found in WSL at %q: %w", execPath, err)
-		}
-	} else if _, err := exec.LookPath(execPath); err != nil {
+	if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("kiro executable not found at %q: %w", execPath, err)
 	}
 
@@ -61,18 +57,13 @@ func (b *kiroBackend) Execute(ctx context.Context, prompt string, opts ExecOptio
 	runCtx, cancel := runContext(ctx, timeout)
 
 	kiroArgs := append([]string{"acp", "--trust-all-tools"}, filterCustomArgs(opts.CustomArgs, kiroBlockedArgs, b.cfg.Logger)...)
-	var cmd *exec.Cmd
-	if b.cfg.IsWSL {
-		cmd = wslCommand(runCtx, execPath, kiroArgs, opts.Cwd, b.cfg.Env)
-	} else {
-		cmd = exec.CommandContext(runCtx, execPath, kiroArgs...)
-		if opts.Cwd != "" {
-			cmd.Dir = opts.Cwd
-		}
-		cmd.Env = buildEnv(b.cfg.Env)
+	cmd := exec.CommandContext(runCtx, execPath, kiroArgs...)
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
 	}
+	cmd.Env = buildEnv(b.cfg.Env)
 	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", kiroArgs, "wsl", b.cfg.IsWSL)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", kiroArgs)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

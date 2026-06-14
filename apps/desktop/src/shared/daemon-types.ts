@@ -27,6 +27,7 @@ export interface DaemonStatus {
 export interface DaemonPrefs {
   autoStart: boolean;
   autoStop: boolean;
+  wslEnabled?: boolean;
 }
 
 export const DAEMON_STATE_COLORS: Record<DaemonState, string> = {

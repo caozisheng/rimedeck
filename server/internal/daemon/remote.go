@@ -6,8 +6,6 @@ import (
 	"math/rand"
 	"sync"
 	"time"
-
-	"github.com/multica-ai/multica/server/pkg/agent"
 )
 
 // remoteServer represents a connection to a remote Rimedeck server for
@@ -155,13 +153,7 @@ func (d *Daemon) registerRuntimesWithClient(ctx context.Context, client *Client,
 	d.logger.Debug("registering runtimes with client", "server_url", client.baseURL, "workspace_id", workspaceID)
 	var runtimes []map[string]string
 	for name, entry := range d.cfg.Agents {
-		var version string
-		var err error
-		if entry.IsWSL {
-			version, err = agent.DetectVersionWSL(ctx, entry.Path)
-		} else {
-			version, err = detectAgentVersion(ctx, entry.Path)
-		}
+		version, err := detectAgentVersion(ctx, entry.Path)
 		if err != nil {
 			continue
 		}

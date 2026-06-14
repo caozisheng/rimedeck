@@ -155,24 +155,12 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	var (
 		shellResolveOnce sync.Once
 		shellResolved    map[string]string
-		wslResolveOnce   sync.Once
-		wslResolved      map[string]string
 	)
 	getShellResolved := func() map[string]string {
 		shellResolveOnce.Do(func() {
 			shellResolved = resolveAgentsViaLoginShell(defaultAgentCommandNames)
 		})
 		return shellResolved
-	}
-	wslMode := strings.ToLower(strings.TrimSpace(os.Getenv("MULTICA_WSL_MODE")))
-	getWSLResolved := func() map[string]string {
-		if wslMode == "off" {
-			return nil
-		}
-		wslResolveOnce.Do(func() {
-			wslResolved = resolveAgentsViaWSL(defaultAgentCommandNames)
-		})
-		return wslResolved
 	}
 	probe := func(envVar, defaultCmd, modelEnv string) (AgentEntry, bool) {
 		cmd := envOrDefault(envVar, defaultCmd)
@@ -182,25 +170,14 @@ func LoadConfig(overrides Overrides) (Config, error) {
 				Model: strings.TrimSpace(os.Getenv(modelEnv)),
 			}, true
 		}
-		// The shell/WSL fallbacks only rescue bare command names. An
-		// operator who pinned MULTICA_*_PATH to an absolute Windows path
+		// The shell fallback only rescues bare command names. An
+		// operator who pinned MULTICA_*_PATH to an absolute path
 		// (contains \) that doesn't exist should hard-miss, not silently
 		// get a different binary.
-		//
-		// However, a Linux absolute path (starts with /) set via
-		// MULTICA_*_PATH on Windows is a deliberate WSL target — probe
-		// WSL for it.
 		if strings.ContainsRune(cmd, '\\') {
 			return AgentEntry{}, false
 		}
 		if strings.HasPrefix(cmd, "/") {
-			if wslMode != "off" && wslPathExists(cmd) {
-				return AgentEntry{
-					Path:  cmd,
-					Model: strings.TrimSpace(os.Getenv(modelEnv)),
-					IsWSL: true,
-				}, true
-			}
 			return AgentEntry{}, false
 		}
 		if path, ok := getShellResolved()[cmd]; ok {
@@ -210,10 +187,7 @@ func LoadConfig(overrides Overrides) (Config, error) {
 			}, true
 		}
 		// Windows npm global directory fallback: Electron-launched daemons
-		// often miss %APPDATA%\npm in their PATH. This also catches the
-		// common case where users run `npm install -g` inside WSL but WSL's
-		// npm is actually the Windows host npm (via PATH interop), so the
-		// .cmd shim lands on the Windows filesystem, not inside WSL.
+		// often miss %APPDATA%\npm in their PATH.
 		if p := resolveAgentViaNpmGlobal(cmd); p != "" {
 			return AgentEntry{
 				Path:  p,
@@ -231,15 +205,6 @@ func LoadConfig(overrides Overrides) (Config, error) {
 					}, true
 				}
 			}
-		}
-		// WSL fallback: on Windows, bare command names not found natively
-		// or via login shell may live inside the default WSL distro.
-		if path, ok := getWSLResolved()[cmd]; ok {
-			return AgentEntry{
-				Path:  path,
-				Model: strings.TrimSpace(os.Getenv(modelEnv)),
-				IsWSL: true,
-			}, true
 		}
 		return AgentEntry{}, false
 	}

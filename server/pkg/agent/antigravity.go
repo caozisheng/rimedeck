@@ -34,11 +34,7 @@ func (b *antigravityBackend) Execute(ctx context.Context, prompt string, opts Ex
 	if execPath == "" {
 		execPath = "agy"
 	}
-	if b.cfg.IsWSL {
-		if err := wslLookPath(execPath); err != nil {
-			return nil, fmt.Errorf("agy executable not found in WSL at %q: %w", execPath, err)
-		}
-	} else if _, err := exec.LookPath(execPath); err != nil {
+	if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("agy executable not found at %q: %w", execPath, err)
 	}
 
@@ -55,18 +51,13 @@ func (b *antigravityBackend) Execute(ctx context.Context, prompt string, opts Ex
 
 	args := buildAntigravityArgs(prompt, logPath, timeout, opts, b.cfg.Logger)
 
-	var cmd *exec.Cmd
-	if b.cfg.IsWSL {
-		cmd = wslCommand(runCtx, execPath, args, opts.Cwd, b.cfg.Env)
-	} else {
-		cmd = exec.CommandContext(runCtx, execPath, args...)
-		if opts.Cwd != "" {
-			cmd.Dir = opts.Cwd
-		}
-		cmd.Env = buildEnv(b.cfg.Env)
+	cmd := exec.CommandContext(runCtx, execPath, args...)
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
 	}
+	cmd.Env = buildEnv(b.cfg.Env)
 	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args, "wsl", b.cfg.IsWSL)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args)
 	cmd.WaitDelay = 10 * time.Second
 
 	stdout, err := cmd.StdoutPipe()

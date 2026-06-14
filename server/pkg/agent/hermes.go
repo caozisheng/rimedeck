@@ -41,11 +41,7 @@ func (b *hermesBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	if execPath == "" {
 		execPath = "hermes"
 	}
-	if b.cfg.IsWSL {
-		if err := wslLookPath(execPath); err != nil {
-			return nil, fmt.Errorf("hermes executable not found in WSL at %q: %w", execPath, err)
-		}
-	} else if _, err := exec.LookPath(execPath); err != nil {
+	if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("hermes executable not found at %q: %w", execPath, err)
 	}
 
@@ -68,20 +64,15 @@ func (b *hermesBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	}
 	hermesEnv["HERMES_YOLO_MODE"] = "1"
 
-	var cmd *exec.Cmd
-	if b.cfg.IsWSL {
-		cmd = wslCommand(runCtx, execPath, hermesArgs, opts.Cwd, hermesEnv)
-	} else {
-		cmd = exec.CommandContext(runCtx, execPath, hermesArgs...)
-		if opts.Cwd != "" {
-			cmd.Dir = opts.Cwd
-		}
-		env := buildEnv(b.cfg.Env)
-		env = append(env, "HERMES_YOLO_MODE=1")
-		cmd.Env = env
+	cmd := exec.CommandContext(runCtx, execPath, hermesArgs...)
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
 	}
+	env := buildEnv(b.cfg.Env)
+	env = append(env, "HERMES_YOLO_MODE=1")
+	cmd.Env = env
 	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", hermesArgs, "wsl", b.cfg.IsWSL)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", hermesArgs)
 	agentsMDPresent := false
 	if opts.Cwd != "" {
 		if _, statErr := os.Stat(filepath.Join(opts.Cwd, "AGENTS.md")); statErr == nil {

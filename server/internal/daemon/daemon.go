@@ -745,24 +745,18 @@ func (d *Daemon) registerRuntimesForWorkspace(ctx context.Context, workspaceID s
 	d.logger.Debug("registering runtimes for workspace", "workspace_id", workspaceID, "agent_count", len(d.cfg.Agents))
 	var runtimes []map[string]string
 	for name, entry := range d.cfg.Agents {
-		d.logger.Info("probing agent runtime", "name", name, "path", entry.Path, "wsl", entry.IsWSL)
-		var version string
-		var err error
-		if entry.IsWSL {
-			version, err = agent.DetectVersionWSL(ctx, entry.Path)
-		} else {
-			version, err = detectAgentVersion(ctx, entry.Path)
-		}
+		d.logger.Info("probing agent runtime", "name", name, "path", entry.Path)
+		version, err := detectAgentVersion(ctx, entry.Path)
 		if err != nil {
-			d.logger.Warn("skip registering runtime: version detection failed", "name", name, "path", entry.Path, "wsl", entry.IsWSL, "error", err)
+			d.logger.Warn("skip registering runtime: version detection failed", "name", name, "path", entry.Path, "error", err)
 			continue
 		}
 		if err := checkAgentMinVersion(name, version); err != nil {
-			d.logger.Warn("skip registering runtime: version too old", "name", name, "version", version, "path", entry.Path, "wsl", entry.IsWSL, "error", err)
+			d.logger.Warn("skip registering runtime: version too old", "name", name, "version", version, "path", entry.Path, "error", err)
 			continue
 		}
 		d.setAgentVersion(name, version)
-		d.logger.Info("agent runtime registered", "name", name, "version", version, "path", entry.Path, "wsl", entry.IsWSL)
+		d.logger.Info("agent runtime registered", "name", name, "version", version, "path", entry.Path)
 		displayName := strings.ToUpper(name[:1]) + name[1:]
 		if d.cfg.DeviceName != "" {
 			displayName = fmt.Sprintf("%s (%s)", displayName, d.cfg.DeviceName)
@@ -1459,14 +1453,6 @@ func (d *Daemon) handleModelList(ctx context.Context, rt Runtime, requestID stri
 		return
 	}
 
-	if entry.IsWSL {
-		d.logger.Info("model list: skipping discovery for WSL agent", "provider", rt.Provider)
-		d.reportModelListResult(ctx, rt, requestID, map[string]any{
-			"status": "ok",
-			"models": []any{},
-		})
-		return
-	}
 	models, err := agent.ListModels(ctx, rt.Provider, entry.Path)
 	if err != nil {
 		d.reportModelListResult(ctx, rt, requestID, map[string]any{
@@ -2755,7 +2741,6 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		ExecutablePath: entry.Path,
 		Env:            agentEnv,
 		Logger:         d.logger,
-		IsWSL:          entry.IsWSL,
 	})
 	if err != nil {
 		return TaskResult{}, fmt.Errorf("create agent backend: %w", err)

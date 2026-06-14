@@ -34,22 +34,15 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if execPath == "" {
 		execPath = "opencode"
 	}
-	if b.cfg.IsWSL {
-		if err := wslLookPath(execPath); err != nil {
-			return nil, fmt.Errorf("opencode executable not found in WSL at %q: %w", execPath, err)
+	if _, err := exec.LookPath(execPath); err != nil {
+		return nil, fmt.Errorf("opencode executable not found at %q: %w", execPath, err)
+	}
+	if runtime.GOOS == "windows" {
+		resolved, _ := exec.LookPath(execPath)
+		if native := resolveOpenCodeNativeFromShim(resolved, os.Stat); native != "" {
+			b.cfg.Logger.Info("opencode resolved to native binary to avoid .cmd shim argv truncation", "shim", resolved, "native", native)
+			execPath = native
 		}
-	} else {
-		resolved, err := exec.LookPath(execPath)
-		if err != nil {
-			return nil, fmt.Errorf("opencode executable not found at %q: %w", execPath, err)
-		}
-		if runtime.GOOS == "windows" {
-			if native := resolveOpenCodeNativeFromShim(resolved, os.Stat); native != "" {
-				b.cfg.Logger.Info("opencode resolved to native binary to avoid .cmd shim argv truncation", "shim", resolved, "native", native)
-				resolved = native
-			}
-		}
-		execPath = resolved
 	}
 
 	timeout := opts.Timeout
@@ -77,37 +70,30 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	args = append(args, filterCustomArgs(opts.CustomArgs, opencodeBlockedArgs, b.cfg.Logger)...)
 	args = append(args, prompt)
 
-	var cmd *exec.Cmd
-	if b.cfg.IsWSL {
-		cmd = wslCommand(runCtx, execPath, args, opts.Cwd, b.cfg.Env)
-	} else {
-		cmd = exec.CommandContext(runCtx, execPath, args...)
-		if opts.Cwd != "" {
-			cmd.Dir = opts.Cwd
-		}
+	cmd := exec.CommandContext(runCtx, execPath, args...)
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
 	}
 	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args, "wsl", b.cfg.IsWSL)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args)
 	cmd.WaitDelay = 10 * time.Second
 
-	if !b.cfg.IsWSL {
-		env := buildEnv(b.cfg.Env)
-		if opts.Cwd != "" {
-			env = append(env, "PWD="+opts.Cwd)
-		}
-		mcpContent, err := buildOpenCodeMCPConfigContent(opts.McpConfig)
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-		if mcpContent != "" {
-			if _, dup := b.cfg.Env["OPENCODE_CONFIG_CONTENT"]; dup {
-				b.cfg.Logger.Warn("agent.custom_env sets OPENCODE_CONFIG_CONTENT but agent.mcp_config takes precedence and overrides it")
-			}
-			env = append(env, "OPENCODE_CONFIG_CONTENT="+mcpContent)
-		}
-		cmd.Env = env
+	env := buildEnv(b.cfg.Env)
+	if opts.Cwd != "" {
+		env = append(env, "PWD="+opts.Cwd)
 	}
+	mcpContent, err := buildOpenCodeMCPConfigContent(opts.McpConfig)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	if mcpContent != "" {
+		if _, dup := b.cfg.Env["OPENCODE_CONFIG_CONTENT"]; dup {
+			b.cfg.Logger.Warn("agent.custom_env sets OPENCODE_CONFIG_CONTENT but agent.mcp_config takes precedence and overrides it")
+		}
+		env = append(env, "OPENCODE_CONFIG_CONTENT="+mcpContent)
+	}
+	cmd.Env = env
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

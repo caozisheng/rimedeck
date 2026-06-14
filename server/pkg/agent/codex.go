@@ -494,11 +494,7 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	if execPath == "" {
 		execPath = "codex"
 	}
-	if b.cfg.IsWSL {
-		if err := wslLookPath(execPath); err != nil {
-			return nil, fmt.Errorf("codex executable not found in WSL at %q: %w", execPath, err)
-		}
-	} else if _, err := exec.LookPath(execPath); err != nil {
+	if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("codex executable not found at %q: %w", execPath, err)
 	}
 
@@ -518,33 +514,24 @@ func (b *codexBackend) Execute(ctx context.Context, prompt string, opts ExecOpti
 	// echoed into the daemon's `agent command` log line below, so any
 	// inline env-bearing TOML would defeat the redaction. Writing through
 	// config.toml at 0o600 keeps the secret values out of argv and logs.
-	// WSL agents skip CODEX_HOME management — the Windows path is not
-	// accessible from inside WSL.
-	if !b.cfg.IsWSL {
-		if codexHome := strings.TrimSpace(b.cfg.Env["CODEX_HOME"]); codexHome != "" {
-			if err := ensureCodexMcpConfig(filepath.Join(codexHome, "config.toml"), opts.McpConfig, b.cfg.Logger); err != nil {
-				cancel()
-				return nil, fmt.Errorf("apply codex mcp_config: %w", err)
-			}
-		} else if hasManagedCodexMcpConfig(opts.McpConfig) {
+	if codexHome := strings.TrimSpace(b.cfg.Env["CODEX_HOME"]); codexHome != "" {
+		if err := ensureCodexMcpConfig(filepath.Join(codexHome, "config.toml"), opts.McpConfig, b.cfg.Logger); err != nil {
 			cancel()
-			return nil, fmt.Errorf("codex: mcp_config is set but CODEX_HOME env var is not configured; cannot apply managed MCP")
+			return nil, fmt.Errorf("apply codex mcp_config: %w", err)
 		}
+	} else if hasManagedCodexMcpConfig(opts.McpConfig) {
+		cancel()
+		return nil, fmt.Errorf("codex: mcp_config is set but CODEX_HOME env var is not configured; cannot apply managed MCP")
 	}
 
 	codexArgs := buildCodexArgs(opts, b.cfg.Logger)
-	var cmd *exec.Cmd
-	if b.cfg.IsWSL {
-		cmd = wslCommand(runCtx, execPath, codexArgs, opts.Cwd, b.cfg.Env)
-	} else {
-		cmd = exec.CommandContext(runCtx, execPath, codexArgs...)
-		if opts.Cwd != "" {
-			cmd.Dir = opts.Cwd
-		}
-		cmd.Env = buildEnv(b.cfg.Env)
+	cmd := exec.CommandContext(runCtx, execPath, codexArgs...)
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
 	}
+	cmd.Env = buildEnv(b.cfg.Env)
 	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", codexArgs, "wsl", b.cfg.IsWSL)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", codexArgs)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

@@ -1,5 +1,5 @@
 import { app, ipcMain, BrowserWindow, shell } from "electron";
-import { execFile } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import {
   readFile,
   writeFile,
@@ -65,6 +65,12 @@ let cachedCliBinaryVersion: string | null | undefined = undefined;
 let pendingVersionRestart = false;
 let targetApiBaseUrl: string | null = null;
 let activeProfile: ActiveProfile | null = null;
+
+// ── WSL daemon management ──────────────────────────────────────────────
+const WSL_HEALTH_PORT = 19515;
+let wslDaemonProcess: ReturnType<typeof execFile> | null = null;
+let wslEnabled = false; // persisted in desktop_prefs.json
+let wslHasCliTools = false; // result of last probe
 
 // Auth-probe state for the current start attempt. When a start fails to reach
 // "running", we probe the daemon's token once (after AUTH_PROBE_GRACE_MS) to
@@ -1005,6 +1011,129 @@ function stopLogTail(): void {
   }
 }
 
+// ── WSL detection & lifecycle ───────────────────────────────────────────
+
+/** Check if wsl.exe exists on the system */
+function isWslAvailable(): boolean {
+  try {
+    execFileSync('wsl.exe', ['--status'], { timeout: 5_000, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Check if any WSL distro is currently running */
+function isWslRunning(): boolean {
+  try {
+    const result = execFileSync('wsl.exe', ['--list', '--running'], {
+      timeout: 5_000,
+      encoding: 'utf16le',
+    });
+    // Output has a header line; more than 1 line means a distro is running
+    const lines = result.trim().split('\n').filter((l: string) => l.trim());
+    return lines.length > 1;
+  } catch {
+    return false;
+  }
+}
+
+/** Probe WSL for agent CLIs without starting the daemon */
+async function probeWslClis(): Promise<boolean> {
+  const names = [
+    'claude', 'codex', 'copilot-language-server',
+    'opencode', 'hermes', 'gemini', 'kimi', 'kiro-cli',
+    'cursor-agent', 'omp', 'openclaw', 'agy',
+    'qoder', 'qwen-code', 'pi',
+  ];
+  const script = names.map(n => `command -v ${n}`).join(' || ');
+  return new Promise((resolve) => {
+    execFile('wsl.exe', ['-e', 'sh', '-c', script], { timeout: 10_000 }, (err) => {
+      resolve(!err);
+    });
+  });
+}
+
+/** Start the WSL daemon process */
+async function startWslDaemon(): Promise<void> {
+  if (wslDaemonProcess) return;
+  const active = await ensureActiveProfile();
+  // Read the profile config to get the server URL and token
+  const cfg = await readProfileConfig(active.name);
+  const serverUrl = (cfg.server_url as string) || `http://127.0.0.1:${targetApiBaseUrl ? new URL(targetApiBaseUrl).port : '8080'}`;
+  const token = (cfg.token as string) || '';
+  if (!token) {
+    console.warn('[daemon:wsl] no token available, skipping WSL daemon start');
+    return;
+  }
+
+  const deviceName = `${hostname()} WSL`;
+  console.log(`[daemon:wsl] starting WSL daemon (device=${deviceName}, health=${WSL_HEALTH_PORT})`);
+
+  // Find the multica binary path inside WSL
+  const bin = await resolveCliBinary();
+  if (!bin) {
+    console.warn('[daemon:wsl] no CLI binary found, cannot start WSL daemon');
+    return;
+  }
+
+  // The daemon binary inside WSL uses the same multica CLI.
+  // We pass all config via env vars so it doesn't need a profile.
+  const wslEnv = [
+    `MULTICA_SERVER_URL=${serverUrl}`,
+    `MULTICA_TOKEN=${token}`,
+    `MULTICA_DAEMON_DEVICE_NAME=${deviceName}`,
+    `MULTICA_HEALTH_PORT=${WSL_HEALTH_PORT}`,
+    `MULTICA_LAUNCHED_BY=desktop-wsl`,
+  ];
+  const envArgs = wslEnv.flatMap(e => ['--env', e]);
+
+  // wsl.exe -e multica daemon start --health-port 19515
+  wslDaemonProcess = execFile(
+    'wsl.exe',
+    [...envArgs, '-e', 'multica', 'daemon', 'start'],
+    { timeout: 0 },  // no timeout — long-running
+    (err) => {
+      if (err) console.warn('[daemon:wsl] WSL daemon exited:', err.message);
+      wslDaemonProcess = null;
+    },
+  );
+}
+
+/** Stop the WSL daemon process */
+async function stopWslDaemon(): Promise<void> {
+  if (!wslDaemonProcess) return;
+  console.log('[daemon:wsl] stopping WSL daemon');
+  try {
+    await new Promise<void>((resolve) => {
+      execFile('wsl.exe', ['-e', 'multica', 'daemon', 'stop'], { timeout: 15_000 }, () => resolve());
+    });
+  } catch {
+    // Best-effort
+  }
+  wslDaemonProcess = null;
+}
+
+/** Attempt to start WSL daemon based on probe-before-launch logic */
+async function tryStartWslDaemon(): Promise<void> {
+  if (process.platform !== 'win32') return;
+  if (!isWslAvailable()) return;
+
+  const prefs = await loadPrefs();
+  wslEnabled = prefs.wslEnabled ?? false;
+
+  if (!wslEnabled && !isWslRunning()) return;
+
+  // WSL is either enabled by user or already running
+  wslHasCliTools = await probeWslClis();
+  if (!wslHasCliTools) {
+    console.log('[daemon:wsl] no agent CLIs found in WSL, skipping');
+    return;
+  }
+
+  await startWslDaemon();
+}
+
 export function setupDaemonManager(
   windowGetter: () => BrowserWindow | null,
 ): void {
@@ -1037,6 +1166,19 @@ export function setupDaemonManager(
         const body = await res.text().catch(() => "");
         throw new Error(body || `${res.status}`);
       }
+      // Forward to WSL daemon if running
+      if (wslDaemonProcess) {
+        try {
+          await fetch(`http://127.0.0.1:${WSL_HEALTH_PORT}/remote/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ server_url: serverUrl, token, workspace_id: workspaceId }),
+            signal: AbortSignal.timeout(30_000),
+          });
+        } catch (err) {
+          console.warn('[daemon:wsl] add-remote-server to WSL daemon failed:', err);
+        }
+      }
       return await res.json();
     } catch (err) {
       console.error("[daemon] add-remote-server failed:", err);
@@ -1055,6 +1197,19 @@ export function setupDaemonManager(
       });
     } catch (err) {
       console.warn("[daemon] remove-remote-server failed:", err);
+    }
+    // Forward to WSL daemon if running
+    if (wslDaemonProcess) {
+      try {
+        await fetch(`http://127.0.0.1:${WSL_HEALTH_PORT}/remote/remove`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ server_url: serverUrl }),
+          signal: AbortSignal.timeout(10_000),
+        });
+      } catch (err) {
+        console.warn('[daemon:wsl] remove-remote-server to WSL daemon failed:', err);
+      }
     }
   });
 
@@ -1106,6 +1261,29 @@ export function setupDaemonManager(
       return;
     }
     await startDaemon();
+    await tryStartWslDaemon();
+  });
+
+  // ── WSL daemon management ──
+  ipcMain.handle('daemon:wsl-status', async () => ({
+    available: process.platform === 'win32' && isWslAvailable(),
+    running: wslDaemonProcess !== null,
+    enabled: wslEnabled,
+    hasCliTools: wslHasCliTools,
+  }));
+
+  ipcMain.handle('daemon:wsl-enable', async () => {
+    wslEnabled = true;
+    const prefs = await loadPrefs();
+    await savePrefs({ ...prefs, wslEnabled: true });
+    await tryStartWslDaemon();
+  });
+
+  ipcMain.handle('daemon:wsl-disable', async () => {
+    wslEnabled = false;
+    const prefs = await loadPrefs();
+    await savePrefs({ ...prefs, wslEnabled: false });
+    await stopWslDaemon();
   });
 
   ipcMain.on("daemon:start-log-stream", () => {
@@ -1155,6 +1333,11 @@ export function setupDaemonManager(
             await stopDaemon();
           } catch {
             // Best-effort stop on quit
+          }
+          try {
+            await stopWslDaemon();
+          } catch {
+            // Best-effort WSL stop on quit
           }
         }
       })

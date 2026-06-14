@@ -118,7 +118,6 @@ type Config struct {
 	ExecutablePath string            // path to CLI binary (claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro-cli, agy, qoder, qwen-code)
 	Env            map[string]string // extra environment variables
 	Logger         *slog.Logger
-	IsWSL          bool // true when the CLI lives inside WSL; execution goes through wsl.exe
 }
 
 // New creates a Backend for the given agent type.
@@ -167,16 +166,6 @@ func New(agentType string, cfg Config) (Backend, error) {
 // DetectVersion runs the agent CLI with --version and returns the output.
 func DetectVersion(ctx context.Context, executablePath string) (string, error) {
 	return detectCLIVersion(ctx, executablePath)
-}
-
-// DetectVersionWSL runs the agent CLI inside WSL via wsl.exe --version and
-// returns the extracted version string.
-func DetectVersionWSL(ctx context.Context, executablePath string) (string, error) {
-	raw, err := wslDetectVersion(ctx, executablePath)
-	if err != nil {
-		return "", err
-	}
-	return extractVersionLine(raw), nil
 }
 
 // launchHeaders maps each supported agent type to the user-visible skeleton

@@ -57,18 +57,12 @@ func (b *openclawBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if execPath == "" {
 		execPath = "openclaw"
 	}
-	if b.cfg.IsWSL {
-		if err := wslLookPath(execPath); err != nil {
-			return nil, fmt.Errorf("openclaw executable not found in WSL at %q: %w", execPath, err)
-		}
-	} else if _, err := exec.LookPath(execPath); err != nil {
+	if _, err := exec.LookPath(execPath); err != nil {
 		return nil, fmt.Errorf("openclaw executable not found at %q: %w", execPath, err)
 	}
 
-	if !b.cfg.IsWSL {
-		if err := checkOpenclawVersion(ctx, execPath); err != nil {
-			return nil, err
-		}
+	if err := checkOpenclawVersion(ctx, execPath); err != nil {
+		return nil, err
 	}
 
 	timeout := opts.Timeout
@@ -80,18 +74,13 @@ func (b *openclawBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	}
 	args := buildOpenclawArgs(prompt, sessionID, opts, b.cfg.Logger)
 
-	var cmd *exec.Cmd
-	if b.cfg.IsWSL {
-		cmd = wslCommand(runCtx, execPath, args, opts.Cwd, b.cfg.Env)
-	} else {
-		cmd = exec.CommandContext(runCtx, execPath, args...)
-		if opts.Cwd != "" {
-			cmd.Dir = opts.Cwd
-		}
-		cmd.Env = buildEnv(b.cfg.Env)
+	cmd := exec.CommandContext(runCtx, execPath, args...)
+	if opts.Cwd != "" {
+		cmd.Dir = opts.Cwd
 	}
+	cmd.Env = buildEnv(b.cfg.Env)
 	hideAgentWindow(cmd)
-	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args, "wsl", b.cfg.IsWSL)
+	b.cfg.Logger.Info("agent command", "exec", execPath, "args", args)
 	cmd.WaitDelay = 10 * time.Second
 
 	// openclaw writes its --json output to stdout. Stderr carries log
