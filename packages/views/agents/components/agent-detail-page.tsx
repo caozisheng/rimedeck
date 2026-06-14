@@ -48,7 +48,7 @@ import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { PageHeader } from "../../layout/page-header";
 import { availabilityConfig } from "../presence";
 import { AgentDetailInspector } from "./agent-detail-inspector";
-import { AgentOverviewPane } from "./agent-overview-pane";
+import { AgentOverviewPane, type DetailTab } from "./agent-overview-pane";
 import { useT } from "../../i18n";
 
 interface AgentDetailPageProps {
@@ -119,6 +119,10 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
       setConfirmArchive(true);
     }
   };
+
+  // One-shot channel: the inspector's compact Lark status row asks the
+  // overview pane to focus a tab. The pane clears it after consuming.
+  const [tabNavIntent, setTabNavIntent] = useState<DetailTab | null>(null);
 
   const handleUpdate = async (id: string, data: Record<string, unknown>) => {
     // Optimistic update: patch the matching agent in the cached list
@@ -315,6 +319,8 @@ export function AgentDetailPage({ agentId }: AgentDetailPageProps) {
           agent={agent}
           runtimes={runtimes}
           onUpdate={handleUpdate}
+          navIntent={tabNavIntent}
+          onNavIntentHandled={() => setTabNavIntent(null)}
         />
       </div>
 

@@ -31,17 +31,18 @@ import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import { Table } from "@tiptap/extension-table";
+import { TaskList } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import type { AnyExtension } from "@tiptap/core";
 import type { UploadResult } from "@multica/core/hooks/use-file-upload";
 import { escapeMarkdownLabel } from "../utils/escape-markdown-label";
 import { BaseMentionExtension } from "./mention-extension";
-import { createMentionSuggestion } from "./mention-suggestion";
+import { createMentionSuggestion, type MentionItem } from "./mention-suggestion";
 import { SlashCommandExtension } from "./slash-command-extension";
-import { createSlashCommandSuggestion } from "./slash-command-suggestion";
+import { createSlashCommandSuggestion, createBuiltinCommandSuggestion } from "./slash-command-suggestion";
 import { CodeBlockView } from "./code-block-view";
-import { PatchedListItem } from "./list-item";
+import { PatchedListItem, PatchedTaskItem } from "./list-item";
 import { createMarkdownPasteExtension } from "./markdown-paste";
 import { createMarkdownCopyExtension } from "./markdown-copy";
 import { createSubmitExtension } from "./submit-shortcut";
@@ -132,8 +133,17 @@ export interface EditorExtensionsOptions {
    * system prompts) but *preserving* an existing one still matters.
    */
   disableMentions?: boolean;
-  /** When true, attach the `/` skill picker. Default false. */
+  /** Override @ behavior for chat context suggestions. */
+  mentionMode?: "default" | "context";
+  getMentionContextItems?: () => MentionItem[];
+  /** When true, attach the `/` picker. Default false. */
   enableSlashCommands?: boolean;
+  /**
+   * Which `/` menu to attach when enableSlashCommands is true:
+   * - "skill" (default) — the chat picker listing the active agent's skills.
+   * - "command" — the fixed built-in command menu (issue comments), e.g. /note.
+   */
+  slashCommandMode?: "skill" | "command";
 }
 
 export function createEditorExtensions(
@@ -153,6 +163,13 @@ export function createEditorExtensions(
       listItem: false,
     }),
     PatchedListItem,
+    // Checkbox task lists: `- [ ]` / `- [x]`. TaskList + TaskItem ship their own
+    // markdown tokenizer / renderMarkdown, an input rule (typing `[] ` / `[x] `),
+    // and a checkbox NodeView. The taskList tokenizer is consulted before
+    // marked's built-in list tokenizer, so `- [ ]` becomes a task while a plain
+    // `- ` still falls through to PatchedListItem's bullet list.
+    TaskList,
+    PatchedTaskItem,
     CodeBlockLowlight.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
@@ -163,7 +180,12 @@ export function createEditorExtensions(
     // markdownPaste's handlePaste is a catch-all that returns true.
     LinkExtension,
     ImageExtension,
-    Table.configure({ resizable: false }),
+    // renderWrapper wraps the table in `<div class="tableWrapper">` (the same
+    // wrapper the resizable NodeView emits), which prose.css styles with
+    // `overflow-x: auto`. Without it a wide table is a bare <table> that can't
+    // shrink below min-content, so the horizontal scrollbar lands on the
+    // page-level scroll container instead of the table itself.
+    Table.configure({ resizable: false, renderWrapper: true }),
     TableRow,
     TableHeader,
     TableCell,
@@ -181,15 +203,18 @@ export function createEditorExtensions(
       ...(options.disableMentions
         ? { suggestion: { allow: () => false } }
         : options.queryClient
-          ? { suggestion: createMentionSuggestion(options.queryClient) }
+          ? { suggestion: createMentionSuggestion(options.queryClient, { mode: options.mentionMode, getContextItems: options.getMentionContextItems }) }
           : {}),
     }),
     SlashCommandExtension.configure({
       HTMLAttributes: { class: "slash-command" },
-      suggestion:
-        options.enableSlashCommands && options.queryClient
-          ? createSlashCommandSuggestion(options.queryClient)
-          : { char: "/", allow: () => false },
+      suggestion: !options.enableSlashCommands
+        ? { char: "/", allow: () => false }
+        : options.slashCommandMode === "command"
+          ? createBuiltinCommandSuggestion()
+          : options.queryClient
+            ? createSlashCommandSuggestion(options.queryClient)
+            : { char: "/", allow: () => false },
     }),
     Typography,
     Placeholder.configure({ placeholder: placeholderText }),

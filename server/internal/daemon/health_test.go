@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -53,6 +54,12 @@ func TestHealthHandlerReportsCLIVersionAndActiveTaskCount(t *testing.T) {
 	}
 	if got, want := raw["status"], "running"; got != want {
 		t.Errorf("status key: got %v, want %q", got, want)
+	}
+	// The desktop relies on the `os` key (runtime.GOOS) to detect a daemon it
+	// can't manage (e.g. Linux-in-WSL behind a Windows desktop). A rename or
+	// drop would silently re-break #3916, so lock both the key and its value.
+	if got, want := raw["os"], runtime.GOOS; got != want {
+		t.Errorf("os key: got %v, want %q", got, want)
 	}
 
 	// Also round-trip into the typed struct as a separate check that the
@@ -247,6 +254,10 @@ func (c *blockingLookupRepoCache) Lookup(_, _ string) string {
 
 func (c *blockingLookupRepoCache) Sync(string, []repocache.RepoInfo) error {
 	return nil
+}
+
+func (c *blockingLookupRepoCache) WithRepoLock(_ string, fn func() error) error {
+	return fn()
 }
 
 func (c *blockingLookupRepoCache) CreateWorktree(repocache.WorktreeParams) (*repocache.WorktreeResult, error) {

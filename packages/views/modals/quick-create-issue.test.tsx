@@ -1,6 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const mockQuickCreateIssue = vi.hoisted(() => vi.fn());
@@ -17,6 +17,7 @@ const mockQueryClient = vi.hoisted(() => ({
   setQueryData: vi.fn(),
   invalidateQueries: vi.fn(),
 }));
+const mockUploadWithToast = vi.hoisted(() => vi.fn());
 
 const mockQuickCreateStore = {
   lastActorType: null as "agent" | "squad" | null,
@@ -132,7 +133,7 @@ vi.mock("@multica/core/runtimes", () => ({
 }));
 
 vi.mock("@multica/core/hooks/use-file-upload", () => ({
-  useFileUpload: () => ({ uploadWithToast: vi.fn(), uploading: false }),
+  useFileUpload: () => ({ uploadWithToast: mockUploadWithToast, uploading: false }),
 }));
 
 vi.mock("../issues/components/pickers/assignee-picker", () => ({
@@ -157,7 +158,7 @@ vi.mock("../common/pill-button", () => ({
 }));
 
 vi.mock("../editor", () => {
-  const ContentEditor = forwardRef(({ defaultValue, onUpdate, onSubmit, placeholder }: any, ref: any) => {
+  const ContentEditor = forwardRef(({ defaultValue, onUpdate, onSubmit, onUploadFile, placeholder }: any, ref: any) => {
     const valueRef = useRef(defaultValue || "");
     const [value, setValue] = useState(defaultValue || "");
 
@@ -172,20 +173,28 @@ vi.mock("../editor", () => {
     }));
 
     return (
-      <textarea
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => {
-          valueRef.current = e.target.value;
-          setValue(e.target.value);
-          onUpdate?.(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-            onSubmit?.();
-          }
-        }}
-      />
+      <>
+        <textarea
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => {
+            valueRef.current = e.target.value;
+            setValue(e.target.value);
+            onUpdate?.(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              onSubmit?.();
+            }
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => onUploadFile?.(new File(["image"], "shot.png", { type: "image/png" }))}
+        >
+          Mock editor upload
+        </button>
+      </>
     );
   });
   ContentEditor.displayName = "ContentEditor";
@@ -330,6 +339,23 @@ describe("AgentCreatePanel", () => {
     mockQueryClient.getQueriesData.mockReturnValue([
       [["issues", "ws-test", "list"], { byStatus: { todo: { issues: [], total: 0 } } }],
     ]);
+    mockUploadWithToast.mockResolvedValue({
+      id: "019ec09d-6222-722b-bdfa-427b105d80be",
+      workspace_id: "ws-test",
+      issue_id: null,
+      comment_id: null,
+      chat_session_id: null,
+      chat_message_id: null,
+      uploader_type: "member",
+      uploader_id: "user-1",
+      filename: "shot.png",
+      url: "/uploads/shot.png",
+      download_url: "/api/attachments/019ec09d-6222-722b-bdfa-427b105d80be/download",
+      markdown_url: "/api/attachments/019ec09d-6222-722b-bdfa-427b105d80be/download",
+      content_type: "image/png",
+      size_bytes: 5,
+      created_at: "2026-06-12T00:00:00Z",
+    });
     mockSetKeepOpen.mockImplementation((value: boolean) => {
       mockQuickCreateStore.keepOpen = value;
     });
@@ -383,6 +409,38 @@ describe("AgentCreatePanel", () => {
       expect.objectContaining({ duration: 4000 }),
     );
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("passes referenced upload attachment ids to quick-create", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    renderPanel({ onClose, isExpanded: false, setIsExpanded: vi.fn() });
+
+    await user.click(screen.getByRole("button", { name: "Mock editor upload" }));
+    await waitFor(() => expect(mockUploadWithToast).toHaveBeenCalled());
+
+    const editor = screen.getByPlaceholderText(
+      'Tell the agent what to do, e.g. "let Bohan fix the inbox loading slowness in the Web project"',
+    );
+    await user.clear(editor);
+    fireEvent.change(editor, {
+      target: {
+        value: "Create issue with ![image](/api/attachments/019ec09d-6222-722b-bdfa-427b105d80be/download)",
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: /^Create \(/i }));
+
+    await waitFor(() => {
+      expect(mockQuickCreateIssue).toHaveBeenCalledWith({
+        agent_id: "agent-1",
+        prompt: "Create issue with ![image](/api/attachments/019ec09d-6222-722b-bdfa-427b105d80be/download)",
+        project_id: undefined,
+        parent_issue_id: undefined,
+        attachment_ids: ["019ec09d-6222-722b-bdfa-427b105d80be"],
+      });
+    });
   });
 
   // Picking a squad routes the submission through `squad_id` (not

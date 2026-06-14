@@ -1,5 +1,5 @@
 // Package agent provides a unified interface for executing prompts via
-// coding agents (Claude Code, Codex, Copilot, OpenCode, OpenClaw, Hermes,
+// coding agents (Claude Code, CodeBuddy, Codex, Copilot, OpenCode, OpenClaw, Hermes,
 // Gemini, Pi, OMP, Cursor, Kimi, Kiro, Antigravity, Qoder, Qwen Code).
 // It mirrors the happy-cli AgentBackend pattern, translated to idiomatic Go.
 package agent
@@ -28,6 +28,7 @@ type ExecOptions struct {
 	// developer/system instructions. Hermes ACP intentionally ignores it and
 	// relies on cwd-scoped context files such as AGENTS.md instead.
 	SystemPrompt              string
+	ThreadName                string
 	MaxTurns                  int
 	Timeout                   time.Duration
 	SemanticInactivityTimeout time.Duration
@@ -45,6 +46,17 @@ type ExecOptions struct {
 	// field rather than fail (so MUL-2339 can grow runtime support
 	// incrementally without breaking unrelated agents).
 	ThinkingLevel string
+	// OpenclawMode chooses between local (embedded) and gateway routing for
+	// the openclaw backend. "" or "local" keeps the historical behaviour —
+	// the daemon spawns `openclaw agent --local …` and the agent loop runs
+	// in-process on the daemon host. "gateway" instructs the daemon to drop
+	// the --local flag and let openclaw route the turn through a Gateway (the
+	// user's globally-configured one, or an endpoint pinned in the per-task
+	// config wrapper that the daemon writes from execenv.OpenclawGatewayPin —
+	// see server/internal/daemon/execenv/openclaw_config.go). Other backends
+	// ignore this field, mirroring ThinkingLevel's renderer-side fall-through
+	// pattern. See issue #3260.
+	OpenclawMode string
 }
 
 // runContext derives the execution context for an agent subprocess from the
@@ -59,6 +71,7 @@ func runContext(ctx context.Context, timeout time.Duration) (context.Context, co
 	}
 	return context.WithCancel(ctx)
 }
+
 
 // Session represents a running agent execution.
 type Session struct {
@@ -115,13 +128,13 @@ type Result struct {
 
 // Config configures a Backend instance.
 type Config struct {
-	ExecutablePath string            // path to CLI binary (claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro-cli, agy, qoder, qwen-code)
+	ExecutablePath string            // path to CLI binary (claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro-cli, agy, qoder, qwen-code)
 	Env            map[string]string // extra environment variables
 	Logger         *slog.Logger
 }
 
 // New creates a Backend for the given agent type.
-// Supported types: "claude", "codex", "copilot", "opencode", "openclaw", "hermes", "gemini", "pi", "omp", "cursor", "kimi", "kiro", "antigravity", "qoder", "qwencode".
+// Supported types: "claude", "codebuddy", "codex", "copilot", "opencode", "openclaw", "hermes", "gemini", "pi", "omp", "cursor", "kimi", "kiro", "antigravity", "qoder", "qwencode".
 func New(agentType string, cfg Config) (Backend, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -130,6 +143,8 @@ func New(agentType string, cfg Config) (Backend, error) {
 	switch agentType {
 	case "claude":
 		return &claudeBackend{cfg: cfg}, nil
+	case "codebuddy":
+		return &codebuddyBackend{cfg: cfg}, nil
 	case "codex":
 		return &codexBackend{cfg: cfg}, nil
 	case "copilot":
@@ -159,7 +174,7 @@ func New(agentType string, cfg Config) (Backend, error) {
 	case "qwencode":
 		return &qwencodeBackend{cfg: cfg}, nil
 	default:
-		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro, antigravity, qoder, qwencode)", agentType)
+		return nil, fmt.Errorf("unknown agent type: %q (supported: claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro, antigravity, qoder, qwencode)", agentType)
 	}
 }
 
@@ -177,6 +192,7 @@ func DetectVersion(ctx context.Context, executablePath string) (string, error) {
 var launchHeaders = map[string]string{
 	"antigravity": "agy -p (print mode)",
 	"claude":      "claude (stream-json)",
+	"codebuddy":   "codebuddy (stream-json)",
 	"codex":       "codex app-server",
 	"copilot":     "copilot (json)",
 	"cursor":      "cursor-agent (stream-json)",

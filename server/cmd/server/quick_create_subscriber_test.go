@@ -59,6 +59,7 @@ func TestQuickCreateCompletion_SubscribesRequester(t *testing.T) {
 		issue.ID,
 		pgtype.UUID{},
 		pgtype.UUID{},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("EnqueueQuickCreateTask: %v", err)
@@ -132,6 +133,7 @@ func TestQuickCreateFailure_WritesFailureInbox(t *testing.T) {
 		issue.ID,
 		pgtype.UUID{},
 		pgtype.UUID{},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("EnqueueQuickCreateTask: %v", err)

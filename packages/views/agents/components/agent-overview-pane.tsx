@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BookOpenText,
@@ -8,6 +8,7 @@ import {
   KeyRound,
   ListTodo,
   Plug,
+  Router,
   Terminal,
 } from "lucide-react";
 import type { Agent, AgentRuntime } from "@multica/core/types";
@@ -28,19 +29,21 @@ import { SkillsTab } from "./tabs/skills-tab";
 import { EnvTab } from "./tabs/env-tab";
 import { CustomArgsTab } from "./tabs/custom-args-tab";
 import { McpConfigTab } from "./tabs/mcp-config-tab";
+import { RuntimeConfigTab } from "./tabs/runtime-config-tab";
 import { ActorIssuesPanel } from "../../common/actor-issues-panel";
 import { useT } from "../../i18n";
 
-type DetailTab =
+export type DetailTab =
   | "activity"
   | "tasks"
   | "instructions"
   | "skills"
   | "env"
   | "custom_args"
-  | "mcp_config";
+  | "mcp_config"
+  | "runtime_config";
 
-const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "environment" | "custom_args" | "mcp_config"> = {
+const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "environment" | "custom_args" | "mcp_config" | "runtime_config"> = {
   activity: "activity",
   tasks: "tasks",
   instructions: "instructions",
@@ -48,6 +51,7 @@ const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "
   env: "environment",
   custom_args: "custom_args",
   mcp_config: "mcp_config",
+  runtime_config: "runtime_config",
 };
 
 const detailTabs: {
@@ -61,12 +65,21 @@ const detailTabs: {
   { id: "env", icon: KeyRound },
   { id: "custom_args", icon: Terminal },
   { id: "mcp_config", icon: Plug },
+  { id: "runtime_config", icon: Router },
 ];
 
 interface AgentOverviewPaneProps {
   agent: Agent;
   runtimes: AgentRuntime[];
   onUpdate: (id: string, data: Record<string, unknown>) => Promise<void>;
+  /**
+   * One-shot request from a sibling (the inspector's compact Lark status
+   * row) to focus a specific tab. Routed through the same `requestTabChange`
+   * the tab buttons use, so the unsaved-changes guard still fires. The pane
+   * calls `onNavIntentHandled` to clear it after consuming.
+   */
+  navIntent?: DetailTab | null;
+  onNavIntentHandled?: () => void;
 }
 
 /**
@@ -96,6 +109,8 @@ export function AgentOverviewPane({
   agent,
   runtimes,
   onUpdate,
+  navIntent,
+  onNavIntentHandled,
 }: AgentOverviewPaneProps) {
   const { t } = useT("agents");
   const [activeTab, setActiveTab] = useState<DetailTab>("activity");
@@ -113,9 +128,19 @@ export function AgentOverviewPane({
   // consumes mcp_config — see providerSupportsMcpConfig. We default to
   // showing it when the runtime row hasn't loaded yet so a slow fetch
   // can't transiently flicker the tab off and then on.
+  //
+  // The Runtime Config tab is openclaw-only today (gateway mode lives there,
+  // issue #3260). Other providers' runtime_config is freeform JSONB that no
+  // backend currently reads, so surfacing the tab would let users save values
+  // their runtime ignores — same anti-footgun rationale as the MCP gate.
   const visibleTabs = useMemo(() => {
     const showMcp = runtime ? providerSupportsMcpConfig(runtime.provider) : true;
-    return detailTabs.filter((tab) => tab.id !== "mcp_config" || showMcp);
+    const showRuntimeConfig = runtime ? runtime.provider === "openclaw" : false;
+    return detailTabs.filter((tab) => {
+      if (tab.id === "mcp_config") return showMcp;
+      if (tab.id === "runtime_config") return showRuntimeConfig;
+      return true;
+    });
   }, [runtime]);
 
   // If the active tab disappears (e.g. user just switched the agent's
@@ -145,6 +170,17 @@ export function AgentOverviewPane({
       setPendingTab(null);
     }
   };
+
+  // Consume a one-shot tab-focus request from a sibling. Routing through
+  // `requestTabChange` (rather than `setActiveTab`) keeps the unsaved-changes
+  // guard honored even when the request originates outside the tab strip. The
+  // effect body is a no-op while `navIntent` is null, so the unstable
+  // `requestTabChange`/`onNavIntentHandled` identities can't loop it.
+  useEffect(() => {
+    if (navIntent == null) return;
+    requestTabChange(navIntent);
+    onNavIntentHandled?.();
+  }, [navIntent, requestTabChange, onNavIntentHandled]);
 
   return (
     // On mobile the parent stacks the inspector and overview and scrolls the
@@ -212,6 +248,15 @@ export function AgentOverviewPane({
         {effectiveTab === "mcp_config" && (
           <TabContent>
             <McpConfigTab
+              agent={agent}
+              onSave={(updates) => onUpdate(agent.id, updates)}
+              onDirtyChange={setActiveDirty}
+            />
+          </TabContent>
+        )}
+        {effectiveTab === "runtime_config" && (
+          <TabContent>
+            <RuntimeConfigTab
               agent={agent}
               onSave={(updates) => onUpdate(agent.id, updates)}
               onDirtyChange={setActiveDirty}

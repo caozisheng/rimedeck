@@ -1671,11 +1671,12 @@ func (h *Handler) ChildIssueProgress(w http.ResponseWriter, r *http.Request) {
 // keeping the sub-issue intent of the entry point regardless of whether
 // the user submits via manual or agent mode.
 type QuickCreateIssueRequest struct {
-	AgentID       string `json:"agent_id,omitempty"`
-	SquadID       string `json:"squad_id,omitempty"`
-	Prompt        string `json:"prompt"`
-	ProjectID     string `json:"project_id,omitempty"`
-	ParentIssueID string `json:"parent_issue_id,omitempty"`
+	AgentID       string   `json:"agent_id,omitempty"`
+	SquadID       string   `json:"squad_id,omitempty"`
+	Prompt        string   `json:"prompt"`
+	ProjectID     string   `json:"project_id,omitempty"`
+	ParentIssueID string   `json:"parent_issue_id,omitempty"`
+	AttachmentIDs []string `json:"attachment_ids,omitempty"`
 }
 
 // QuickCreateIssueResponse returns the pre-created issue (immediately visible
@@ -1793,14 +1794,20 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	// Daemon CLI version gate. The agent-side prompt + create-flow rely on
 	// behaviors introduced in MinQuickCreateCLIVersion (URL attachment
-	// handling, no-retry on partial failure). Older daemons either
-	// double-create issues on partial CLI failures or mishandle pasted
-	// screenshot URLs; fail closed before enqueuing rather than surface
-	// the breakage as an inbox failure twenty seconds later. Dev-built
+	// handling, quick-create attachment binding, no-retry on partial failure).
+	// Older daemons either double-create issues on partial CLI failures, drop
+	// attachment bindings, or mishandle pasted screenshot URLs; fail closed
+	// before enqueuing rather than surface the breakage as an inbox failure
+	// twenty seconds later. Dev-built
 	// daemons (git-describe shape) are exempted inside CheckMinCLIVersion
 	// so `make daemon` works without weakening staging or production.
 	if status, payload := h.checkQuickCreateDaemonVersion(r.Context(), agent.RuntimeID); status != 0 {
 		writeJSON(w, status, payload)
+		return
+	}
+
+	attachmentIDs, ok := parseUUIDSliceOrBadRequest(w, req.AttachmentIDs, "attachment_ids")
+	if !ok {
 		return
 	}
 
@@ -1931,7 +1938,7 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 	// fails we degrade gracefully: return 202 with the issue (no task_id) so
 	// the frontend sees a consistent state. The user gets the issue on the
 	// kanban; the agent simply won't refine it.
-	task, err := h.TaskService.EnqueueQuickCreateTask(r.Context(), wsUUID, requesterUUID, agentUUID, squadUUID, prompt, issue.ID, projectUUID, parentIssueUUID)
+	task, err := h.TaskService.EnqueueQuickCreateTask(r.Context(), wsUUID, requesterUUID, agentUUID, squadUUID, prompt, issue.ID, projectUUID, parentIssueUUID, attachmentIDs)
 	if err != nil {
 		slog.Warn("quick-create enqueue failed", append(logger.RequestAttrs(r), "error", err)...)
 		writeJSON(w, http.StatusAccepted, QuickCreateIssueResponse{
@@ -1996,7 +2003,7 @@ func (h *Handler) isRuntimeOnline(ctx context.Context, runtimeID pgtype.UUID) bo
 //	422 {
 //	  "code": "daemon_version_unsupported",
 //	  "current_version": "0.2.18" | "",
-//	  "min_version":     "0.2.20",
+//	  "min_version":     "0.2.21",
 //	  "runtime_id":      "<uuid>"
 //	}
 func (h *Handler) checkQuickCreateDaemonVersion(ctx context.Context, runtimeID pgtype.UUID) (int, map[string]any) {
@@ -2761,7 +2768,7 @@ func (h *Handler) shouldEnqueueAgentTask(ctx context.Context, issue db.Issue) bo
 // conversational and can happen at any stage, including after completion
 // (e.g. follow-up questions on a done issue).
 //
-// Mirrors the private-agent gate that enqueueMentionedAgentTasks applies on the
+// Mirrors the private-agent gate that computeMentionedAgentCommentTriggers applies on the
 // @mention path: once an owner/admin assigns a private agent to an issue, the
 // agent's UUID is "welded" onto the issue and remains visible to every member
 // who can view it. Without this check any of those members could dispatch a new

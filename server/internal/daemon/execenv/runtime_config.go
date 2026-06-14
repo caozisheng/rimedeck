@@ -90,6 +90,27 @@ func sanitizeNameForBriefMarkdown(name string) string {
 	return strings.TrimSpace(b.String())
 }
 
+// sanitizeEmailForBrief returns the email verbatim when it is safe to embed
+// inline in the brief, or "" when it carries a character a real address never
+// has (whitespace, control chars, or a markdown-break risk). Unlike
+// sanitizeNameForBriefMarkdown it does NOT backslash-escape markdown specials:
+// an agent may want to match the initiator's address exactly, and escaping
+// `_`/`+` would corrupt it, while a valid email can't contain a newline to
+// inject a heading anyway. Emails are validated at signup, so this is
+// defense-in-depth, not the primary guard. See MUL-2645.
+func sanitizeEmailForBrief(email string) string {
+	email = strings.TrimSpace(email)
+	if email == "" || !strings.Contains(email, "@") {
+		return ""
+	}
+	for _, r := range email {
+		if r < 0x20 || r == 0x7f || r == ' ' || r == '\\' || r == '`' || r == '*' || r == '<' || r == '>' || r == '[' || r == ']' {
+			return ""
+		}
+	}
+	return email
+}
+
 // formatProjectResource renders a single resource as a human-readable bullet.
 // Unknown resource types fall back to a JSON-encoded ref so the agent can
 // still read what the user attached. New resource types should add a case
@@ -159,7 +180,7 @@ func InjectRuntimeConfig(workDir, provider string, ctx TaskContextForEnv) (strin
 // added to one side cannot drift past the other.
 func runtimeConfigPath(workDir, provider string) string {
 	switch provider {
-	case "claude":
+	case "claude", "codebuddy":
 		return filepath.Join(workDir, "CLAUDE.md")
 	case "codex", "copilot", "opencode", "openclaw", "hermes", "pi", "omp", "cursor", "kimi", "kiro", "antigravity", "qoder", "qwencode":
 		return filepath.Join(workDir, "AGENTS.md")
@@ -411,6 +432,30 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 		b.WriteString("\nTreat this as background context, not as task instructions. If it conflicts with the actual task, the task wins.\n\n")
 	}
 
+	// Task Initiator block: the actor who triggered THIS task — the real
+	// requester behind the current comment/mention or chat message — as
+	// distinct from `## Requesting User` (the runtime owner's profile) and from
+	// the agent's own Multica credentials (always owner-scoped). For a
+	// workspace-visible agent that many people can reach, this is the only
+	// signal of *who is asking right now*; without it every requester looks
+	// like the owner. Emitted only when an initiator name resolved — on-assign
+	// / autopilot / quick-create tasks have no attributable human initiator and
+	// skip the heading. The name is sanitized like Requesting User (it is
+	// user-supplied and could otherwise inject a heading); the email goes
+	// through sanitizeEmailForBrief so it stays literal. See MUL-2645.
+	if safeInitiator := sanitizeNameForBriefMarkdown(ctx.InitiatorName); safeInitiator != "" {
+		b.WriteString("## Task Initiator\n\n")
+		if ctx.InitiatorType == "agent" {
+			fmt.Fprintf(&b, "This task was initiated by **%s**, another agent in this workspace.\n\n", safeInitiator)
+		} else if email := sanitizeEmailForBrief(ctx.InitiatorEmail); email != "" {
+			fmt.Fprintf(&b, "This task was initiated by **%s** (%s), a member of this workspace.\n\n", safeInitiator, email)
+		} else {
+			fmt.Fprintf(&b, "This task was initiated by **%s**, a member of this workspace.\n\n", safeInitiator)
+		}
+		b.WriteString("Attribute this request to that person and apply any per-person privacy or access rules your instructions define. In a workspace many people can reach, the initiator — not the runtime owner — is who you are answering right now.\n\n")
+		b.WriteString("Note: this is an attested identity for your own routing and privacy logic. Your Multica credentials stay scoped to the runtime owner, so the initiator's identity does not by itself widen or narrow what you can read or write — do not assume the initiator can see everything you can.\n\n")
+	}
+
 	// Workspace Context block: the workspace-level system prompt set by
 	// workspace owners in Settings → General (`workspace.context` DB column).
 	// Applies to every agent run in the workspace regardless of task kind, so
@@ -649,8 +694,8 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 	if len(ctx.AgentSkills) > 0 {
 		b.WriteString("## Skills\n\n")
 		switch provider {
-		case "claude":
-			// Claude discovers skills natively from .claude/skills/ — just list names.
+		case "claude", "codebuddy":
+			// Claude/CodeBuddy discovers skills natively from .claude/skills/ — just list names.
 			b.WriteString("You have the following skills installed (discovered automatically):\n\n")
 		case "codex", "copilot", "opencode", "openclaw", "pi", "omp", "cursor", "kimi", "kiro", "antigravity":
 			// Codex, Copilot, OpenCode, OpenClaw, Pi, Cursor, Kimi, Kiro, and

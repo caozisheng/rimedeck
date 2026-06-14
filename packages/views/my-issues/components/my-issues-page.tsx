@@ -164,6 +164,17 @@ export function MyIssuesPage() {
     [myIssues, priorityFilters, agentRunningFilter, runningIssueIds],
   );
 
+  const activeFilters = useMemo(() => ({
+    priorityFilters,
+    assigneeFilters: [],
+    includeNoAssignee: false,
+    creatorFilters: [],
+    projectFilters: [],
+    includeNoProject: false,
+    labelFilters: [],
+    agentRunningFilter,
+  }), [priorityFilters, agentRunningFilter]);
+
   const { data: childProgressMap = new Map() } = useQuery(childIssueProgressOptions(wsId));
 
   const visibleStatuses = useMemo(() => {
@@ -271,6 +282,7 @@ export function MyIssuesPage() {
               <SwimLaneView
                 issues={issues}
                 unfilteredIssues={swimlaneIssues}
+                activeFilters={activeFilters}
                 visibleStatuses={visibleStatuses}
                 hiddenStatuses={hiddenStatuses}
                 onMoveIssue={handleMoveIssue}

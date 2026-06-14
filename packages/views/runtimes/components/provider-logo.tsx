@@ -218,6 +218,8 @@ export function ProviderLogo({
   switch (provider) {
     case "claude":
       return <ClaudeLogo className={className} />;
+    case "codebuddy":
+      return <ClaudeLogo className={className} />;
     case "codex":
       return <CodexLogo className={className} />;
     case "opencode":

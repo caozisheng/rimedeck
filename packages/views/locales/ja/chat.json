@@ -10,7 +10,8 @@
     "placeholder_named": "{{name}} に指示してください…",
     "placeholder_default": "やってほしいことを入力してください…",
     "send_tooltip": "送信",
-    "stop_tooltip": "停止"
+    "stop_tooltip": "停止",
+    "send_failed_toast": "メッセージを送信できませんでした"
   },
   "message_list": {
     "show_details": "詳細を表示",

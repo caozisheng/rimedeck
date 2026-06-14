@@ -63,13 +63,19 @@
   "mention": {
     "group_users": "Users",
     "group_issues": "Issues",
+    "group_current": "Current page",
+    "group_recent": "Recently viewed",
+    "group_search": "Search results",
     "all_members": "All members",
     "searching": "Searching...",
     "no_results": "No results"
   },
   "slash_command": {
     "no_skills_configured": "No skills configured",
-    "no_results": "No matching skills"
+    "no_results": "No matching skills",
+    "commands": {
+      "note": "Add a note — won't trigger any agents"
+    }
   },
   "code_block": {
     "copy_code": "Copy code",

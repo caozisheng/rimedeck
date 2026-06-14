@@ -337,7 +337,7 @@ func runAgentList(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var agents []map[string]any
@@ -384,7 +384,7 @@ func runAgentGet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var agent map[string]any
@@ -475,7 +475,7 @@ func runAgentCreate(cmd *cobra.Command, _ []string) error {
 		body["max_concurrent_tasks"] = v
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var result map[string]any
@@ -551,13 +551,14 @@ func runAgentUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	} else if ok {
 		body["mcp_config"] = mc
+
 	}
 
 	if len(body) == 0 {
 		return fmt.Errorf("no fields to update; use --name, --description, --instructions, --runtime-id, --runtime-config, --model, --custom-args, --mcp-config, --visibility, --status, or --max-concurrent-tasks (env vars now live behind `multica agent env set <id>`)")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var result map[string]any
@@ -580,7 +581,7 @@ func runAgentArchive(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var result map[string]any
@@ -603,7 +604,7 @@ func runAgentRestore(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var result map[string]any
@@ -626,7 +627,7 @@ func runAgentTasks(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var tasks []map[string]any
@@ -694,7 +695,7 @@ func runAgentAvatar(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("file too large: %d bytes (max 5MB)", len(fileData))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), cli.AtLeastAPITimeout(60*time.Second))
 	defer cancel()
 
 	// Agent existence pre-check.
@@ -743,7 +744,7 @@ func runAgentSkillsList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var skills []map[string]any
@@ -783,7 +784,7 @@ func runAgentSkillsSet(cmd *cobra.Command, args []string) error {
 		"skill_ids": cleanIDs,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var result json.RawMessage
@@ -811,7 +812,7 @@ func runAgentSkillsAdd(cmd *cobra.Command, args []string) error {
 		"skill_ids": cleanIDs,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var result json.RawMessage
@@ -877,7 +878,7 @@ func runAgentEnvGet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var resp map[string]any
@@ -922,7 +923,7 @@ func runAgentEnvSet(cmd *cobra.Command, args []string) error {
 
 	body := map[string]any{"custom_env": ce}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
 
 	var result map[string]any

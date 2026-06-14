@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -73,6 +74,12 @@ type Config struct {
 	// webhook limiter from being bypassed by a spoofed XFF on deployments
 	// without a header-stripping reverse proxy in front.
 	TrustedProxies []netip.Prefix
+	// AttachmentDownloadMode selects how the download endpoint serves
+	// attachment content (auto / cloudfront / presign / proxy).
+	AttachmentDownloadMode string
+	// AttachmentDownloadURLTTL overrides the default signed URL TTL
+	// when serving attachments through CloudFront or S3 presign mode.
+	AttachmentDownloadURLTTL time.Duration
 }
 
 type Handler struct {

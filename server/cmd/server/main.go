@@ -356,6 +356,7 @@ func main() {
 		}()
 	}
 
+
 	if metricsServer != nil {
 		go func() {
 			slog.Info("metrics server starting", "addr", metricsConfig.Addr)
