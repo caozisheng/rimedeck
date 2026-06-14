@@ -65,7 +65,10 @@
     "group_issues": "イシュー",
     "all_members": "すべてのメンバー",
     "searching": "検索中...",
-    "no_results": "結果なし"
+    "no_results": "結果なし",
+    "group_current": "現在のページ",
+    "group_recent": "最近表示",
+    "group_search": "検索結果"
   },
   "code_block": {
     "copy_code": "コードをコピー",

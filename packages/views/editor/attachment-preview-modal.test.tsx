@@ -41,7 +41,10 @@ const {
 });
 
 vi.mock("@multica/core/api", () => ({
-  api: { getAttachmentTextContent: getAttachmentTextContentMock },
+  api: {
+    getAttachmentTextContent: getAttachmentTextContentMock,
+    getBaseUrl: () => "",
+  },
   PreviewTooLargeError: FakePreviewTooLargeError,
   PreviewUnsupportedError: FakePreviewUnsupportedError,
 }));
