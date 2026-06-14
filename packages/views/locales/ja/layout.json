@@ -41,5 +41,10 @@
     "workspace_group": "ワークスペース",
     "configure_group": "設定",
     "unread_overflow": "99+"
+  },
+  "remote_health": {
+    "connection_lost": "リモートサーバーに接続できません",
+    "switch_local_now": "今すぐローカルに切り替え",
+    "auto_switch_hint": "数秒後に自動的に切り替わります…"
   }
 }

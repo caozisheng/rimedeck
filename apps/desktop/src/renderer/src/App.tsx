@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CoreProvider } from "@multica/core/platform";
 import { pickLocale, type SupportedLocale } from "@multica/core/i18n";
@@ -11,6 +11,8 @@ import { setCurrentWorkspace } from "@multica/core/platform";
 import { ThemeProvider } from "@multica/ui/components/common/theme-provider";
 import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
 import { Toaster } from "@multica/ui/components/ui/sonner";
+import { toast } from "sonner";
+import { useT } from "@multica/views/i18n";
 import { DesktopLoginPage } from "./pages/login";
 import { RemoteReconnectPage } from "./pages/remote-reconnect";
 import { DesktopShell } from "./components/desktop-layout";
@@ -19,6 +21,7 @@ import { UpdateNotification } from "./components/update-notification";
 import { useTabStore } from "./stores/tab-store";
 import { useWindowOverlayStore } from "./stores/window-overlay-store";
 import { useDaemonIPCBridge } from "./platform/daemon-ipc-bridge";
+import { useRemoteHealthCheck, type RemoteHealthCallbacks } from "./platform/use-remote-health-check";
 import { createDesktopLocaleAdapter } from "./platform/i18n-adapter";
 import { RESOURCES } from "@multica/views/locales";
 
@@ -39,6 +42,7 @@ function AppContent() {
   const user = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
   const qc = useQueryClient();
+  const { t } = useT("layout");
   // Deep-link login runs loginWithToken → syncToken → listWorkspaces →
   // setQueryData sequentially. loginWithToken sets user+isLoading=false
   // as soon as getMe resolves, which would cause DesktopShell to mount
@@ -61,6 +65,48 @@ function AppContent() {
   // redeem flow is the correct credential; auto-login would create a wrong
   // user (`local@rimedeck.local`) on the remote server.
   const isRemote = runtimeConfig && !runtimeConfig.apiUrl.includes("127.0.0.1") && !runtimeConfig.apiUrl.includes("localhost");
+
+  // When connected to a remote server, periodically ping it. On the first
+  // network failure, show a toast with an immediate "switch to local" button.
+  // After MAX_CONSECUTIVE_FAILURES (~15s), auto-disconnect and reload.
+  const handleRemoteDisconnect = useCallback(async () => {
+    toast.dismiss("remote-health");
+    const currentUrl = runtimeConfig?.apiUrl ?? null;
+    if (currentUrl) {
+      try { await window.daemonAPI.removeRemoteServer(currentUrl); } catch { /* best effort */ }
+    }
+    await window.desktopAPI.disconnectRuntimeConfig();
+    localStorage.removeItem("multica_token");
+    localStorage.removeItem("rimedeck_remote_server");
+    window.location.reload();
+  }, [runtimeConfig?.apiUrl]);
+  const healthCallbacks = useMemo<RemoteHealthCallbacks>(() => ({
+    onConnectionLost: () => {
+      toast.warning(
+        t(($) => $.remote_health.connection_lost),
+        {
+          id: "remote-health",
+          duration: Infinity,
+          description: t(($) => $.remote_health.auto_switch_hint),
+          action: {
+            label: t(($) => $.remote_health.switch_local_now),
+            onClick: () => { void handleRemoteDisconnect(); },
+          },
+        },
+      );
+    },
+    onConnectionRestored: () => {
+      toast.dismiss("remote-health");
+    },
+    onAutoDisconnect: () => {
+      void handleRemoteDisconnect();
+    },
+  }), [handleRemoteDisconnect, t]);
+  useRemoteHealthCheck(
+    runtimeConfig?.apiUrl ?? null,
+    !!isRemote && !!user,
+    healthCallbacks,
+  );
   useEffect(() => {
     if (isLoading || bootstrapping || user || autoLoginAttempted.current) return;
     if (isRemote) return;

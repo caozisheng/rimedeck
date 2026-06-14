@@ -41,5 +41,10 @@
     "workspace_group": "워크스페이스",
     "configure_group": "설정",
     "unread_overflow": "99+"
+  },
+  "remote_health": {
+    "connection_lost": "원격 서버에 연결할 수 없습니다",
+    "switch_local_now": "지금 로컬로 전환",
+    "auto_switch_hint": "몇 초 후 자동으로 전환됩니다…"
   }
 }

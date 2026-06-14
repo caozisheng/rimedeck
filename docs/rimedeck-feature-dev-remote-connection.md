@@ -620,6 +620,41 @@ App 启动 → loadRemoteConfig() → 有远端配置
   └─ JWT 过期 → 预填地址 → 输入新邀请码
 ```
 
+#### 断联自动回退（v0.4.3+）
+
+当远端 server 因任何原因不可达时（进程退出、网络断开、主机关机等），客户端自动切换回本机工作区，避免 UI 白屏。
+
+**机制**：`useRemoteHealthCheck` hook 在远端连接活跃期间（`isRemote && user`）每 5 秒轮询 `GET /api/server-info`（公开端点、无需认证）。首次网络失败即弹出 toast 提示，用户可立即切换；连续 3 次失败后自动触发断开：
+
+```
+远端 server 不可达
+  → 第 1 次 ping 失败（T+0s）  → failCount=1
+    └─ 弹出 toast：「远端服务器不可达」+ [立即切换到本机] 按钮
+       用户可点击按钮立即回退，无需等待自动切换
+  → 第 2 次 ping 失败（T+5s）  → failCount=2（toast 持续显示）
+  → 第 3 次 ping 失败（T+10s） → failCount=3 → 自动触发断开
+    ├─ toast.dismiss()
+    ├─ removeRemoteServer(url)           → daemon deregister + 停止心跳
+    ├─ disconnectRuntimeConfig()         → 删除 remote_connection.json，恢复本地
+    ├─ localStorage.removeItem(token)    → 清除远端 JWT
+    └─ window.location.reload()          → auto-login → 本机工作区
+
+连接恢复时：
+  → 任意一次 ping 收到响应 → failCount 归零 → toast 自动消失
+```
+
+**关键设计**：
+- **首次失败即提示**：不等到自动断开，第一次 ping 失败就弹出带「立即切换到本机」按钮的 warning toast（`duration: Infinity`，不自动消失）
+- **仅统计网络错误**：HTTP 4xx/5xx 说明 server 仍在运行（可能是认证过期等），不计入失败计数，计数器归零
+- **成功即重置**：任意一次 ping 收到响应（无论状态码），失败计数器归零，toast 自动关闭
+- **不干扰手动重连**：仅在用户已登录且处于远端工作区时激活；`RemoteReconnectPage`（未登录状态）不触发
+- **4 秒超时**：每次 ping 有独立的 `AbortController`，防止半开连接无限挂起
+
+**涉及文件**：
+- `apps/desktop/src/renderer/src/platform/use-remote-health-check.ts` — 健康检查 hook（`RemoteHealthCallbacks` 接口：`onConnectionLost`、`onConnectionRestored`、`onAutoDisconnect`）
+- `apps/desktop/src/renderer/src/App.tsx` — `healthCallbacks` 回调（toast 显示/关闭 + 断开逻辑）
+- `packages/views/locales/*/layout.json` — `remote_health.*` i18n 键（四语言）
+
 ---
 
 ### 认证闭环
@@ -690,4 +725,4 @@ Sidebar 工作区下拉菜单显示：
 2. **成员记录不自动清理**：断开后 Server 端 member 行保留，可通过工作区列表的退出按钮主动退出（调用 `POST /api/workspaces/:id/leave`）
 3. **daemon token 注册的 runtime 无 owner_id**：普通 member 无法删除，需 owner/admin 操作
 4. **占位邮箱不可登录**：`<code>@local.rimedeck` 用户只能依赖 JWT 或重新邀请
-5. **IP 地址变化需手动处理**：重连页支持输入新地址，推荐使用 Tailscale 域名（不变）
+5. **IP 地址变化需手动处理**：重连页支持输入新地址，推荐使用 Tailscale 域名（不变）。注意：远端不可达时客户端会在 ~15 秒内自动回退到本机工作区（见「断联自动回退」），不再出现白屏
