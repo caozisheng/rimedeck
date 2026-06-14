@@ -71,6 +71,8 @@ interface DesktopAPI {
       | "error";
     error?: string;
   }>;
+  /** Disconnect from the remote server and restore the local backend. */
+  disconnectRuntimeConfig: () => Promise<void>;
 }
 
 interface DaemonStatus {
@@ -109,6 +111,8 @@ interface DaemonAPI {
   stopLogStream: () => void;
   onLogLine: (callback: (line: string) => void) => () => void;
   openLogFile: () => Promise<{ success: boolean; error?: string }>;
+  /** Remove a remote server and deregister its runtimes. */
+  removeRemoteServer: (serverUrl: string) => Promise<void>;
 }
 
 interface UpdaterAPI {
