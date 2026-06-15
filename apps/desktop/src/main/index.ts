@@ -649,6 +649,15 @@ let localBackendQuitting = false;
 app.on("before-quit", (event) => {
   if (localBackendQuitting) return;
   localBackendQuitting = true;
+  // On macOS, NSPersistentUIManager.flushAllChanges blocks during quit if
+  // the renderer is unresponsive. Destroy the window eagerly so there is no
+  // restorable UI state to serialize — prevents the deadlock especially when
+  // electron-updater's autoInstallOnAppQuit triggers quitAndInstall.
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.removeAllListeners("close");
+    mainWindow.destroy();
+    mainWindow = null;
+  }
   event.preventDefault();
   shutdownLocalBackend()
     .catch((err) => console.error("[main] local backend shutdown error:", err))

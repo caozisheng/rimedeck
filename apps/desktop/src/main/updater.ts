@@ -118,7 +118,17 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
   });
 
   ipcMain.handle("updater:install", () => {
-    autoUpdater.quitAndInstall(false, true);
+    // On macOS, NSPersistentUIManager.flushAllChanges blocks the main thread
+    // during quit if the renderer is destroyed or unresponsive — a deadlock
+    // that hangs the update indefinitely. Destroy the window first so there
+    // is no restorable state to flush, then use isSilent=true to skip the
+    // before-quit → quit round-trip that triggers the persistence subsystem.
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.removeAllListeners("close");
+      win.destroy();
+    }
+    autoUpdater.quitAndInstall(true, true);
   });
 
   ipcMain.handle("updater:check", async (): Promise<ManualUpdateCheckResult> => {
