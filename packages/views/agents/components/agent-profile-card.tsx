@@ -19,6 +19,7 @@ import { HealthIcon } from "../../runtimes/components/shared";
 import { availabilityConfig } from "../presence";
 import { VisibilityBadge } from "./visibility-badge";
 import { useT } from "../../i18n";
+import { runtimeDisplayName } from "./runtime-display";
 
 interface AgentProfileCardProps {
   agentId: string;
@@ -174,10 +175,11 @@ function RuntimeRow({
       ? deriveRuntimeHealth(runtime, Date.now())
       : "offline";
   const label =
-    runtime?.name ??
-    (isCloud
+    runtime
+      ? runtimeDisplayName(runtime)
+      : isCloud
       ? t(($) => $.row.fallback_runtime_cloud)
-      : t(($) => $.profile_card.unknown_runtime));
+      : t(($) => $.profile_card.unknown_runtime);
   return (
     <div className="flex items-center gap-1.5">
       <span className="w-12 shrink-0 text-muted-foreground">{t(($) => $.profile_card.runtime_label)}</span>

@@ -51,6 +51,15 @@ interface RuntimesPageProps {
   localMachineName?: string | null;
   /** Desktop-only controls shown when the local machine is selected. */
   localMachineActions?: React.ReactNode;
+  /** Desktop-only synthetic machines, e.g. WSL distros before their daemon registers. */
+  extraLocalMachines?: RuntimeMachine[];
+  /** Desktop-only per-machine controls, used for Windows vs WSL daemon actions. */
+  machineActions?: (machine: RuntimeMachine) => React.ReactNode;
+  /** Desktop-only replacement for the Add a computer dialog. */
+  connectComputerDialog?: (args: {
+    onClose: () => void;
+    defaultDialog: React.ReactNode;
+  }) => React.ReactNode;
   /**
    * Desktop-only signal: this host always owns a local machine, even
    * when no runtime is currently registered (daemon stopped, not yet
@@ -83,6 +92,9 @@ export function RuntimesPage({
   localDaemonId,
   localMachineName,
   localMachineActions,
+  extraLocalMachines,
+  machineActions,
+  connectComputerDialog,
   hasLocalMachine,
   bootstrapping,
 }: RuntimesPageProps = {}) {
@@ -139,6 +151,7 @@ export function RuntimesPage({
         currentUserId,
         workloadByRuntimeId: workloadIndex,
         ensureLocalMachine: hasLocalMachine,
+        extraLocalMachines,
       }),
     [
       runtimes,
@@ -148,6 +161,7 @@ export function RuntimesPage({
       currentUserId,
       workloadIndex,
       hasLocalMachine,
+      extraLocalMachines,
     ],
   );
 
@@ -243,7 +257,8 @@ export function RuntimesPage({
             now={now}
             bootstrapping={bootstrapping}
             actions={
-              selectedMachine?.isCurrent ? localMachineActions : undefined
+              selectedMachine ? machineActions?.(selectedMachine) ??
+                (selectedMachine.isCurrent ? localMachineActions : undefined) : undefined
             }
           />
         </div>
@@ -283,7 +298,8 @@ export function RuntimesPage({
                 now={now}
                 bootstrapping={bootstrapping}
                 actions={
-                  selectedMachine?.isCurrent ? localMachineActions : undefined
+                  selectedMachine ? machineActions?.(selectedMachine) ??
+                    (selectedMachine.isCurrent ? localMachineActions : undefined) : undefined
                 }
               />
             </ResizablePanel>
@@ -291,9 +307,17 @@ export function RuntimesPage({
         </div>
       )}
 
-      {showConnectDialog && (
-        <ConnectRemoteDialog onClose={() => setShowConnectDialog(false)} />
-      )}
+      {showConnectDialog &&
+        (connectComputerDialog
+          ? connectComputerDialog({
+              onClose: () => setShowConnectDialog(false),
+              defaultDialog: (
+                <ConnectRemoteDialog onClose={() => setShowConnectDialog(false)} />
+              ),
+            })
+          : (
+              <ConnectRemoteDialog onClose={() => setShowConnectDialog(false)} />
+            ))}
       {showConnectToServer && (
         <ConnectToServerDialog onClose={() => setShowConnectToServer(false)} />
       )}
@@ -535,6 +559,14 @@ function MachineRow({
               {t(($) => $.machine.this_machine)}
             </span>
           )}
+          {machine.tags.map((tag) => (
+            <span
+              key={tag}
+              className="shrink-0 rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+            >
+              {tag}
+            </span>
+          ))}
         </span>
         <span className="mt-1.5 flex min-w-0 items-center gap-1.5">
           <ProviderIconStack providers={machine.providerNames} />
@@ -675,6 +707,14 @@ function MachineDetail({
                   {t(($) => $.machine.local_badge)}
                 </span>
               )}
+              {machine.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-md border bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
             <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {metaParts.map((part, idx) => (

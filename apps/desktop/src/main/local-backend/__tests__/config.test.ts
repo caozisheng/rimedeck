@@ -51,4 +51,28 @@ describe("loadOrCreateConfig", () => {
     expect(config.jwtSecret).toBe(existing.jwtSecret);
     expect(config.firstRunAt).toBe(existing.firstRunAt);
   });
+
+  it("fills missing local backend fields without dropping existing config keys", async () => {
+    await mkdir(rimedeckDir, { recursive: true });
+    await writeFile(
+      join(rimedeckDir, "config.json"),
+      JSON.stringify({ workspace_id: "11111111-1111-1111-1111-111111111111" }),
+      "utf-8",
+    );
+
+    const { loadOrCreateConfig } = await import("../config");
+    const config = await loadOrCreateConfig();
+    expect(config.pgPort).toBeGreaterThan(0);
+    expect(config.backendPort).toBeGreaterThan(0);
+    expect(config.pgPort).not.toBe(config.backendPort);
+    expect(config.jwtSecret).toHaveLength(64);
+    expect(config.firstRunAt).toBeTruthy();
+    expect(config.workspace_id).toBe("11111111-1111-1111-1111-111111111111");
+
+    const raw = await readFile(join(rimedeckDir, "config.json"), "utf-8");
+    const persisted = JSON.parse(raw);
+    expect(persisted.workspace_id).toBe("11111111-1111-1111-1111-111111111111");
+    expect(persisted.pgPort).toBe(config.pgPort);
+    expect(persisted.backendPort).toBe(config.backendPort);
+  });
 });

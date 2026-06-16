@@ -15,6 +15,11 @@ interface DaemonStatusLike {
   daemonId?: string;
 }
 
+interface DaemonAPILike {
+  onStatusChange?: (cb: (s: DaemonStatusLike) => void) => () => void;
+  onWslStatusChange?: (cb: (s: DaemonStatusLike) => void) => () => void;
+}
+
 /**
  * Merges a local DaemonStatus into an AgentRuntime row. Only the `status`
  * field is overridden; other fields (name, provider, last_seen_at, etc)
@@ -58,10 +63,10 @@ export function useDaemonIPCBridge(wsId: string | undefined): void {
   useEffect(() => {
     if (!wsId) return;
     if (typeof window === "undefined") return;
-    const daemonAPI = (window as unknown as { daemonAPI?: { onStatusChange?: (cb: (s: DaemonStatusLike) => void) => () => void } }).daemonAPI;
+    const daemonAPI = (window as unknown as { daemonAPI?: DaemonAPILike }).daemonAPI;
     if (!daemonAPI?.onStatusChange) return;
 
-    const unsubscribe = daemonAPI.onStatusChange((status) => {
+    const apply = (status: DaemonStatusLike) => {
       if (!status.daemonId) return;
       qc.setQueryData<AgentRuntime[]>(runtimeKeys.list(wsId), (old) => {
         if (!old) return old;
@@ -69,8 +74,14 @@ export function useDaemonIPCBridge(wsId: string | undefined): void {
           rt.daemon_id === status.daemonId ? mergeDaemonStatus(rt, status) : rt,
         );
       });
-    });
+    };
 
-    return unsubscribe;
+    const unsubscribe = daemonAPI.onStatusChange(apply);
+    const unsubscribeWsl = daemonAPI.onWslStatusChange?.(apply);
+
+    return () => {
+      unsubscribe();
+      unsubscribeWsl?.();
+    };
   }, [wsId, qc]);
 }

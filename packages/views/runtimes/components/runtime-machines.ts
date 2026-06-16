@@ -20,6 +20,7 @@ export interface RuntimeMachine {
   mode: AgentRuntime["runtime_mode"];
   section: RuntimeMachineSection;
   isCurrent: boolean;
+  tags: string[];
   health: RuntimeHealth;
   runtimes: AgentRuntime[];
   onlineCount: number;
@@ -52,6 +53,7 @@ interface RuntimeMachineOptions {
    * Desktop sets this; web omits it.
    */
   ensureLocalMachine?: boolean;
+  extraLocalMachines?: RuntimeMachine[];
 }
 
 interface RuntimeMachineDraft {
@@ -105,7 +107,38 @@ export function buildRuntimeMachines(
     machines.push(placeholderLocalMachine(options));
   }
 
+  for (const extra of options.extraLocalMachines ?? []) {
+    const existingIndex = machines.findIndex((machine) => machine.id === extra.id);
+    if (existingIndex === -1) {
+      machines.push(extra);
+    } else {
+      machines[existingIndex] = mergeExtraMachine(machines[existingIndex]!, extra);
+    }
+  }
+
   return machines.sort(compareRuntimeMachines);
+}
+
+function mergeExtraMachine(
+  machine: RuntimeMachine,
+  extra: RuntimeMachine,
+): RuntimeMachine {
+  return {
+    ...machine,
+    title: extra.title || machine.title,
+    subtitle: extra.subtitle ?? machine.subtitle,
+    deviceInfo: extra.deviceInfo ?? machine.deviceInfo,
+    cliVersion: extra.cliVersion ?? machine.cliVersion,
+    tags: Array.from(new Set([...machine.tags, ...extra.tags])),
+    isCurrent: machine.isCurrent || extra.isCurrent,
+    section: extra.section,
+    health: extra.health,
+    onlineCount: extra.onlineCount,
+    issueCount: extra.issueCount,
+    runningCount: Math.max(machine.runningCount, extra.runningCount),
+    queuedCount: Math.max(machine.queuedCount, extra.queuedCount),
+    lastSeenAt: extra.lastSeenAt ?? machine.lastSeenAt,
+  };
 }
 
 function placeholderLocalMachine(
@@ -122,6 +155,7 @@ function placeholderLocalMachine(
     mode: "local",
     section: "local",
     isCurrent: true,
+    tags: [],
     health: "offline",
     runtimes: [],
     onlineCount: 0,
@@ -189,16 +223,20 @@ function finalizeRuntimeMachine(
     runtimes.some((r) => r.owner_id === options.currentUserId);
   const matchesLocalName = (value: string | null | undefined): boolean =>
     !!value && value.toLowerCase() === options.localMachineName?.toLowerCase();
+  const isWsl = runtimes.some((runtime) => runtime.metadata?.host_kind === "wsl");
   const isCurrent =
-    (!!options.localDaemonId && draft.daemonId === options.localDaemonId) ||
-    (draft.mode === "local" &&
-      !!options.localMachineName &&
-      ownsLocalRuntime &&
-      (matchesLocalName(draft.daemonId) ||
-        runtimes.some((r) => matchesLocalName(runtimeDeviceName(r)))));
+    !isWsl &&
+    ((!!options.localDaemonId && draft.daemonId === options.localDaemonId) ||
+      (draft.mode === "local" &&
+        !!options.localMachineName &&
+        ownsLocalRuntime &&
+        (matchesLocalName(draft.daemonId) ||
+          runtimes.some((r) => matchesLocalName(runtimeDeviceName(r))))));
+  const tags = isWsl ? ["WSL"] : [];
   const title = machineTitle(runtimes, {
     isCurrent,
     localMachineName: options.localMachineName,
+    isWsl,
   });
   const deviceInfo = first ? formatDeviceInfo(first.device_info ?? null) : null;
   const subtitle = machineSubtitle({
@@ -239,8 +277,9 @@ function finalizeRuntimeMachine(
     deviceInfo,
     cliVersion: commonCliVersion(runtimes),
     mode: draft.mode,
-    section: isCurrent ? "local" : draft.mode === "cloud" ? "cloud" : "remote",
+    section: isCurrent || isWsl ? "local" : draft.mode === "cloud" ? "cloud" : "remote",
     isCurrent,
+    tags,
     health,
     runtimes,
     onlineCount,
@@ -253,6 +292,13 @@ function finalizeRuntimeMachine(
 }
 
 function runtimeMachineId(runtime: AgentRuntime): string {
+  if (
+    runtime.metadata?.host_kind === "wsl" &&
+    typeof runtime.metadata.wsl_distro === "string" &&
+    runtime.metadata.wsl_distro.trim()
+  ) {
+    return `${runtime.runtime_mode}-wsl:${runtime.metadata.wsl_distro.trim()}`;
+  }
   if (runtime.daemon_id) return `${runtime.runtime_mode}:${runtime.daemon_id}`;
   const deviceName = runtimeDeviceName(runtime);
   if (deviceName) return `${runtime.runtime_mode}:device:${deviceName}`;
@@ -270,7 +316,11 @@ function runtimeDeviceName(runtime: AgentRuntime): string | null {
 
 function machineTitle(
   runtimes: AgentRuntime[],
-  options: { isCurrent: boolean; localMachineName?: string | null },
+  options: {
+    isCurrent: boolean;
+    localMachineName?: string | null;
+    isWsl?: boolean;
+  },
 ): string {
   if (options.isCurrent && options.localMachineName) {
     return options.localMachineName;
@@ -278,6 +328,14 @@ function machineTitle(
 
   const first = runtimes[0];
   if (!first) return "Unknown machine";
+
+  if (options.isWsl) {
+    const distro = first.metadata?.wsl_distro;
+    if (typeof distro === "string" && distro.trim()) {
+      return `WSL: ${distro.trim()}`;
+    }
+    return "WSL runtime";
+  }
 
   const deviceName = runtimeDeviceName(first);
   if (deviceName) return deviceName;

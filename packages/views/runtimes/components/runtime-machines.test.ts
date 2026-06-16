@@ -254,6 +254,105 @@ describe("runtime machine grouping", () => {
     });
   });
 
+  it("keeps managed WSL runtimes separate from the current machine badge", () => {
+    const machines = buildRuntimeMachines(
+      [
+        makeRuntime({
+          id: "rt-wsl2",
+          daemon_id: "wsl2-daemon-uuid",
+          name: "Claude (KIKI-PC)",
+          device_info: "KIKI-PC 路 claude 1.0.0",
+          owner_id: "user-1",
+          metadata: {
+            cli_version: "0.3.0",
+            host_kind: "wsl",
+            wsl_distro: "Ubuntu-24.04",
+          },
+        }),
+      ],
+      {
+        now: NOW,
+        localDaemonId: "desktop-daemon-uuid",
+        localMachineName: "KIKI-PC",
+        currentUserId: "user-1",
+        ensureLocalMachine: true,
+      },
+    );
+
+    expect(machines).toHaveLength(2);
+    const wsl = machines.find((m) => m.id === "local-wsl:Ubuntu-24.04");
+    expect(wsl).toMatchObject({
+      title: "WSL: Ubuntu-24.04",
+      section: "local",
+      isCurrent: false,
+      tags: ["WSL"],
+      daemonId: "wsl2-daemon-uuid",
+    });
+    const local = machines.find((m) => m.isCurrent);
+    expect(local).toMatchObject({
+      title: "KIKI-PC",
+      section: "local",
+      runtimes: [],
+    });
+  });
+
+  it("uses the desktop-managed WSL status when merging a WSL runtime row", () => {
+    const machines = buildRuntimeMachines(
+      [
+        makeRuntime({
+          id: "rt-wsl2",
+          daemon_id: "wsl2-daemon-uuid",
+          name: "Claude (KIKI-PC)",
+          status: "offline",
+          device_info: "KIKI-PC 路 claude 1.0.0",
+          owner_id: "user-1",
+          metadata: {
+            cli_version: "0.3.0",
+            host_kind: "wsl",
+            wsl_distro: "Ubuntu-24.04",
+          },
+        }),
+      ],
+      {
+        now: NOW,
+        localDaemonId: "desktop-daemon-uuid",
+        localMachineName: "KIKI-PC",
+        currentUserId: "user-1",
+        ensureLocalMachine: true,
+        extraLocalMachines: [
+          {
+            id: "local-wsl:Ubuntu-24.04",
+            daemonId: "wsl2-daemon-uuid",
+            title: "KIKI-PC WSL",
+            subtitle: "Ubuntu-24.04",
+            deviceInfo: "Ubuntu-24.04",
+            cliVersion: null,
+            mode: "local",
+            section: "local",
+            isCurrent: false,
+            tags: ["WSL"],
+            health: "online",
+            runtimes: [],
+            onlineCount: 1,
+            issueCount: 0,
+            runningCount: 0,
+            queuedCount: 0,
+            providerNames: [],
+            lastSeenAt: null,
+          },
+        ],
+      },
+    );
+
+    const wsl = machines.find((m) => m.id === "local-wsl:Ubuntu-24.04");
+    expect(wsl).toMatchObject({
+      health: "online",
+      onlineCount: 1,
+      issueCount: 0,
+      runtimes: expect.arrayContaining([expect.objectContaining({ id: "rt-wsl2" })]),
+    });
+  });
+
   it("does not claim another user's identically-named machine as current", () => {
     // Same host name, but the runtime belongs to a different user. Device-name
     // consolidation must NOT fire, so it stays remote and the placeholder for

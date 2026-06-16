@@ -24,6 +24,7 @@ function makeMachine(
     mode: "local",
     section: "local",
     isCurrent: true,
+    tags: [],
     health: "online",
     runtimes: [],
     onlineCount: 1,

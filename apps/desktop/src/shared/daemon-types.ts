@@ -34,6 +34,16 @@ export interface DaemonStatus {
   externallyManaged?: boolean;
 }
 
+export interface WslDistroInfo {
+  name: string;
+  default: boolean;
+}
+
+export interface WslDaemonStatus extends DaemonStatus {
+  distro: string;
+  hostKind: "wsl";
+}
+
 export interface DaemonPrefs {
   autoStart: boolean;
   autoStop: boolean;

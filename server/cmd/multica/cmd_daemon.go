@@ -379,6 +379,10 @@ func runDaemonForeground(cmd *cobra.Command) error {
 	// Set by the Electron Desktop app when it spawns the CLI so the server
 	// can mark those runtimes as "managed" and hide CLI self-update UI.
 	cfg.LaunchedBy = os.Getenv("MULTICA_LAUNCHED_BY")
+	cfg.HostKind = os.Getenv("MULTICA_HOST_KIND")
+	cfg.HostOS = os.Getenv("MULTICA_HOST_OS")
+	cfg.WSLDistro = os.Getenv("MULTICA_WSL_DISTRO")
+	cfg.ManagedByDesktop = os.Getenv("MULTICA_MANAGED_BY_DESKTOP") == "true" || os.Getenv("MULTICA_MANAGED_BY_DESKTOP") == "1"
 
 	ctx, stop := notifyShutdownContext(context.Background())
 	defer stop()

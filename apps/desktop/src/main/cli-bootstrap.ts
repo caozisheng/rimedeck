@@ -10,7 +10,7 @@ import { tmpdir } from "os";
 import { selectPlatformReleaseAssetName } from "./cli-release-asset";
 import { downloadToFile, extractArchive } from "./download-utils";
 
-const GITHUB_LATEST_BASE =
+export const GITHUB_LATEST_BASE =
   "https://github.com/cjzzz/rimedeck/releases/latest/download";
 
 function binaryName(): string {

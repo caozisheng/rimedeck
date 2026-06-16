@@ -18,9 +18,11 @@ import {
   useDeleteProjectResource,
   useUpdateProjectResource,
 } from "@multica/core/projects";
+import { runtimeListOptions } from "@multica/core/runtimes/queries";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import type {
+  AgentRuntime,
   GithubRepoResourceRef,
   LocalDirectoryResourceRef,
   ProjectResource,
@@ -41,6 +43,7 @@ import {
   pickDirectory,
   useLocalDaemonStatus,
   validateLocalDirectory,
+  validateWslLocalDirectory,
   type ValidateLocalDirectoryResult,
 } from "../../platform";
 import { useT } from "../../i18n";
@@ -63,6 +66,14 @@ function isLocalDirectoryRef(r: ProjectResource): r is ProjectResource & {
   return r.resource_type === "local_directory";
 }
 
+function isWslRuntime(runtime: AgentRuntime): boolean {
+  return (
+    runtime.runtime_mode === "local" &&
+    runtime.daemon_id !== null &&
+    runtime.metadata?.host_kind === "wsl"
+  );
+}
+
 export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   const { t } = useT("projects");
   const wsId = useWorkspaceId();
@@ -72,10 +83,17 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [repoSearch, setRepoSearch] = useState("");
   const [picking, setPicking] = useState(false);
+  const [wslPath, setWslPath] = useState("");
+  const [wslRuntimeDaemonId, setWslRuntimeDaemonId] = useState("");
+  const desktopMode = isDesktopShell();
 
   const { data: resources = [] } = useQuery(
     projectResourcesOptions(wsId, projectId),
   );
+  const { data: myRuntimes = [] } = useQuery({
+    ...runtimeListOptions(wsId ?? "", "me"),
+    enabled: desktopMode && !!wsId,
+  });
   const createResource = useCreateProjectResource(wsId, projectId);
   const updateResource = useUpdateProjectResource(wsId, projectId);
   const deleteResource = useDeleteProjectResource(wsId, projectId);
@@ -84,7 +102,6 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   // there don't see an action they can never complete — the spec calls for
   // read-only on web because the daemon-id check can't be performed in the
   // browser.
-  const desktopMode = isDesktopShell();
   const localDaemonId = daemonStatus.daemonId;
 
   const attachedUrls = new Set(
@@ -105,6 +122,21 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   // 409 toast.
   const hasLocalDirectoryForCurrentDaemon =
     localDaemonId !== null && attachedLocalPaths.size > 0;
+
+  const wslRuntimes = myRuntimes.filter(isWslRuntime);
+  const selectedWslRuntime =
+    wslRuntimes.find((runtime) => runtime.daemon_id === wslRuntimeDaemonId) ??
+    wslRuntimes[0];
+  const selectedWslDaemonId = selectedWslRuntime?.daemon_id ?? "";
+  const selectedWslDistro =
+    typeof selectedWslRuntime?.metadata?.wsl_distro === "string"
+      ? selectedWslRuntime.metadata.wsl_distro
+      : "";
+  const hasLocalDirectoryForSelectedWslDaemon =
+    !!selectedWslDaemonId &&
+    resources
+      .filter(isLocalDirectoryRef)
+      .some((r) => r.resource_ref.daemon_id === selectedWslDaemonId);
 
   const repoQuery = repoSearch.trim().toLowerCase();
   const filteredRepos =
@@ -178,6 +210,59 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
       });
       toast.success(t(($) => $.resources.toast_local_attached));
       setAddOpen(false);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t(($) => $.resources.toast_local_pick_failed);
+      toast.error(msg);
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  const handleAttachWslDirectory = async () => {
+    if (picking) return;
+    setPicking(true);
+    try {
+      if (!selectedWslRuntime || !selectedWslDaemonId || !selectedWslDistro) {
+        toast.error(t(($) => $.resources.toast_wsl_runtime_required));
+        return;
+      }
+      if (selectedWslRuntime.status !== "online") {
+        toast.error(t(($) => $.resources.toast_wsl_runtime_offline));
+        return;
+      }
+      if (hasLocalDirectoryForSelectedWslDaemon) {
+        toast.error(t(($) => $.resources.toast_wsl_daemon_already_attached));
+        return;
+      }
+      const path = wslPath.trim();
+      const validation = await validateWslLocalDirectory(selectedWslDistro, path);
+      if (!validation.ok) {
+        toast.error(
+          localValidationMessage(validation, {
+            not_absolute: t(($) => $.resources.local_validate_not_absolute),
+            not_found: t(($) => $.resources.local_validate_not_found),
+            not_a_directory: t(($) => $.resources.local_validate_not_a_directory),
+            not_readable: t(($) => $.resources.local_validate_not_readable),
+            not_writable: t(($) => $.resources.local_validate_not_writable),
+            unsupported: t(($) => $.resources.local_validate_unsupported),
+            fallback: t(($) => $.resources.toast_local_pick_failed),
+          }),
+        );
+        return;
+      }
+      await createResource.mutateAsync({
+        resource_type: "local_directory",
+        resource_ref: {
+          local_path: path,
+          daemon_id: selectedWslDaemonId,
+          label: `${selectedWslDistro}: ${path.split("/").filter(Boolean).at(-1) ?? path}`,
+        },
+      });
+      toast.success(t(($) => $.resources.toast_local_attached));
+      setWslPath("");
     } catch (err) {
       const msg =
         err instanceof Error
@@ -378,6 +463,61 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
                 <p className="px-2 pt-0.5 text-[10px] text-muted-foreground">
                   {t(($) => $.resources.local_daemon_already_attached_hint)}
                 </p>
+              )}
+              {wslRuntimes.length > 0 && (
+                <div className="mt-2 space-y-1.5 rounded-md border border-dashed p-2">
+                  <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {t(($) => $.resources.wsl_section_label)}
+                  </div>
+                  <select
+                    value={selectedWslDaemonId}
+                    onChange={(e) => setWslRuntimeDaemonId(e.target.value)}
+                    className="h-7 w-full rounded-md border bg-transparent px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {wslRuntimes.map((runtime) => {
+                      const distro =
+                        typeof runtime.metadata?.wsl_distro === "string"
+                          ? runtime.metadata.wsl_distro
+                          : runtime.name;
+                      return (
+                        <option key={runtime.id} value={runtime.daemon_id ?? ""}>
+                          {distro} · {runtime.provider}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <input
+                    type="text"
+                    value={wslPath}
+                    onChange={(e) => setWslPath(e.target.value)}
+                    placeholder={t(($) => $.resources.wsl_path_placeholder)}
+                    className="h-7 w-full rounded-md border bg-transparent px-2 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-full justify-start px-2 text-xs text-muted-foreground hover:text-foreground"
+                    disabled={
+                      picking ||
+                      createResource.isPending ||
+                      !wslPath.trim() ||
+                      !selectedWslRuntime ||
+                      selectedWslRuntime.status !== "online" ||
+                      hasLocalDirectoryForSelectedWslDaemon
+                    }
+                    onClick={() => {
+                      void handleAttachWslDirectory();
+                    }}
+                  >
+                    <FolderOpen className="size-3" />
+                    {t(($) => $.resources.add_wsl_directory_button)}
+                  </Button>
+                  {hasLocalDirectoryForSelectedWslDaemon && (
+                    <p className="text-[10px] text-muted-foreground">
+                      {t(($) => $.resources.wsl_daemon_already_attached_hint)}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
