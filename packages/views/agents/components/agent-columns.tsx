@@ -19,6 +19,7 @@ import { availabilityConfig, workloadConfig } from "../presence";
 import { AgentRowActions } from "./agent-row-actions";
 import { Sparkline } from "./sparkline";
 import { useT } from "../../i18n";
+import { runtimeDisplayName, runtimeSubtitle } from "./runtime-display";
 
 // Per-row data shape. We assemble agent + runtime + presence + activity +
 // run count into one struct at the page level so the column cells just
@@ -313,7 +314,14 @@ function RuntimeCell({ row }: { row: AgentRow }) {
   const { agent, runtime } = row;
   const isCloud = agent.runtime_mode === "cloud";
   const RuntimeIcon = isCloud ? Cloud : Monitor;
-  const runtimeLabel = runtime?.name ?? (isCloud ? t(($) => $.row.fallback_runtime_cloud) : t(($) => $.row.fallback_runtime_local));
+  const runtimeLabel = runtime
+    ? runtimeDisplayName(runtime)
+    : isCloud
+      ? t(($) => $.row.fallback_runtime_cloud)
+      : t(($) => $.row.fallback_runtime_local);
+  const runtimeTooltip = runtime
+    ? [runtimeLabel, runtimeSubtitle(runtime)].filter(Boolean).join(" · ")
+    : runtimeLabel;
 
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -324,7 +332,7 @@ function RuntimeCell({ row }: { row: AgentRow }) {
             <span className="block min-w-0 truncate">{runtimeLabel}</span>
           }
         />
-        <TooltipContent>{runtimeLabel}</TooltipContent>
+        <TooltipContent>{runtimeTooltip}</TooltipContent>
       </Tooltip>
     </div>
   );

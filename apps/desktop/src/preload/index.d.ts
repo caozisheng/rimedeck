@@ -87,6 +87,16 @@ interface DaemonStatus {
   serverUrl?: string;
 }
 
+interface WslDistroInfo {
+  name: string;
+  default: boolean;
+}
+
+interface WslDaemonStatus extends DaemonStatus {
+  distro: string;
+  hostKind: "wsl";
+}
+
 interface DaemonPrefs {
   autoStart: boolean;
   autoStop: boolean;
@@ -97,8 +107,27 @@ interface DaemonAPI {
   stop: () => Promise<{ success: boolean; error?: string }>;
   restart: () => Promise<{ success: boolean; error?: string }>;
   getStatus: () => Promise<DaemonStatus>;
+  listWslDistros: () => Promise<WslDistroInfo[]>;
+  getWslStatus: (distro: string) => Promise<WslDaemonStatus>;
+  startWsl: (distro: string) => Promise<{ success: boolean; error?: string }>;
+  stopWsl: (distro: string) => Promise<{ success: boolean; error?: string }>;
+  validateWslLocalDirectory: (
+    distro: string,
+    path: string,
+  ) => Promise<{
+    ok: boolean;
+    reason?:
+      | "not_absolute"
+      | "not_found"
+      | "not_a_directory"
+      | "not_readable"
+      | "not_writable"
+      | "error";
+    error?: string;
+  }>;
   getHostName: () => Promise<string>;
   onStatusChange: (callback: (status: DaemonStatus) => void) => () => void;
+  onWslStatusChange: (callback: (status: WslDaemonStatus) => void) => () => void;
   setTargetApiUrl: (url: string) => Promise<void>;
   syncToken: (token: string, userId: string) => Promise<void>;
   clearToken: () => Promise<void>;

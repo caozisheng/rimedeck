@@ -32,11 +32,29 @@ interface DesktopLocalDirectoryAPI {
   ) => Promise<ValidateLocalDirectoryResult>;
 }
 
+export type WslDistroInfo = {
+  name: string;
+  default: boolean;
+};
+
+interface DaemonWslAPI {
+  listWslDistros?: () => Promise<WslDistroInfo[]>;
+  validateWslLocalDirectory?: (
+    distro: string,
+    path: string,
+  ) => Promise<ValidateLocalDirectoryResult>;
+}
+
 function readDesktopAPI(): DesktopLocalDirectoryAPI | undefined {
   if (typeof window === "undefined") return undefined;
   const api = (window as unknown as { desktopAPI?: DesktopLocalDirectoryAPI })
     .desktopAPI;
   return api;
+}
+
+function readDaemonAPI(): DaemonWslAPI | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (window as unknown as { daemonAPI?: DaemonWslAPI }).daemonAPI;
 }
 
 /** True when the renderer is running inside the Electron desktop shell, as
@@ -61,4 +79,21 @@ export async function validateLocalDirectory(
   const api = readDesktopAPI();
   if (!api?.validateLocalDirectory) return { ok: false, reason: "unsupported" };
   return api.validateLocalDirectory(path);
+}
+
+export async function listWslDistros(): Promise<WslDistroInfo[]> {
+  const api = readDaemonAPI();
+  if (!api?.listWslDistros) return [];
+  return api.listWslDistros();
+}
+
+export async function validateWslLocalDirectory(
+  distro: string,
+  path: string,
+): Promise<ValidateLocalDirectoryResult> {
+  const api = readDaemonAPI();
+  if (!api?.validateWslLocalDirectory) {
+    return { ok: false, reason: "unsupported" };
+  }
+  return api.validateWslLocalDirectory(distro, path);
 }

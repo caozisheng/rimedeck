@@ -171,11 +171,15 @@ type DaemonRegisterRequest struct {
 	// may have registered under before switching to a persistent UUID. The
 	// handler merges any matching runtime rows into the new row so agents
 	// and tasks keep working without manual intervention.
-	LegacyDaemonIDs []string `json:"legacy_daemon_ids"`
-	DeviceName      string   `json:"device_name"`
-	CLIVersion      string   `json:"cli_version"` // multica CLI version
-	LaunchedBy      string   `json:"launched_by"` // "desktop" when spawned by the Electron app
-	Runtimes        []struct {
+	LegacyDaemonIDs  []string `json:"legacy_daemon_ids"`
+	DeviceName       string   `json:"device_name"`
+	CLIVersion       string   `json:"cli_version"` // multica CLI version
+	LaunchedBy       string   `json:"launched_by"` // "desktop" when spawned by the Electron app
+	HostKind         string   `json:"host_kind"`   // "wsl" for daemons running inside WSL
+	HostOS           string   `json:"host_os"`     // normalized host OS, e.g. "linux"
+	WSLDistro        string   `json:"wsl_distro"`  // WSL distro name when HostKind == "wsl"
+	ManagedByDesktop bool     `json:"managed_by_desktop"`
+	Runtimes         []struct {
 		Name    string `json:"name"`
 		Type    string `json:"type"`
 		Version string `json:"version"` // agent CLI version (claude/codex)
@@ -259,6 +263,9 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 	req.WorkspaceID = strings.TrimSpace(req.WorkspaceID)
 	req.DaemonID = strings.TrimSpace(req.DaemonID)
 	req.DeviceName = strings.TrimSpace(req.DeviceName)
+	req.HostKind = strings.TrimSpace(req.HostKind)
+	req.HostOS = strings.TrimSpace(req.HostOS)
+	req.WSLDistro = strings.TrimSpace(req.WSLDistro)
 
 	if req.DaemonID == "" {
 		writeError(w, http.StatusBadRequest, "daemon_id is required")
@@ -328,9 +335,13 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			status = "offline"
 		}
 		metadata, _ := json.Marshal(map[string]any{
-			"version":     runtime.Version,
-			"cli_version": req.CLIVersion,
-			"launched_by": req.LaunchedBy,
+			"version":            runtime.Version,
+			"cli_version":        req.CLIVersion,
+			"launched_by":        req.LaunchedBy,
+			"host_kind":          req.HostKind,
+			"host_os":            req.HostOS,
+			"wsl_distro":         req.WSLDistro,
+			"managed_by_desktop": req.ManagedByDesktop,
 		})
 
 		row, err := h.Queries.UpsertAgentRuntime(r.Context(), db.UpsertAgentRuntimeParams{

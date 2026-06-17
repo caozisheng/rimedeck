@@ -11,6 +11,11 @@ import {
 import { ProviderLogo } from "../../../runtimes/components/provider-logo";
 import { CHIP_CLASS } from "./chip";
 import { useT } from "../../../i18n";
+import {
+  isWslRuntime,
+  runtimeDisplayName,
+  runtimeSubtitle,
+} from "../runtime-display";
 
 type Filter = "mine" | "all";
 
@@ -42,6 +47,9 @@ export function RuntimePicker({
 
   const selected = runtimes.find((r) => r.id === value) ?? null;
   const Icon = selected?.runtime_mode === "cloud" ? Cloud : Monitor;
+  const selectedLabel = selected
+    ? runtimeDisplayName(selected)
+    : t(($) => $.pickers.runtime_none);
 
   // Compute filtered list unconditionally — the early `!canEdit` return
   // below would otherwise re-order this hook across renders.
@@ -75,8 +83,13 @@ export function RuntimePicker({
       <span className="inline-flex min-w-0 items-center gap-1.5 px-1.5 py-0.5 text-xs text-muted-foreground">
         <Icon className="h-3 w-3 shrink-0" />
         <span className="min-w-0 truncate font-mono">
-          {selected?.name ?? t(($) => $.pickers.runtime_none)}
+          {selectedLabel}
         </span>
+        {isWslRuntime(selected) && (
+          <span className="shrink-0 rounded border bg-muted px-1 py-0 text-[10px] font-medium text-muted-foreground">
+            WSL
+          </span>
+        )}
         {selected && (
           <span
             className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -92,11 +105,11 @@ export function RuntimePicker({
   // deliberately do NOT append `device_info` to the tooltip — that string
   // also leads with the host and would just repeat what's already in name,
   // producing the "Claude (host) (host · 2.1.121 (Claude Code))" mess.
-  const triggerLabel = selected?.name ?? t(($) => $.pickers.runtime_none);
+  const triggerLabel = selectedLabel;
   const isOnline = selected?.status === "online";
   const triggerTitle = selected
     ? t(($) => $.pickers.runtime_tooltip, {
-        name: selected.name,
+        name: runtimeDisplayName(selected),
         status: isOnline ? t(($) => $.pickers.runtime_online) : t(($) => $.pickers.runtime_offline),
       })
     : t(($) => $.pickers.runtime_tooltip_none);
@@ -168,9 +181,12 @@ export function RuntimePicker({
           const owner = getOwner(rt.owner_id);
           const rtOnline = rt.status === "online";
           const locked = isDisabled(rt);
+          const displayName = runtimeDisplayName(rt);
+          const environment = runtimeSubtitle(rt);
           const tooltip = [
-            rt.name,
+            displayName,
             owner ? t(($) => $.pickers.runtime_owned_by, { name: owner.name }) : null,
+            environment,
             rtOnline ? t(($) => $.pickers.runtime_online) : t(($) => $.pickers.runtime_offline),
             locked ? t(($) => $.create_dialog.runtime_private_locked_tooltip) : null,
           ]
@@ -194,11 +210,16 @@ export function RuntimePicker({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-medium">
-                    {rt.name}
+                    {displayName}
                   </span>
                   {rt.runtime_mode === "cloud" && (
                     <span className="shrink-0 rounded bg-info/10 px-1 text-[10px] font-medium text-info">
                       {t(($) => $.create_dialog.runtime_cloud_badge)}
+                    </span>
+                  )}
+                  {isWslRuntime(rt) && (
+                    <span className="shrink-0 rounded border bg-muted px-1 text-[10px] font-medium text-muted-foreground">
+                      WSL
                     </span>
                   )}
                   {locked && (
@@ -219,12 +240,12 @@ export function RuntimePicker({
                       <span className="truncate">{owner.name}</span>
                     </span>
                   )}
-                  {owner && rt.device_info && (
+                  {owner && environment && (
                     <span className="text-muted-foreground/40">·</span>
                   )}
-                  {rt.device_info && (
+                  {environment && (
                     <span className="truncate font-mono text-[10px]">
-                      {rt.device_info}
+                      {environment}
                     </span>
                   )}
                 </div>

@@ -180,13 +180,17 @@ func (d *Daemon) registerRuntimesWithClient(ctx context.Context, client *Client,
 	}
 
 	req := map[string]any{
-		"workspace_id":      workspaceID,
-		"daemon_id":         d.cfg.DaemonID,
-		"legacy_daemon_ids": d.cfg.LegacyDaemonIDs,
-		"device_name":       d.cfg.DeviceName,
-		"cli_version":       d.cfg.CLIVersion,
-		"launched_by":       d.cfg.LaunchedBy,
-		"runtimes":          runtimes,
+		"workspace_id":       workspaceID,
+		"daemon_id":          d.cfg.DaemonID,
+		"legacy_daemon_ids":  d.cfg.LegacyDaemonIDs,
+		"device_name":        d.cfg.DeviceName,
+		"cli_version":        d.cfg.CLIVersion,
+		"launched_by":        d.cfg.LaunchedBy,
+		"host_kind":          d.cfg.HostKind,
+		"host_os":            d.cfg.HostOS,
+		"wsl_distro":         d.cfg.WSLDistro,
+		"managed_by_desktop": d.cfg.ManagedByDesktop,
+		"runtimes":           runtimes,
 	}
 
 	resp, err := client.Register(ctx, req)

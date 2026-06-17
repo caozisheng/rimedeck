@@ -12,6 +12,11 @@ import {
 } from "@multica/ui/components/ui/popover";
 import { Label } from "@multica/ui/components/ui/label";
 import { useT } from "../../i18n";
+import {
+  isWslRuntime,
+  runtimeDisplayName,
+  runtimeSubtitle,
+} from "./runtime-display";
 
 export type RuntimeFilter = "mine" | "all";
 
@@ -48,6 +53,15 @@ export function RuntimePicker({
 
   const selectedRuntime =
     runtimes.find((d) => d.id === selectedRuntimeId) ?? null;
+  const selectedRuntimeLabel = selectedRuntime
+    ? runtimeDisplayName(selectedRuntime)
+    : t(($) => $.create_dialog.runtime_none);
+  const selectedRuntimeSubtitle = selectedRuntime
+    ? runtimeSubtitle(
+        selectedRuntime,
+        getOwnerMember(selectedRuntime.owner_id)?.name,
+      )
+    : null;
 
   // Sole source of truth for seeding the parent's selection when it's empty
   // — first mount with no template runtime, runtimes arriving later over
@@ -128,19 +142,22 @@ export function RuntimePicker({
               <span className="truncate font-medium">
                 {runtimesLoading
                   ? t(($) => $.create_dialog.runtime_loading)
-                  : (selectedRuntime?.name ??
-                    t(($) => $.create_dialog.runtime_none))}
+                  : selectedRuntimeLabel}
               </span>
               {selectedRuntime?.runtime_mode === "cloud" && (
                 <span className="shrink-0 rounded bg-info/10 px-1.5 py-0.5 text-xs font-medium text-info">
                   {t(($) => $.create_dialog.runtime_cloud_badge)}
                 </span>
               )}
+              {isWslRuntime(selectedRuntime) && (
+                <span className="shrink-0 rounded border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                  WSL
+                </span>
+              )}
             </div>
-            {selectedRuntime && (
+            {selectedRuntimeSubtitle && (
               <div className="truncate text-xs text-muted-foreground">
-                {getOwnerMember(selectedRuntime.owner_id)?.name ??
-                  selectedRuntime.device_info}
+                {selectedRuntimeSubtitle}
               </div>
             )}
           </div>
@@ -156,6 +173,8 @@ export function RuntimePicker({
         >
           {filteredRuntimes.map((device) => {
             const ownerMember = getOwnerMember(device.owner_id);
+            const displayName = runtimeDisplayName(device);
+            const subtitle = runtimeSubtitle(device, ownerMember?.name);
             const disabled = !isRuntimeUsableForUser(device, currentUserId);
             const disabledTitle = disabled
               ? t(($) => $.create_dialog.runtime_private_locked_tooltip)
@@ -185,10 +204,15 @@ export function RuntimePicker({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{device.name}</span>
+                    <span className="truncate font-medium">{displayName}</span>
                     {device.runtime_mode === "cloud" && (
                       <span className="shrink-0 rounded bg-info/10 px-1.5 py-0.5 text-xs font-medium text-info">
                         {t(($) => $.create_dialog.runtime_cloud_badge)}
+                      </span>
+                    )}
+                    {isWslRuntime(device) && (
+                      <span className="shrink-0 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        WSL
                       </span>
                     )}
                     {disabled && (
@@ -206,10 +230,10 @@ export function RuntimePicker({
                           actorId={ownerMember.user_id}
                           size={14}
                         />
-                        <span className="truncate">{ownerMember.name}</span>
+                        <span className="truncate">{subtitle}</span>
                       </>
                     ) : (
-                      <span className="truncate">{device.device_info}</span>
+                      <span className="truncate">{subtitle}</span>
                     )}
                   </div>
                 </div>

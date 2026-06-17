@@ -1,5 +1,5 @@
 import { app, ipcMain, BrowserWindow, shell } from "electron";
-import { execFile, execFileSync } from "child_process";
+import { execFile } from "child_process";
 import {
   readFile,
   writeFile,
@@ -16,9 +16,18 @@ import {
 } from "fs";
 import { join } from "path";
 import { homedir, hostname } from "os";
-import type { DaemonStatus, DaemonPrefs } from "../shared/daemon-types";
+import type {
+  DaemonStatus,
+  DaemonPrefs,
+  WslDaemonStatus,
+  WslDistroInfo,
+} from "../shared/daemon-types";
 import { daemonStatusAlive } from "../shared/daemon-types";
-import { ensureManagedCli, managedCliPath } from "./cli-bootstrap";
+import {
+  GITHUB_LATEST_BASE,
+  ensureManagedCli,
+  managedCliPath,
+} from "./cli-bootstrap";
 import { decideVersionAction } from "./version-decision";
 import {
   classifyAuthProbe,
@@ -51,6 +60,11 @@ interface ActiveProfile {
   port: number;
 }
 
+interface WslRunResult {
+  stdout: string;
+  stderr: string;
+}
+
 let statusPollTimer: ReturnType<typeof setInterval> | null = null;
 let logTailWatcher: { path: string; listener: StatsListener } | null = null;
 let currentState: DaemonStatus["state"] = "installing_cli";
@@ -67,10 +81,6 @@ let targetApiBaseUrl: string | null = null;
 let activeProfile: ActiveProfile | null = null;
 
 // ── WSL daemon management ──────────────────────────────────────────────
-const WSL_HEALTH_PORT = 19515;
-let wslDaemonProcess: ReturnType<typeof execFile> | null = null;
-let wslEnabled = false; // persisted in desktop_prefs.json
-let wslHasCliTools = false; // result of last probe
 
 // Auth-probe state for the current start attempt. When a start fails to reach
 // "running", we probe the daemon's token once (after AUTH_PROBE_GRACE_MS) to
@@ -107,6 +117,535 @@ function profileConfigPath(profile: string): string {
 
 function profileLogPath(profile: string): string {
   return join(profileDir(profile), "daemon.log");
+}
+
+function wslProfileName(distro: string): string {
+  const slug = distro
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `wsl-${slug || "default"}`;
+}
+
+function runWsl(
+  distro: string,
+  args: string[],
+  timeout = 10_000,
+): Promise<WslRunResult> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      "wsl.exe",
+      ["-d", distro, "-e", ...args],
+      { timeout, windowsHide: true },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject(Object.assign(err, { stdout, stderr }));
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
+function runWslWithInput(
+  distro: string,
+  args: string[],
+  input: string,
+  timeout = 10_000,
+): Promise<WslRunResult> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      "wsl.exe",
+      ["-d", distro, "-e", ...args],
+      { timeout, windowsHide: true },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject(Object.assign(err, { stdout, stderr }));
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+    child.stdin?.end(input);
+  });
+}
+
+function wslShellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function wslManagedMulticaShellPath(): string {
+  return '"$HOME/.local/bin/multica"';
+}
+
+function bundledWslMulticaPath(goarch: "amd64" | "arm64"): string {
+  return join(
+    app.getAppPath(),
+    "resources",
+    "bin",
+    "wsl",
+    `linux-${goarch}`,
+    "multica",
+  ).replace("app.asar", "app.asar.unpacked");
+}
+
+function windowsPathToWslPath(path: string): string | null {
+  const normalized = path.replace(/\\/g, "/");
+  const match = normalized.match(/^([A-Za-z]):\/(.*)$/);
+  if (!match) return null;
+  return `/mnt/${match[1].toLowerCase()}/${match[2]}`;
+}
+
+function wslProbeScript(binExpr: string): string {
+  if (binExpr === "multica") {
+    return [
+      "p=\"$(command -v multica)\"",
+      "[ -n \"$p\" ]",
+      "multica version --output json",
+      "printf '\\n__MULTICA_BIN__%s\\n' \"$p\"",
+    ].join(" && ");
+  }
+  return [
+    `[ -x ${binExpr} ]`,
+    `${binExpr} version --output json`,
+    "printf '\\n__MULTICA_BIN__%s\\n' \"$HOME/.local/bin/multica\"",
+  ].join(" && ");
+}
+
+function parseCliVersionOutput(stdout: string): string | null {
+  try {
+    const parsed = JSON.parse(stdout.trim()) as { version?: unknown };
+    return typeof parsed.version === "string" && parsed.version.length > 0
+      ? parsed.version
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function probeWslMultica(
+  distro: string,
+  binExpr: string,
+): Promise<{ path: string; version: string } | null> {
+  try {
+    const { stdout } = await runWsl(
+      distro,
+      ["sh", "-lc", wslProbeScript(binExpr)],
+      8_000,
+    );
+    const versionText = stdout.split("\n__MULTICA_BIN__")[0] ?? "";
+    const version = parseCliVersionOutput(versionText);
+    if (!version) return null;
+    const resolved = stdout.split("\n__MULTICA_BIN__")[1]?.trim();
+    if (!resolved) return null;
+    return { path: resolved, version };
+  } catch {
+    return null;
+  }
+}
+
+async function ensureWslMultica(
+  distro: string,
+): Promise<{ path: string; version: string; installed: boolean }> {
+  const managed = await probeWslMultica(distro, wslManagedMulticaShellPath());
+  if (managed) return { ...managed, installed: false };
+
+  const onPath = await probeWslMultica(distro, "multica");
+  if (onPath) return { ...onPath, installed: false };
+
+  const { stdout: unameStdout } = await runWsl(
+    distro,
+    ["sh", "-lc", "uname -m"],
+    8_000,
+  );
+  const machine = unameStdout.trim();
+  const goarch =
+    machine === "x86_64" || machine === "amd64"
+      ? "amd64"
+      : machine === "aarch64" || machine === "arm64"
+        ? "arm64"
+        : null;
+  if (!goarch) {
+    throw new Error(`failed to install multica in WSL: unsupported_arch:${machine}`);
+  }
+
+  const bundledCli = bundledWslMulticaPath(goarch);
+  if (existsSync(bundledCli)) {
+    const wslBundledCli = windowsPathToWslPath(bundledCli);
+    if (!wslBundledCli) {
+      throw new Error(
+        `failed to install bundled multica in WSL: unsupported Windows path ${bundledCli}`,
+      );
+    }
+    try {
+      await runWsl(
+        distro,
+        [
+          "sh",
+          "-lc",
+          [
+            "mkdir -p \"$HOME/.local/bin\"",
+            `cp ${wslShellQuote(wslBundledCli)} "$HOME/.local/bin/multica"`,
+            "chmod 0755 \"$HOME/.local/bin/multica\"",
+          ].join(" && "),
+        ],
+        30_000,
+      );
+      const installed = await probeWslMultica(distro, wslManagedMulticaShellPath());
+      if (!installed) {
+        throw new Error("bundled multica was copied but version probe failed");
+      }
+      return { ...installed, installed: true };
+    } catch (err) {
+      throw new Error(
+        `failed to install bundled multica in WSL: ${errorMessage(err)}`,
+      );
+    }
+  }
+
+  const script = `
+set -eu
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "missing_tool:$1" >&2
+    exit 10
+  }
+}
+need curl
+need tar
+need sha256sum
+need mktemp
+arch="$(uname -m)"
+case "$arch" in
+  x86_64|amd64) asset_arch=amd64 ;;
+  aarch64|arm64) asset_arch=arm64 ;;
+  *) echo "unsupported_arch:$arch" >&2; exit 11 ;;
+esac
+base=${wslShellQuote(GITHUB_LATEST_BASE)}
+asset="multica_linux_\${asset_arch}.tar.gz"
+work="$(mktemp -d)"
+cleanup() { rm -rf "$work"; }
+trap cleanup EXIT
+curl -fsSL "$base/checksums.txt" -o "$work/checksums.txt"
+expected="$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1; exit }' "$work/checksums.txt")"
+[ -n "$expected" ] || { echo "missing_checksum:$asset" >&2; exit 12; }
+curl -fsSL "$base/$asset" -o "$work/$asset"
+actual="$(sha256sum "$work/$asset" | awk '{print $1}')"
+[ "$actual" = "$expected" ] || { echo "checksum_mismatch:$asset" >&2; exit 13; }
+tar -xzf "$work/$asset" -C "$work"
+[ -f "$work/multica" ] || { echo "archive_missing_binary:$asset" >&2; exit 14; }
+mkdir -p "$HOME/.local/bin"
+install -m 0755 "$work/multica" "$HOME/.local/bin/multica"
+"$HOME/.local/bin/multica" version --output json
+printf '\\n__MULTICA_BIN__%s\\n' "$HOME/.local/bin/multica"
+`;
+
+  try {
+    const { stdout } = await runWsl(distro, ["sh", "-lc", script], 120_000);
+    const versionText = stdout.split("\n__MULTICA_BIN__")[0] ?? "";
+    const version = parseCliVersionOutput(versionText);
+    const resolved = stdout.split("\n__MULTICA_BIN__")[1]?.trim();
+    if (!version) {
+      throw new Error("installed multica but version output was invalid");
+    }
+    if (!resolved) {
+      throw new Error("installed multica but install path was not reported");
+    }
+    return { path: resolved, version, installed: true };
+  } catch (err) {
+    const withOutput = err as Error & { stderr?: string; stdout?: string };
+    const detail = (withOutput.stderr || withOutput.stdout || errorMessage(err)).trim();
+    throw new Error(`failed to install multica in WSL: ${detail}`);
+  }
+}
+
+async function listWslDistros(): Promise<WslDistroInfo[]> {
+  if (process.platform !== "win32") return [];
+  const result = await new Promise<string>((resolve, reject) => {
+    execFile("wsl.exe", ["-l", "-q"], { timeout: 10_000, windowsHide: true }, (err, stdout) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(stdout);
+    });
+  });
+  const names = result
+    .replace(/\0/g, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.toLowerCase().includes("windows subsystem for linux"));
+  return names.map((name, index) => ({ name, default: index === 0 }));
+}
+
+async function resolveWslServerUrl(
+  distro: string,
+  apiUrl: string,
+): Promise<string> {
+  let parsed: URL;
+  try {
+    parsed = new URL(apiUrl);
+  } catch {
+    return apiUrl;
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (host !== "localhost" && host !== "127.0.0.1" && host !== "::1") {
+    return apiUrl;
+  }
+  if (await canWslReachUrl(distro, parsed)) {
+    return apiUrl;
+  }
+
+  const candidates: string[] = [];
+  try {
+    const { stdout } = await runWsl(
+      distro,
+      [
+        "sh",
+        "-lc",
+        [
+          "sed -n 's/^nameserver //p' /etc/resolv.conf | head -1",
+          "ip route 2>/dev/null | awk '/default via/ { print $3 }'",
+        ].join("; "),
+      ],
+      5_000,
+    );
+    for (const line of stdout.split(/\r?\n/)) {
+      const candidate = line.trim();
+      if (candidate && !candidates.includes(candidate)) {
+        candidates.push(candidate);
+      }
+    }
+  } catch (err) {
+    console.warn("[daemon:wsl] failed to resolve Windows host candidates:", err);
+  }
+
+  for (const candidate of candidates) {
+    const candidateUrl = new URL(parsed.toString());
+    candidateUrl.hostname = candidate;
+    if (await canWslReachUrl(distro, candidateUrl)) {
+      return candidateUrl.toString().replace(/\/$/, "");
+    }
+  }
+  return apiUrl;
+}
+
+async function canWslReachUrl(distro: string, url: URL): Promise<boolean> {
+  const healthUrl = new URL(url.toString());
+  healthUrl.pathname = "/health";
+  healthUrl.search = "";
+  healthUrl.hash = "";
+  try {
+    await runWsl(
+      distro,
+      [
+        "curl",
+        "-fsS",
+        "--connect-timeout",
+        "2",
+        healthUrl.toString().replace(/\/$/, ""),
+      ],
+      5_000,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function syncWslProfile(distro: string, profile: string): Promise<void> {
+  const source = await ensureActiveProfile();
+  const cfg = await readProfileConfig(source.name);
+  const token = typeof cfg.token === "string" ? cfg.token : "";
+  const serverUrl =
+    targetApiBaseUrl ??
+    (typeof cfg.server_url === "string" ? cfg.server_url : "");
+  if (!token) {
+    throw new Error("Desktop daemon profile is not authenticated yet");
+  }
+  if (!serverUrl) {
+    throw new Error("Desktop daemon profile has no server URL");
+  }
+  const wslServerUrl = await resolveWslServerUrl(distro, serverUrl);
+  const payload = JSON.stringify(
+    {
+      ...cfg,
+      token,
+      server_url: wslServerUrl,
+    },
+    null,
+    2,
+  );
+  const profileDir = `$HOME/.rimedeck/profiles/${profile.replace(/"/g, '\\"')}`;
+  const configPath = `${profileDir}/config.json`;
+  const script = [
+    `mkdir -p "${profileDir}"`,
+    `cat > "${configPath}"`,
+  ].join(" && ");
+  await runWslWithInput(distro, ["sh", "-lc", script], payload, 10_000);
+}
+
+async function fetchWslHealth(distro: string): Promise<WslDaemonStatus> {
+  distro = distro.trim();
+  const profile = wslProfileName(distro);
+  if (!distro) return { state: "stopped", distro, hostKind: "wsl", profile };
+  const port = healthPortForProfile(profile);
+  const data = await fetchHealthAtPort(port);
+  if (!data) return { state: "stopped", distro, hostKind: "wsl", profile };
+  if (data.status === "running") {
+    return {
+      state: "running",
+      distro,
+      hostKind: "wsl",
+      profile,
+      pid: data.pid,
+      uptime: data.uptime,
+      daemonId: data.daemon_id,
+      deviceName: data.device_name,
+      agents: data.agents ?? [],
+      workspaceCount: Array.isArray(data.workspaces) ? data.workspaces.length : 0,
+      serverUrl: data.server_url,
+    };
+  }
+  if (data.status === "starting") {
+    return { state: "starting", distro, hostKind: "wsl", profile };
+  }
+  return { state: "stopped", distro, hostKind: "wsl", profile };
+}
+
+function sendWslStatus(status: WslDaemonStatus): void {
+  const win = getMainWindow();
+  win?.webContents.send("daemon:wsl-status", status);
+}
+
+async function startWslDaemon(distro: string): Promise<{ success: boolean; error?: string }> {
+  distro = distro.trim();
+  if (!distro) return { success: false, error: "WSL distro is required" };
+  if (process.platform !== "win32") {
+    return { success: false, error: "WSL runtimes are only supported on Windows" };
+  }
+  const profile = wslProfileName(distro);
+  const existing = await fetchWslHealth(distro);
+  if (daemonStatusAlive(existing.state)) {
+    sendWslStatus(existing);
+    return { success: true };
+  }
+  try {
+    await syncWslProfile(distro, profile);
+    const cli = await ensureWslMultica(distro);
+    console.log(
+      `[daemon:wsl] using multica in ${distro}: ${cli.path} (${cli.version}, installed=${cli.installed})`,
+    );
+    sendWslStatus({ state: "starting", distro, hostKind: "wsl", profile });
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        "wsl.exe",
+        [
+          "-d",
+          distro,
+          "-e",
+          "env",
+          "MULTICA_LAUNCHED_BY=desktop",
+          "MULTICA_MANAGED_BY_DESKTOP=true",
+          "MULTICA_HOST_KIND=wsl",
+          "MULTICA_HOST_OS=linux",
+          `MULTICA_WSL_DISTRO=${distro}`,
+          cli.path,
+          "daemon",
+          "start",
+          "--profile",
+          profile,
+        ],
+        {
+          timeout: DAEMON_START_EXEC_TIMEOUT_MS,
+          windowsHide: true,
+        },
+        (err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        },
+      );
+    });
+    sendWslStatus(await fetchWslHealth(distro));
+    return { success: true };
+  } catch (err) {
+    sendWslStatus({ state: "stopped", distro, hostKind: "wsl", profile });
+    return { success: false, error: errorMessage(err) };
+  }
+}
+
+async function stopWslDaemon(distro: string): Promise<{ success: boolean; error?: string }> {
+  distro = distro.trim();
+  if (!distro) return { success: false, error: "WSL distro is required" };
+  if (process.platform !== "win32") {
+    return { success: false, error: "WSL runtimes are only supported on Windows" };
+  }
+  const profile = wslProfileName(distro);
+  sendWslStatus({ state: "stopping", distro, hostKind: "wsl", profile });
+  try {
+    const cli =
+      (await probeWslMultica(distro, wslManagedMulticaShellPath())) ??
+      (await probeWslMultica(distro, "multica"));
+    if (!cli) {
+      sendWslStatus({ state: "stopped", distro, hostKind: "wsl", profile });
+      return { success: true };
+    }
+    await runWsl(distro, [cli.path, "daemon", "stop", "--profile", profile], 20_000);
+    sendWslStatus({ state: "stopped", distro, hostKind: "wsl", profile });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: errorMessage(err) };
+  }
+}
+
+async function validateWslLocalDirectory(
+  distro: string,
+  path: string,
+): Promise<{
+  ok: boolean;
+  reason?:
+    | "not_absolute"
+    | "not_found"
+    | "not_a_directory"
+    | "not_readable"
+    | "not_writable"
+    | "error";
+  error?: string;
+}> {
+  distro = distro.trim();
+  if (!distro) return { ok: false, reason: "error", error: "WSL distro is required" };
+  const p = path.trim();
+  if (!p.startsWith("/")) return { ok: false, reason: "not_absolute" };
+  const script = [
+    `p=${wslShellQuote(p)}`,
+    `[ -e "$p" ] || { echo not_found; exit 0; }`,
+    `[ -d "$p" ] || { echo not_a_directory; exit 0; }`,
+    `[ -r "$p" ] || { echo not_readable; exit 0; }`,
+    `[ -w "$p" ] || { echo not_writable; exit 0; }`,
+    "echo ok",
+  ].join("\n");
+  try {
+    const { stdout } = await runWsl(distro, ["sh", "-lc", script], 10_000);
+    const result = stdout.trim();
+    if (result === "ok") return { ok: true };
+    if (
+      result === "not_found" ||
+      result === "not_a_directory" ||
+      result === "not_readable" ||
+      result === "not_writable"
+    ) {
+      return { ok: false, reason: result };
+    }
+    return { ok: false, reason: "error", error: result || "WSL validation failed" };
+  } catch (err) {
+    return { ok: false, reason: "error", error: errorMessage(err) };
+  }
 }
 
 // Sidecar file that records which Multica user the cached PAT in config.json
@@ -1013,127 +1552,6 @@ function stopLogTail(): void {
 
 // ── WSL detection & lifecycle ───────────────────────────────────────────
 
-/** Check if wsl.exe exists on the system */
-function isWslAvailable(): boolean {
-  try {
-    execFileSync('wsl.exe', ['--status'], { timeout: 5_000, stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Check if any WSL distro is currently running */
-function isWslRunning(): boolean {
-  try {
-    const result = execFileSync('wsl.exe', ['--list', '--running'], {
-      timeout: 5_000,
-      encoding: 'utf16le',
-    });
-    // Output has a header line; more than 1 line means a distro is running
-    const lines = result.trim().split('\n').filter((l: string) => l.trim());
-    return lines.length > 1;
-  } catch {
-    return false;
-  }
-}
-
-/** Probe WSL for agent CLIs without starting the daemon */
-async function probeWslClis(): Promise<boolean> {
-  const names = [
-    'claude', 'codex', 'copilot-language-server',
-    'opencode', 'hermes', 'gemini', 'kimi', 'kiro-cli',
-    'cursor-agent', 'omp', 'openclaw', 'agy',
-    'qoder', 'qwen-code', 'pi',
-  ];
-  const script = names.map(n => `command -v ${n}`).join(' || ');
-  return new Promise((resolve) => {
-    execFile('wsl.exe', ['-e', 'sh', '-c', script], { timeout: 10_000 }, (err) => {
-      resolve(!err);
-    });
-  });
-}
-
-/** Start the WSL daemon process */
-async function startWslDaemon(): Promise<void> {
-  if (wslDaemonProcess) return;
-  const active = await ensureActiveProfile();
-  // Read the profile config to get the server URL and token
-  const cfg = await readProfileConfig(active.name);
-  const serverUrl = (cfg.server_url as string) || `http://127.0.0.1:${targetApiBaseUrl ? new URL(targetApiBaseUrl).port : '8080'}`;
-  const token = (cfg.token as string) || '';
-  if (!token) {
-    console.warn('[daemon:wsl] no token available, skipping WSL daemon start');
-    return;
-  }
-
-  const deviceName = `${hostname()} WSL`;
-  console.log(`[daemon:wsl] starting WSL daemon (device=${deviceName}, health=${WSL_HEALTH_PORT})`);
-
-  // Find the multica binary path inside WSL
-  const bin = await resolveCliBinary();
-  if (!bin) {
-    console.warn('[daemon:wsl] no CLI binary found, cannot start WSL daemon');
-    return;
-  }
-
-  // The daemon binary inside WSL uses the same multica CLI.
-  // We pass all config via env vars so it doesn't need a profile.
-  const wslEnv = [
-    `MULTICA_SERVER_URL=${serverUrl}`,
-    `MULTICA_TOKEN=${token}`,
-    `MULTICA_DAEMON_DEVICE_NAME=${deviceName}`,
-    `MULTICA_HEALTH_PORT=${WSL_HEALTH_PORT}`,
-    `MULTICA_LAUNCHED_BY=desktop-wsl`,
-  ];
-  const envArgs = wslEnv.flatMap(e => ['--env', e]);
-
-  // wsl.exe -e multica daemon start --health-port 19515
-  wslDaemonProcess = execFile(
-    'wsl.exe',
-    [...envArgs, '-e', 'multica', 'daemon', 'start'],
-    { timeout: 0 },  // no timeout — long-running
-    (err) => {
-      if (err) console.warn('[daemon:wsl] WSL daemon exited:', err.message);
-      wslDaemonProcess = null;
-    },
-  );
-}
-
-/** Stop the WSL daemon process */
-async function stopWslDaemon(): Promise<void> {
-  if (!wslDaemonProcess) return;
-  console.log('[daemon:wsl] stopping WSL daemon');
-  try {
-    await new Promise<void>((resolve) => {
-      execFile('wsl.exe', ['-e', 'multica', 'daemon', 'stop'], { timeout: 15_000 }, () => resolve());
-    });
-  } catch {
-    // Best-effort
-  }
-  wslDaemonProcess = null;
-}
-
-/** Attempt to start WSL daemon based on probe-before-launch logic */
-async function tryStartWslDaemon(): Promise<void> {
-  if (process.platform !== 'win32') return;
-  if (!isWslAvailable()) return;
-
-  const prefs = await loadPrefs();
-  wslEnabled = prefs.wslEnabled ?? false;
-
-  if (!wslEnabled && !isWslRunning()) return;
-
-  // WSL is either enabled by user or already running
-  wslHasCliTools = await probeWslClis();
-  if (!wslHasCliTools) {
-    console.log('[daemon:wsl] no agent CLIs found in WSL, skipping');
-    return;
-  }
-
-  await startWslDaemon();
-}
-
 export function setupDaemonManager(
   windowGetter: () => BrowserWindow | null,
 ): void {
@@ -1152,6 +1570,21 @@ export function setupDaemonManager(
   ipcMain.handle("daemon:stop", () => withGuard(() => stopDaemon()));
   ipcMain.handle("daemon:restart", () => withGuard(() => restartDaemon()));
   ipcMain.handle("daemon:get-status", () => fetchHealth());
+  ipcMain.handle("daemon:wsl-list-distros", () => listWslDistros());
+  ipcMain.handle("daemon:wsl-get-status", (_event, distro: string) =>
+    fetchWslHealth(String(distro || "")),
+  );
+  ipcMain.handle("daemon:wsl-start", (_event, distro: string) =>
+    startWslDaemon(String(distro || "")),
+  );
+  ipcMain.handle("daemon:wsl-stop", (_event, distro: string) =>
+    stopWslDaemon(String(distro || "")),
+  );
+  ipcMain.handle(
+    "daemon:wsl-validate-local-directory",
+    (_event, distro: string, path: string) =>
+      validateWslLocalDirectory(String(distro || ""), String(path || "")),
+  );
 
   ipcMain.handle("daemon:add-remote-server", async (_e, serverUrl: string, token: string, workspaceId: string) => {
     const active = await ensureActiveProfile();
@@ -1165,19 +1598,6 @@ export function setupDaemonManager(
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         throw new Error(body || `${res.status}`);
-      }
-      // Forward to WSL daemon if running
-      if (wslDaemonProcess) {
-        try {
-          await fetch(`http://127.0.0.1:${WSL_HEALTH_PORT}/remote/add`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ server_url: serverUrl, token, workspace_id: workspaceId }),
-            signal: AbortSignal.timeout(30_000),
-          });
-        } catch (err) {
-          console.warn('[daemon:wsl] add-remote-server to WSL daemon failed:', err);
-        }
       }
       return await res.json();
     } catch (err) {
@@ -1197,19 +1617,6 @@ export function setupDaemonManager(
       });
     } catch (err) {
       console.warn("[daemon] remove-remote-server failed:", err);
-    }
-    // Forward to WSL daemon if running
-    if (wslDaemonProcess) {
-      try {
-        await fetch(`http://127.0.0.1:${WSL_HEALTH_PORT}/remote/remove`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ server_url: serverUrl }),
-          signal: AbortSignal.timeout(10_000),
-        });
-      } catch (err) {
-        console.warn('[daemon:wsl] remove-remote-server to WSL daemon failed:', err);
-      }
     }
   });
 
@@ -1261,29 +1668,6 @@ export function setupDaemonManager(
       return;
     }
     await startDaemon();
-    await tryStartWslDaemon();
-  });
-
-  // ── WSL daemon management ──
-  ipcMain.handle('daemon:wsl-status', async () => ({
-    available: process.platform === 'win32' && isWslAvailable(),
-    running: wslDaemonProcess !== null,
-    enabled: wslEnabled,
-    hasCliTools: wslHasCliTools,
-  }));
-
-  ipcMain.handle('daemon:wsl-enable', async () => {
-    wslEnabled = true;
-    const prefs = await loadPrefs();
-    await savePrefs({ ...prefs, wslEnabled: true });
-    await tryStartWslDaemon();
-  });
-
-  ipcMain.handle('daemon:wsl-disable', async () => {
-    wslEnabled = false;
-    const prefs = await loadPrefs();
-    await savePrefs({ ...prefs, wslEnabled: false });
-    await stopWslDaemon();
   });
 
   ipcMain.on("daemon:start-log-stream", () => {
@@ -1333,11 +1717,6 @@ export function setupDaemonManager(
             await stopDaemon();
           } catch {
             // Best-effort stop on quit
-          }
-          try {
-            await stopWslDaemon();
-          } catch {
-            // Best-effort WSL stop on quit
           }
         }
       })

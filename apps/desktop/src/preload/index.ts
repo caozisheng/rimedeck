@@ -205,6 +205,16 @@ interface DaemonStatus {
   serverUrl?: string;
 }
 
+interface WslDistroInfo {
+  name: string;
+  default: boolean;
+}
+
+interface WslDaemonStatus extends DaemonStatus {
+  distro: string;
+  hostKind: "wsl";
+}
+
 const daemonAPI = {
   start: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("daemon:start"),
@@ -220,12 +230,27 @@ const daemonAPI = {
     ipcRenderer.invoke("daemon:remove-remote-server", serverUrl),
   getStatus: (): Promise<DaemonStatus> =>
     ipcRenderer.invoke("daemon:get-status"),
+  listWslDistros: (): Promise<WslDistroInfo[]> =>
+    ipcRenderer.invoke("daemon:wsl-list-distros"),
+  getWslStatus: (distro: string): Promise<WslDaemonStatus> =>
+    ipcRenderer.invoke("daemon:wsl-get-status", distro),
+  startWsl: (distro: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke("daemon:wsl-start", distro),
+  stopWsl: (distro: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke("daemon:wsl-stop", distro),
+  validateWslLocalDirectory: (distro: string, path: string) =>
+    ipcRenderer.invoke("daemon:wsl-validate-local-directory", distro, path),
   getHostName: (): Promise<string> =>
     ipcRenderer.invoke("daemon:get-host-name"),
   onStatusChange: (callback: (status: DaemonStatus) => void) => {
     const handler = (_: unknown, status: DaemonStatus) => callback(status);
     ipcRenderer.on("daemon:status", handler);
     return () => ipcRenderer.removeListener("daemon:status", handler);
+  },
+  onWslStatusChange: (callback: (status: WslDaemonStatus) => void) => {
+    const handler = (_: unknown, status: WslDaemonStatus) => callback(status);
+    ipcRenderer.on("daemon:wsl-status", handler);
+    return () => ipcRenderer.removeListener("daemon:wsl-status", handler);
   },
   setTargetApiUrl: (url: string): Promise<void> =>
     ipcRenderer.invoke("daemon:set-target-api-url", url),

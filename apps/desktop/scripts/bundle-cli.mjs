@@ -66,6 +66,10 @@ const BINARIES = [
   { cmd: "./cmd/server",   outputName: "multica-server" },
   { cmd: "./cmd/migrate",  outputName: "multica-migrate" },
 ];
+const WSL_CLI_TARGETS = [
+  { goarch: "amd64", dir: "linux-amd64" },
+  { goarch: "arm64", dir: "linux-arm64" },
+];
 
 function binaryNameForPlatform(name, platform) {
   return platform === "win32" ? `${name}.exe` : name;
@@ -134,6 +138,30 @@ if (hasGo()) {
       },
     );
   }
+
+  if (targetPlatform === "win32") {
+    for (const { goarch: wslGoarch } of WSL_CLI_TARGETS) {
+      const srcBinary = join(serverDir, "bin", `linux-${wslGoarch}`, "multica");
+      await mkdir(dirname(srcBinary), { recursive: true });
+      console.log(
+        `[bundle-cli] go build ./cmd/multica → ${srcBinary} (linux/${wslGoarch}, version=${version} commit=${commit})`,
+      );
+      execFileSync(
+        "go",
+        ["build", "-ldflags", ldflags, "-o", srcBinary, "./cmd/multica"],
+        {
+          cwd: serverDir,
+          stdio: "inherit",
+          env: {
+            ...process.env,
+            CGO_ENABLED: "0",
+            GOOS: "linux",
+            GOARCH: wslGoarch,
+          },
+        },
+      );
+    }
+  }
 } else {
   console.warn(
     "[bundle-cli] `go` not found in PATH — skipping build. " +
@@ -177,6 +205,21 @@ if (!bundledAny) {
       "auto-installing at runtime.",
   );
   await rm(destDir, { recursive: true, force: true });
+}
+
+if (targetPlatform === "win32") {
+  for (const { goarch: wslGoarch, dir } of WSL_CLI_TARGETS) {
+    const srcBinary = join(serverDir, "bin", `linux-${wslGoarch}`, "multica");
+    if (!(await exists(srcBinary))) {
+      console.warn(`[bundle-cli] ${srcBinary} not present — skipping WSL CLI.`);
+      continue;
+    }
+    const destBinary = join(destDir, "wsl", dir, "multica");
+    await mkdir(dirname(destBinary), { recursive: true });
+    await copyFile(srcBinary, destBinary);
+    await chmod(destBinary, 0o755);
+    console.log(`[bundle-cli] bundled WSL CLI ${srcBinary} → ${destBinary}`);
+  }
 }
 
 // Bundle migration SQL files alongside the binaries so multica-migrate
