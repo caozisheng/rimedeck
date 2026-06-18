@@ -7,6 +7,7 @@ import { DagEdges } from "./dag-edges";
 import { DagNodeCard } from "./dag-node-card";
 import { useDagLayout } from "./use-dagre-layout";
 import { computeCriticalPath, getRelatedIds } from "./dag-graph-utils";
+import { useT } from "../../../i18n";
 
 interface DagGraphProps {
   issues: Issue[];
@@ -31,6 +32,7 @@ export function DagGraph({
   onExpandAll,
   onCollapseAll,
 }: DagGraphProps) {
+  const { t } = useT("issues");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -88,7 +90,7 @@ export function DagGraph({
   if (issues.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-        No issues to display
+        {t(($) => $.dag_view.no_issues)}
       </div>
     );
   }
@@ -138,13 +140,13 @@ export function DagGraph({
             className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
             onClick={() => { onExpandAll(); closeContextMenu(); }}
           >
-            Expand All
+            {t(($) => $.dag_view.expand_all)}
           </button>
           <button
             className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
             onClick={() => { onCollapseAll(); closeContextMenu(); }}
           >
-            Collapse All
+            {t(($) => $.dag_view.collapse_all)}
           </button>
         </div>
       )}

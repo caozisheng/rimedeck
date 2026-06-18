@@ -492,5 +492,25 @@
     "dont_show_again": "今後表示しない",
     "keep_in_backlog": "バックログのままにする",
     "move_to_todo": "未着手に移動"
+  },
+  "dag_view": {
+    "fit": "フィット",
+    "reset": "リセット",
+    "no_issues": "表示する Issue がありません",
+    "expand_all": "すべて展開",
+    "collapse_all": "すべて折りたたむ",
+    "blocked": "⛔ ブロック中",
+    "load_error": "依存グラフの読み込みに失敗しました",
+    "nav_title": "ナビゲーション",
+    "status": "ステータス",
+    "priority": "優先度",
+    "start": "開始",
+    "due": "期限",
+    "all_deps": "すべての依存関係 ({{count}})",
+    "go_to_issue": "Issue へ移動",
+    "timeline_title": "タイムライン",
+    "regression": "回帰",
+    "entries_count": "{{count}}件",
+    "seq_title": "ステータスフロー"
   }
 }

@@ -6,6 +6,7 @@ import { useActorName } from "@multica/core/workspace/hooks";
 import type { Issue, TimelineEntry } from "@multica/core/types";
 import { StatusIcon } from "../status-icon";
 import { buildPhases, formatDuration, STATUS_LABEL, type StatusPhase } from "./build-sequence";
+import { useT } from "../../../i18n";
 
 // ---------------------------------------------------------------------------
 // Format helpers
@@ -70,6 +71,7 @@ function PhaseRow({
   isLast: boolean;
   nextPhase?: StatusPhase;
 }) {
+  const { t } = useT("issues");
   const [expanded, setExpanded] = useState(isCurrent);
   const { getActorName } = useActorName();
   const actorName = getActorName(phase.actorType, phase.actorId) ?? phase.actorId.slice(0, 8);
@@ -134,7 +136,7 @@ function PhaseRow({
           <span className="text-xs font-medium">{STATUS_LABEL[phase.status] ?? phase.status}</span>
 
           {phase.isRegression && (
-            <span className="text-[10px] text-yellow-600 font-medium rounded bg-yellow-500/10 px-1">回退</span>
+            <span className="text-[10px] text-yellow-600 font-medium rounded bg-yellow-500/10 px-1">{t(($) => $.dag_view.regression)}</span>
           )}
 
           <span className="text-[10px] text-muted-foreground">
@@ -157,7 +159,7 @@ function PhaseRow({
                 </span>
               )}
               {activityCount > 0 && (
-                <span className="text-[10px] text-muted-foreground">{activityCount}条</span>
+                <span className="text-[10px] text-muted-foreground">{t(($) => $.dag_view.entries_count, { count: activityCount })}</span>
               )}
               {expanded ? <ChevronDown className="size-3 text-muted-foreground" /> : <ChevronRight className="size-3 text-muted-foreground" />}
             </div>

@@ -8,6 +8,7 @@ import { Button } from "@multica/ui/components/ui/button";
 import type { Issue } from "@multica/core/types";
 import { StatusIcon } from "../status-icon";
 import { PriorityIcon } from "../priority-icon";
+import { useT } from "../../../i18n";
 
 interface DagDetailPanelProps {
   issue: Issue;
@@ -49,6 +50,7 @@ export function DagDetailPanel({
   onNavigateToIssue,
 }: DagDetailPanelProps) {
   const wsId = useWorkspaceId();
+  const { t } = useT("issues");
   const qc = useQueryClient();
 
   const { data: deps } = useQuery({
@@ -84,14 +86,14 @@ export function DagDetailPanel({
         {/* Status & Priority */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <span className="text-xs text-muted-foreground block mb-1">Status</span>
+            <span className="text-xs text-muted-foreground block mb-1">{t(($) => $.dag_view.status)}</span>
             <div className="flex items-center gap-1.5">
               <StatusIcon status={issue.status} className="size-3.5" />
               <span className="capitalize">{issue.status.replace("_", " ")}</span>
             </div>
           </div>
           <div>
-            <span className="text-xs text-muted-foreground block mb-1">Priority</span>
+            <span className="text-xs text-muted-foreground block mb-1">{t(($) => $.dag_view.priority)}</span>
             <div className="flex items-center gap-1.5">
               <PriorityIcon priority={issue.priority} className="size-3.5" />
               <span className="capitalize">{issue.priority}</span>
@@ -104,13 +106,13 @@ export function DagDetailPanel({
           <div className="grid grid-cols-2 gap-3">
             {issue.start_date && (
               <div>
-                <span className="text-xs text-muted-foreground block mb-1">Start</span>
+                <span className="text-xs text-muted-foreground block mb-1">{t(($) => $.dag_view.start)}</span>
                 <span className="text-xs">{issue.start_date}</span>
               </div>
             )}
             {issue.due_date && (
               <div>
-                <span className="text-xs text-muted-foreground block mb-1">Due</span>
+                <span className="text-xs text-muted-foreground block mb-1">{t(($) => $.dag_view.due)}</span>
                 <span className="text-xs">{issue.due_date}</span>
               </div>
             )}
@@ -140,7 +142,7 @@ export function DagDetailPanel({
             {deps.raw.length > 0 && (
               <div className="space-y-1 border-t pt-2">
                 <span className="text-xs font-medium text-muted-foreground">
-                  All dependencies ({deps.raw.length})
+                  {t(($) => $.dag_view.all_deps, { count: deps.raw.length })}
                 </span>
                 {deps.raw.map((dep) => (
                   <div
@@ -176,7 +178,7 @@ export function DagDetailPanel({
           onClick={() => onNavigateToIssue?.(issue.id)}
         >
           <ExternalLink className="size-3.5" />
-          Go to Issue
+          {t(($) => $.dag_view.go_to_issue)}
         </Button>
       </div>
     </div>

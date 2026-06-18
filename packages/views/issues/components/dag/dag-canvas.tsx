@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, type WheelEvent, type PointerEvent, type ReactNode } from "react";
+import { useT } from "../../../i18n";
 
 interface DagCanvasProps {
   width: number;
@@ -17,6 +18,7 @@ const MAX_SCALE = 2;
  * Children are rendered inside a scaled/translated <g> element.
  */
 export function DagCanvas({ width, height, children, onContextMenu }: DagCanvasProps) {
+  const { t } = useT("issues");
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -95,13 +97,13 @@ export function DagCanvas({ width, height, children, onContextMenu }: DagCanvasP
           onClick={fitToView}
           className="rounded-md bg-card border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
         >
-          Fit
+          {t(($) => $.dag_view.fit)}
         </button>
         <button
           onClick={resetView}
           className="rounded-md bg-card border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
         >
-          Reset
+          {t(($) => $.dag_view.reset)}
         </button>
       </div>
 

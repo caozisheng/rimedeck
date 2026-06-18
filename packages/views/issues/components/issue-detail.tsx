@@ -1996,7 +1996,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
           <div className="my-8 border-t" />
 
-          <h2 className="text-base font-semibold mb-4">时间线</h2>
+          <h2 className="text-base font-semibold mb-4">{t(($) => $.dag_view.timeline_title)}</h2>
 
           {/* Unified status flow + activity timeline */}
           <IssueSequence issue={issue} timeline={timeline} />

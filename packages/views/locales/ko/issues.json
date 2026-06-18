@@ -510,5 +510,25 @@
     "dont_show_again": "다시 보지 않기",
     "keep_in_backlog": "백로그에 두기",
     "move_to_todo": "할 일로 이동"
+  },
+  "dag_view": {
+    "fit": "맞추기",
+    "reset": "초기화",
+    "no_issues": "표시할 이슈가 없습니다",
+    "expand_all": "모두 펼치기",
+    "collapse_all": "모두 접기",
+    "blocked": "⛔ 차단됨",
+    "load_error": "의존 그래프를 불러오지 못했습니다",
+    "nav_title": "탐색",
+    "status": "상태",
+    "priority": "우선순위",
+    "start": "시작",
+    "due": "마감",
+    "all_deps": "모든 의존 관계 ({{count}})",
+    "go_to_issue": "이슈로 이동",
+    "timeline_title": "타임라인",
+    "regression": "회귀",
+    "entries_count": "{{count}}건",
+    "seq_title": "상태 흐름"
   }
 }

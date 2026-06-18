@@ -10,6 +10,7 @@ import { useNavigation } from "../../../navigation";
 import { useActorName } from "@multica/core/workspace/hooks";
 import type { Issue, IssueDependency, IssueStatus } from "@multica/core/types";
 import { StatusIcon } from "../status-icon";
+import { useT } from "../../../i18n";
 
 // ---------------------------------------------------------------------------
 // Compact vertical dagre layout
@@ -255,6 +256,7 @@ interface IssueDagSidebarProps {
 
 export function IssueDagSidebar({ issue }: IssueDagSidebarProps) {
   const wsId = useWorkspaceId();
+  const { t } = useT("issues");
   const paths = useWorkspacePaths();
   const { push } = useNavigation();
 
@@ -288,7 +290,7 @@ export function IssueDagSidebar({ issue }: IssueDagSidebarProps) {
   return (
     <div className="flex flex-col h-full border-r bg-muted/10 shrink-0" style={{ width: 220, minWidth: 160, maxWidth: 400, resize: "horizontal", overflow: "hidden" }}>
       <div className="px-3 py-2 border-b shrink-0">
-        <span className="text-xs font-medium text-muted-foreground">导航</span>
+        <span className="text-xs font-medium text-muted-foreground">{t(($) => $.dag_view.nav_title)}</span>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         <MiniCanvas>

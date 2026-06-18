@@ -511,5 +511,25 @@
     "dont_show_again": "Don't show this again",
     "keep_in_backlog": "Keep in Backlog",
     "move_to_todo": "Move to Todo"
+  },
+  "dag_view": {
+    "fit": "Fit",
+    "reset": "Reset",
+    "no_issues": "No issues to display",
+    "expand_all": "Expand All",
+    "collapse_all": "Collapse All",
+    "blocked": "⛔ blocked",
+    "load_error": "Failed to load dependency graph",
+    "nav_title": "Navigation",
+    "status": "Status",
+    "priority": "Priority",
+    "start": "Start",
+    "due": "Due",
+    "all_deps": "All dependencies ({{count}})",
+    "go_to_issue": "Go to Issue",
+    "timeline_title": "Timeline",
+    "regression": "Regression",
+    "entries_count": "{{count}} entries",
+    "seq_title": "Status Flow"
   }
 }

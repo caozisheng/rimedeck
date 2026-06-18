@@ -497,5 +497,25 @@
     "dont_show_again": "不再提示",
     "keep_in_backlog": "保持在 Backlog",
     "move_to_todo": "移到 Todo"
+  },
+  "dag_view": {
+    "fit": "适应",
+    "reset": "重置",
+    "no_issues": "暂无 issue",
+    "expand_all": "全部展开",
+    "collapse_all": "全部折叠",
+    "blocked": "⛔ 已阻塞",
+    "load_error": "加载依赖图失败",
+    "nav_title": "导航",
+    "status": "状态",
+    "priority": "优先级",
+    "start": "开始",
+    "due": "截止",
+    "all_deps": "全部依赖 ({{count}})",
+    "go_to_issue": "前往 Issue",
+    "timeline_title": "时间线",
+    "regression": "回退",
+    "entries_count": "{{count}}条",
+    "seq_title": "状态流转"
   }
 }

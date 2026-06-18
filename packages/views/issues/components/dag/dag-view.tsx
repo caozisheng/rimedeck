@@ -9,6 +9,7 @@ import { useNavigation } from "../../../navigation";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import type { Issue, IssueDependency } from "@multica/core/types";
 import { DagGraph } from "./dag-graph";
+import { useT } from "../../../i18n";
 
 interface DagViewProps {
   projectId: string;
@@ -19,6 +20,7 @@ export function DagView({ projectId }: DagViewProps) {
   const paths = useWorkspacePaths();
   const { push } = useNavigation();
 
+  const { t } = useT("issues");
   // Set of parent issue IDs whose children are currently expanded
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
@@ -112,7 +114,7 @@ export function DagView({ projectId }: DagViewProps) {
   if (error || !data) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-destructive">
-        Failed to load dependency graph
+        {t(($) => $.dag_view.load_error)}
       </div>
     );
   }

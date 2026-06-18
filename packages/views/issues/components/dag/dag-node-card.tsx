@@ -7,6 +7,7 @@ import { useActorName } from "@multica/core/workspace/hooks";
 import { StatusIcon } from "../status-icon";
 import { PriorityIcon } from "../priority-icon";
 import type { DagNode } from "./use-dagre-layout";
+import { useT } from "../../../i18n";
 
 interface DagNodeCardProps {
   node: DagNode;
@@ -54,6 +55,7 @@ export const DagNodeCard = memo(function DagNodeCard({
   onMouseEnter,
   onMouseLeave,
 }: DagNodeCardProps) {
+  const { t } = useT("issues");
   const borderColor = STATUS_BORDER_COLORS[issue.status] ?? "border-border";
 
   return (
@@ -94,7 +96,7 @@ export const DagNodeCard = memo(function DagNodeCard({
             {/* Blocked indicator */}
             {issue.status === "blocked" && (
               <div className="mt-1 text-[10px] text-destructive font-medium">
-                ⛔ blocked
+                {t(($) => $.dag_view.blocked)}
               </div>
             )}
           </div>
