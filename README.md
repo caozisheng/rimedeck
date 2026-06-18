@@ -10,6 +10,9 @@ Multica's desktop app connects to a cloud backend. RimeDeck removes that depende
 
 <img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/116bf358-e8bb-4b0a-a3dd-c553a5a86222" /> 
 
+<img width="630" height="427" alt="image" src="https://github.com/user-attachments/assets/0811c125-5326-4d86-8ccc-b14c58cb6429" />
+
+
 ## Supported Runtimes
 
 RimeDeck supports 15 AI coding tools as agent runtimes. The daemon auto-detects installed tools on your machine during setup.
