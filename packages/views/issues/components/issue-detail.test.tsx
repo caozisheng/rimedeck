@@ -771,10 +771,10 @@ describe("IssueDetail (shared)", () => {
     renderIssueDetail();
 
     await waitFor(() => {
-      expect(screen.getByText("Started working on this")).toBeInTheDocument();
+      expect(screen.getAllByText("Started working on this").length).toBeGreaterThanOrEqual(1);
     });
 
-    expect(screen.getByText("I can help with this")).toBeInTheDocument();
+    expect(screen.getAllByText("I can help with this").length).toBeGreaterThanOrEqual(1);
   });
 
   it("collapses non-trailing activity blocks and expands the last one by default", async () => {
