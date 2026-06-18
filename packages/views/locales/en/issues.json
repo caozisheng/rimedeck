@@ -86,13 +86,15 @@
     "tooltip_swimlane": "Swimlane view",
     "tooltip_analytics": "Analytics view",
     "tooltip_calendar": "Calendar view",
+    "tooltip_dag": "DAG view",
     "section": "View",
     "board": "Board",
     "list": "List",
     "gantt": "Gantt",
     "swimlane": "Swimlane",
     "analytics": "Analytics",
-    "calendar": "Calendar"
+    "calendar": "Calendar",
+    "dag": "DAG"
   },
   "gantt": {
     "header_issue": "Issue",

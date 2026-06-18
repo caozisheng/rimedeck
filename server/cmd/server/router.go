@@ -441,6 +441,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/metadata/{key}", h.SetIssueMetadataKey)
 					r.Delete("/metadata/{key}", h.DeleteIssueMetadataKey)
 					r.Get("/pull-requests", h.ListPullRequestsForIssue)
+					r.Get("/dependencies", h.ListIssueDependencies)
+					r.Post("/dependencies", h.CreateIssueDependency)
+					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)
+					r.Get("/dependency-graph", h.GetParentDependencyGraph)
 				})
 			})
 
@@ -471,6 +475,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/resources", h.CreateProjectResource)
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
+					r.Get("/dependency-graph", h.GetProjectDependencyGraph)
 				})
 			})
 

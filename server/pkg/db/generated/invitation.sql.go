@@ -76,6 +76,47 @@ func (q *Queries) CreateInvitation(ctx context.Context, arg CreateInvitationPara
 	return i, err
 }
 
+const createInvitationWithCode = `-- name: CreateInvitationWithCode :one
+INSERT INTO workspace_invitation (workspace_id, inviter_id, invitee_email, invitee_user_id, role, invite_code)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code
+`
+
+type CreateInvitationWithCodeParams struct {
+	WorkspaceID   pgtype.UUID `json:"workspace_id"`
+	InviterID     pgtype.UUID `json:"inviter_id"`
+	InviteeEmail  string      `json:"invitee_email"`
+	InviteeUserID pgtype.UUID `json:"invitee_user_id"`
+	Role          string      `json:"role"`
+	InviteCode    pgtype.Text `json:"invite_code"`
+}
+
+func (q *Queries) CreateInvitationWithCode(ctx context.Context, arg CreateInvitationWithCodeParams) (WorkspaceInvitation, error) {
+	row := q.db.QueryRow(ctx, createInvitationWithCode,
+		arg.WorkspaceID,
+		arg.InviterID,
+		arg.InviteeEmail,
+		arg.InviteeUserID,
+		arg.Role,
+		arg.InviteCode,
+	)
+	var i WorkspaceInvitation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.InviterID,
+		&i.InviteeEmail,
+		&i.InviteeUserID,
+		&i.Role,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+		&i.InviteCode,
+	)
+	return i, err
+}
+
 const declineInvitation = `-- name: DeclineInvitation :one
 UPDATE workspace_invitation
 SET status = 'declined', updated_at = now()
@@ -132,6 +173,30 @@ WHERE id = $1
 
 func (q *Queries) GetInvitation(ctx context.Context, id pgtype.UUID) (WorkspaceInvitation, error) {
 	row := q.db.QueryRow(ctx, getInvitation, id)
+	var i WorkspaceInvitation
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.InviterID,
+		&i.InviteeEmail,
+		&i.InviteeUserID,
+		&i.Role,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ExpiresAt,
+		&i.InviteCode,
+	)
+	return i, err
+}
+
+const getPendingInvitationByCode = `-- name: GetPendingInvitationByCode :one
+SELECT id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code FROM workspace_invitation
+WHERE invite_code = $1 AND status = 'pending' AND expires_at > now()
+`
+
+func (q *Queries) GetPendingInvitationByCode(ctx context.Context, inviteCode pgtype.Text) (WorkspaceInvitation, error) {
+	row := q.db.QueryRow(ctx, getPendingInvitationByCode, inviteCode)
 	var i WorkspaceInvitation
 	err := row.Scan(
 		&i.ID,
@@ -317,69 +382,4 @@ WHERE id = $1 AND status = 'pending'
 func (q *Queries) RevokeInvitation(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, revokeInvitation, id)
 	return err
-}
-
-const createInvitationWithCode = `-- name: CreateInvitationWithCode :one
-INSERT INTO workspace_invitation (workspace_id, inviter_id, invitee_email, invitee_user_id, role, invite_code)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code
-`
-
-type CreateInvitationWithCodeParams struct {
-	WorkspaceID   pgtype.UUID `json:"workspace_id"`
-	InviterID     pgtype.UUID `json:"inviter_id"`
-	InviteeEmail  string      `json:"invitee_email"`
-	InviteeUserID pgtype.UUID `json:"invitee_user_id"`
-	Role          string      `json:"role"`
-	InviteCode    pgtype.Text `json:"invite_code"`
-}
-
-func (q *Queries) CreateInvitationWithCode(ctx context.Context, arg CreateInvitationWithCodeParams) (WorkspaceInvitation, error) {
-	row := q.db.QueryRow(ctx, createInvitationWithCode,
-		arg.WorkspaceID,
-		arg.InviterID,
-		arg.InviteeEmail,
-		arg.InviteeUserID,
-		arg.Role,
-		arg.InviteCode,
-	)
-	var i WorkspaceInvitation
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.InviterID,
-		&i.InviteeEmail,
-		&i.InviteeUserID,
-		&i.Role,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ExpiresAt,
-		&i.InviteCode,
-	)
-	return i, err
-}
-
-const getPendingInvitationByCode = `-- name: GetPendingInvitationByCode :one
-SELECT id, workspace_id, inviter_id, invitee_email, invitee_user_id, role, status, created_at, updated_at, expires_at, invite_code FROM workspace_invitation
-WHERE invite_code = $1 AND status = 'pending' AND expires_at > now()
-`
-
-func (q *Queries) GetPendingInvitationByCode(ctx context.Context, inviteCode string) (WorkspaceInvitation, error) {
-	row := q.db.QueryRow(ctx, getPendingInvitationByCode, inviteCode)
-	var i WorkspaceInvitation
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.InviterID,
-		&i.InviteeEmail,
-		&i.InviteeUserID,
-		&i.Role,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ExpiresAt,
-		&i.InviteCode,
-	)
-	return i, err
 }

@@ -1,6 +1,6 @@
 {
   "name": "@multica/mobile",
-  "version": "0.3.19",
+  "version": "0.4.4",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {

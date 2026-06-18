@@ -23,6 +23,7 @@ import {
   UserMinus,
   UserPen,
   Waves,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
 import {
@@ -1083,6 +1084,8 @@ export function IssueDisplayControls({
                           <Waves className="size-3.5" />
                         ) : viewMode === "gantt" && allowGantt ? (
                           <ChartGantt className="size-3.5" />
+                        ) : viewMode === "dag" && allowGantt ? (
+                          <Workflow className="size-3.5" />
                         ) : viewMode === "analytics" ? (
                           <ChartPie className="size-3.5" />
                         ) : viewMode === "calendar" ? (
@@ -1097,6 +1100,8 @@ export function IssueDisplayControls({
                             ? t(($) => $.view.swimlane)
                             : viewMode === "gantt" && allowGantt
                             ? t(($) => $.view.gantt)
+                            : viewMode === "dag" && allowGantt
+                            ? t(($) => $.view.dag)
                             : viewMode === "analytics"
                             ? t(($) => $.view.analytics)
                             : viewMode === "calendar"
@@ -1115,6 +1120,8 @@ export function IssueDisplayControls({
                   ? t(($) => $.view.tooltip_swimlane)
                   : viewMode === "gantt" && allowGantt
                   ? t(($) => $.view.tooltip_gantt)
+                  : viewMode === "dag" && allowGantt
+                  ? t(($) => $.view.tooltip_dag)
                   : viewMode === "analytics"
                   ? t(($) => $.view.tooltip_analytics)
                   : viewMode === "calendar"
@@ -1143,16 +1150,22 @@ export function IssueDisplayControls({
                   <CalendarDays />
                   {t(($) => $.view.calendar)}
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="analytics">
-                  <ChartPie />
-                  {t(($) => $.view.analytics)}
-                </DropdownMenuRadioItem>
+                {allowGantt && (
+                  <DropdownMenuRadioItem value="dag">
+                    <Workflow />
+                    {t(($) => $.view.dag)}
+                  </DropdownMenuRadioItem>
+                )}
                 {allowGantt && (
                   <DropdownMenuRadioItem value="gantt">
                     <ChartGantt />
                     {t(($) => $.view.gantt)}
                   </DropdownMenuRadioItem>
                 )}
+                <DropdownMenuRadioItem value="analytics">
+                  <ChartPie />
+                  {t(($) => $.view.analytics)}
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>

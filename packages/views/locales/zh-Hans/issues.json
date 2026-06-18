@@ -84,13 +84,15 @@
     "tooltip_swimlane": "泳道视图",
     "tooltip_analytics": "统计视图",
     "tooltip_calendar": "日历视图",
+    "tooltip_dag": "DAG 视图",
     "section": "视图",
     "board": "看板",
     "list": "列表",
     "gantt": "甘特图",
     "swimlane": "泳道",
     "analytics": "统计",
-    "calendar": "日历"
+    "calendar": "日历",
+    "dag": "DAG"
   },
   "gantt": {
     "header_issue": "Issue",

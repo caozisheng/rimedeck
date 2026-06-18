@@ -107,6 +107,10 @@ import type {
   BackupData,
   ImportResult,
   ServerInfoResponse,
+  IssueDependencyType,
+  IssueDependency,
+  DependencyGraphResponse,
+  IssueDependenciesResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import { type Logger, noopLogger } from "../logger";
@@ -1861,5 +1865,35 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify({ ...data, runtime_id: runtimeId, overwrite }),
     });
+  }
+
+  // Issue Dependencies
+
+  async createIssueDependency(
+    issueId: string,
+    data: { target_issue_id: string; dep_type: IssueDependencyType },
+  ): Promise<IssueDependency> {
+    return this.fetch(`/api/issues/${issueId}/dependencies`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteIssueDependency(issueId: string, depId: string): Promise<void> {
+    await this.fetch(`/api/issues/${issueId}/dependencies/${depId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async listIssueDependencies(issueId: string): Promise<IssueDependenciesResponse> {
+    return this.fetch(`/api/issues/${issueId}/dependencies`);
+  }
+
+  async getProjectDependencyGraph(projectId: string): Promise<DependencyGraphResponse> {
+    return this.fetch(`/api/projects/${projectId}/dependency-graph`);
+  }
+
+  async getIssueDependencyGraph(issueId: string): Promise<DependencyGraphResponse> {
+    return this.fetch(`/api/issues/${issueId}/dependency-graph`);
   }
 }

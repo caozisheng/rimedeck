@@ -590,7 +590,7 @@ func (h *Handler) RedeemInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inv, err := h.Queries.GetPendingInvitationByCode(r.Context(), code)
+	inv, err := h.Queries.GetPendingInvitationByCode(r.Context(), strToText(code))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "invitation not found or expired")
 		return

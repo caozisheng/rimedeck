@@ -84,13 +84,15 @@
     "tooltip_swimlane": "スイムレーン表示",
     "tooltip_analytics": "統計表示",
     "tooltip_calendar": "カレンダー表示",
+    "tooltip_dag": "DAG 表示",
     "section": "表示",
     "board": "ボード",
     "list": "リスト",
     "gantt": "ガント",
     "swimlane": "スイムレーン",
     "analytics": "統計",
-    "calendar": "カレンダー"
+    "calendar": "カレンダー",
+    "dag": "DAG"
   },
   "gantt": {
     "header_issue": "イシュー",

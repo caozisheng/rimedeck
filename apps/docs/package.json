@@ -1,6 +1,6 @@
 {
   "name": "@multica/docs",
-  "version": "0.3.19",
+  "version": "0.4.4",
   "private": true,
   "type": "module",
   "scripts": {

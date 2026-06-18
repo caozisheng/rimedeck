@@ -86,6 +86,8 @@ import { cn } from "@multica/ui/lib/utils";
 import { ProgressRing } from "./progress-ring";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 import { useT } from "../../i18n";
+import { IssueDagSidebar } from "./dag/issue-dag-sidebar";
+import { IssueSequence } from "./seq/issue-sequence";
 
 function SubscriberPopoverContent({
   members,
@@ -1808,10 +1810,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           }
         />
 
+        <div className="flex flex-1 min-h-0">
+        {issue.project_id && <IssueDagSidebar issue={issue} />}
         <div
           ref={setScrollContainerEl}
           data-tab-scroll-root
-          className="relative flex-1 overflow-y-auto"
+          className="relative flex-1 min-w-0 overflow-y-auto"
         >
         <div className="mx-auto w-full max-w-4xl px-8 py-8">
           <TitleEditor
@@ -1992,6 +1996,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
           <div className="my-8 border-t" />
 
+          <h2 className="text-base font-semibold mb-4">时间线</h2>
+
+          {/* Unified status flow + activity timeline */}
+          <IssueSequence issue={issue} timeline={timeline} />
+
+          <div className="mt-6" />
           {/* Activity / Comments */}
           <div>
             <div className="flex items-center justify-between">
@@ -2123,6 +2133,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           </div>
         </div>
         </div>
+        </div>
       </div>
   );
 
@@ -2141,7 +2152,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="flex-1 min-h-0" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
-      <ResizablePanel id="content" minSize="50%">
+      <ResizablePanel id="content" minSize="40%">
         {detailContent}
       </ResizablePanel>
       <ResizableHandle />

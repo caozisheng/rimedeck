@@ -56,3 +56,27 @@ export interface Issue {
   created_at: string;
   updated_at: string;
 }
+
+export type IssueDependencyType = "blocks" | "relates_to" | "parent";
+
+export interface IssueDependency {
+  id: string;
+  workspace_id: string;
+  issue_id: string;
+  depends_on_issue_id: string;
+  dep_type: IssueDependencyType;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface DependencyGraphResponse {
+  nodes: Issue[];
+  edges: IssueDependency[];
+}
+
+export interface IssueDependenciesResponse {
+  blocks: Issue[];
+  blocked_by: Issue[];
+  relates_to: Issue[];
+  raw: IssueDependency[];
+}

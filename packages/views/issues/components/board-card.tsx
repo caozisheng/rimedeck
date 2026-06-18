@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, memo } from "react";
-import { AppLink } from "../../navigation";
+import { AppLink, useNavigation } from "../../navigation";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -78,6 +78,7 @@ export const BoardCardContent = memo(function BoardCardContent({
   const swimlaneGrouping = useViewStore((s) => s.swimlaneGrouping);
   const wsId = useWorkspaceId();
   const paths = useWorkspacePaths();
+  const { push } = useNavigation();
   const { data: projects = [] } = useQuery({
     ...projectListOptions(wsId),
     enabled: storeProperties.project && !!issue.project_id,
@@ -221,16 +222,16 @@ export const BoardCardContent = memo(function BoardCardContent({
       {(showParentBadge || showProject || showLabels) && (
         <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
           {showParentBadge && (
-            <AppLink
-              href={paths.issueDetail(issue.parent_issue_id!)}
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={(e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); push(paths.issueDetail(issue.parent_issue_id!)); }}
               onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
               onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
               className="inline-flex items-center gap-0.5 rounded-full bg-muted/60 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors max-w-[120px]"
             >
               <CornerLeftUp className="size-2.5 shrink-0" />
               <span className="truncate">{parentIdentifier ?? "..."}</span>
-            </AppLink>
+            </button>
           )}
           {showProject && (
             <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-1.5 py-0.5 text-[11px] text-muted-foreground max-w-[160px]">

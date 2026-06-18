@@ -86,13 +86,15 @@
     "tooltip_swimlane": "스윔레인 보기",
     "tooltip_analytics": "통계 보기",
     "tooltip_calendar": "캘린더 보기",
+    "tooltip_dag": "DAG 보기",
     "section": "보기",
     "board": "보드",
     "list": "리스트",
     "gantt": "간트",
     "swimlane": "스윔레인",
     "analytics": "통계",
-    "calendar": "캘린더"
+    "calendar": "캘린더",
+    "dag": "DAG"
   },
   "gantt": {
     "header_issue": "이슈",
