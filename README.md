@@ -10,6 +10,8 @@ Multica's desktop app connects to a cloud backend. RimeDeck removes that depende
 
 <img width="630" height="400" alt="image" src="https://github.com/user-attachments/assets/116bf358-e8bb-4b0a-a3dd-c553a5a86222" /> 
 
+<img width="630" height="427" alt="image" src="https://github.com/user-attachments/assets/e8f5227a-eaff-443e-a611-799f8722a0fa" />
+
 <img width="630" height="427" alt="image" src="https://github.com/user-attachments/assets/0811c125-5326-4d86-8ccc-b14c58cb6429" />
 
 
