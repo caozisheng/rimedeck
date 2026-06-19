@@ -30,6 +30,7 @@ type AutopilotService struct {
 	TxStarter TxStarter
 	Bus       *events.Bus
 	TaskSvc   *TaskService
+	WorkflowSvc *WorkflowService
 }
 
 // DefaultAutopilotTriggerTimezone is the timezone used to render Autopilot
@@ -84,6 +85,25 @@ func (s *AutopilotService) DispatchAutopilot(
 		return nil, fmt.Errorf("create run: %w", err)
 	}
 	s.captureAutopilotRunStarted(autopilot, run, source)
+	// Workflow dispatch: if the autopilot specifies a workflow_id,
+	// execute via the workflow engine instead of coding agent.
+	if autopilot.WorkflowID.Valid && s.WorkflowSvc != nil {
+		wfRun, err := s.WorkflowSvc.TriggerRun(ctx, TriggerRunParams{
+			WorkflowID:     autopilot.WorkflowID,
+			WorkspaceID:    autopilot.WorkspaceID,
+			AgentID:        autopilot.AssigneeID,
+			Source:         "autopilot",
+			Input:          payload,
+			TriggeredBy:    triggerID,
+			AutopilotRunID: run.ID,
+		})
+		if err != nil {
+			s.failRun(ctx, run.ID, "workflow dispatch: "+err.Error())
+			return &run, fmt.Errorf("dispatch workflow: %w", err)
+		}
+		_ = wfRun // run is tracked by WorkflowService
+		return &run, nil
+	}
 
 	switch autopilot.ExecutionMode {
 	case "create_issue":

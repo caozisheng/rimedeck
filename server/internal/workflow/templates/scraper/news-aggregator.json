@@ -1,0 +1,80 @@
+{
+  "ruleChain": {
+    "id": "news-aggregator",
+    "name": "News Aggregator",
+    "configuration": {
+      "category": "scraper"
+    },
+    "additionalInfo": {
+      "description": "Aggregate news from multiple RSS sources, generate AI-powered summaries, and format them into a readable digest.",
+      "icon": "📰",
+      "inputSchema": [
+        {
+          "name": "feed_url",
+          "type": "string",
+          "required": true,
+          "description": "The RSS feed URL to aggregate news from"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "firstNodeIndex": 0,
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "rssFetch",
+        "name": "抓取多源新闻",
+        "configuration": {
+          "url": "${feed_url}",
+          "maxItems": 30,
+          "timeoutMs": 15000
+        },
+        "additionalInfo": {
+          "description": "Fetch the latest news items from the RSS feed",
+          "layoutX": 100,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n2",
+        "type": "agentLLM",
+        "name": "摘要",
+        "configuration": {
+          "prompt": "You are a news editor. Summarize the following news articles into a concise daily digest.\n\nFor each article, provide:\n1. A one-line headline\n2. A 2-3 sentence summary\n3. A relevance tag (e.g., Technology, Business, Industry, Policy)\n\nGroup articles by their relevance tag. At the top, include a \"Top Stories\" section with the 3 most important articles.\n\nArticles:\n${msg}",
+          "model": "default"
+        },
+        "additionalInfo": {
+          "description": "Generate AI-powered summaries of news articles",
+          "layoutX": 350,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n3",
+        "type": "jsTransform",
+        "name": "排版",
+        "configuration": {
+          "jsScript": "var content = msg;\nvar header = '# Daily News Digest\\n';\nheader += '> Generated on ' + new Date().toISOString().split('T')[0] + '\\n\\n';\nheader += '---\\n\\n';\nmsg = header + content + '\\n\\n---\\n*This digest was automatically generated from RSS feeds.*';\nreturn {'msg': msg, 'metadata': metadata, 'msgType': msgType};"
+        },
+        "additionalInfo": {
+          "description": "Format the digest with headers, dates, and styling",
+          "layoutX": 600,
+          "layoutY": 200
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromId": "n1",
+        "toId": "n2",
+        "type": "Success"
+      },
+      {
+        "fromId": "n2",
+        "toId": "n3",
+        "type": "Success"
+      }
+    ]
+  }
+}

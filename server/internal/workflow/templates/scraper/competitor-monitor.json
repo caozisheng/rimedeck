@@ -1,0 +1,99 @@
+{
+  "ruleChain": {
+    "id": "competitor-monitor",
+    "name": "Competitor Monitor",
+    "configuration": {
+      "category": "scraper"
+    },
+    "additionalInfo": {
+      "description": "Monitor competitor RSS feeds for significant changes, analyze updates with AI, and generate reports when noteworthy changes are detected.",
+      "icon": "🔍",
+      "inputSchema": [
+        {
+          "name": "feed_url",
+          "type": "string",
+          "required": true,
+          "description": "The RSS feed URL of the competitor to monitor"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "firstNodeIndex": 0,
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "rssFetch",
+        "name": "抓取竞品RSS",
+        "configuration": {
+          "url": "${feed_url}",
+          "maxItems": 20,
+          "timeoutMs": 15000
+        },
+        "additionalInfo": {
+          "description": "Fetch the latest items from the competitor's RSS feed",
+          "layoutX": 100,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n2",
+        "type": "agentLLM",
+        "name": "分析变化",
+        "configuration": {
+          "prompt": "You are a competitive intelligence analyst. Analyze the following RSS feed items from a competitor and identify significant changes.\n\nFor each item, evaluate:\n1. Is this a major product launch or feature update?\n2. Is this a pricing change?\n3. Is this a strategic partnership or acquisition?\n4. Is this a significant hiring or organizational change?\n\nReturn a JSON object with:\n- \"has_significant_changes\": true/false\n- \"significance_score\": 1-10 (10 being most significant)\n- \"changes\": [{\"title\": \"...\", \"category\": \"...\", \"impact\": \"...\", \"summary\": \"...\"}]\n- \"executive_summary\": a brief paragraph for leadership\n\nFeed items:\n${msg}",
+          "model": "default"
+        },
+        "additionalInfo": {
+          "description": "Analyze feed items for significant competitive changes",
+          "layoutX": 350,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n3",
+        "type": "jsFilter",
+        "name": "有重大变化?",
+        "configuration": {
+          "jsScript": "try { var data = JSON.parse(msg); return data.has_significant_changes === true && data.significance_score >= 5; } catch(e) { return msg.length > 100; }"
+        },
+        "additionalInfo": {
+          "description": "Filter: only proceed if significant changes were detected (score >= 5)",
+          "layoutX": 600,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n4",
+        "type": "docGenerate",
+        "name": "生成报告",
+        "configuration": {
+          "format": "markdown",
+          "filename": "competitor-report-${date}"
+        },
+        "additionalInfo": {
+          "description": "Generate a competitive intelligence report",
+          "layoutX": 850,
+          "layoutY": 200
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromId": "n1",
+        "toId": "n2",
+        "type": "Success"
+      },
+      {
+        "fromId": "n2",
+        "toId": "n3",
+        "type": "Success"
+      },
+      {
+        "fromId": "n3",
+        "toId": "n4",
+        "type": "True"
+      }
+    ]
+  }
+}

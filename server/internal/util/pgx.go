@@ -138,6 +138,16 @@ func UUIDToPtr(u pgtype.UUID) *string {
 	return &s
 }
 
+// PtrToUUID converts a *string UUID to pgtype.UUID. Nil or empty input
+// returns an invalid (NULL) UUID. Panics on malformed input — callers must
+// validate at the request boundary before calling this.
+func PtrToUUID(s *string) pgtype.UUID {
+	if s == nil || *s == "" {
+		return pgtype.UUID{}
+	}
+	return MustParseUUID(*s)
+}
+
 func Int8ToPtr(v pgtype.Int8) *int64 {
 	if !v.Valid {
 		return nil

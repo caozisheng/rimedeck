@@ -18,6 +18,7 @@
     "agents": "Agents",
     "runtimes": "Runtimes",
     "skills": "Skills",
+    "workflows": "Workflows",
     "settings": "Settings"
   },
   "commands": {

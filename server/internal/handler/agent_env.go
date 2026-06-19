@@ -237,6 +237,12 @@ func (h *Handler) UpdateAgentEnv(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load agent skills")
 		return
 	}
+	if err := h.attachAgentWorkflows(r.Context(), &resp, updated.ID); err != nil {
+		slog.Warn("load agent workflows after env update failed",
+			append(logger.RequestAttrs(r), "error", err, "agent_id", uuidToString(updated.ID))...)
+		writeError(w, http.StatusInternalServerError, "failed to load agent workflows")
+		return
+	}
 	workspaceID := uuidToString(updated.WorkspaceID)
 	h.publish(protocol.EventAgentStatus, workspaceID, "member", uuidToString(member.UserID), map[string]any{"agent": broadcastAgentResponse(resp)})
 

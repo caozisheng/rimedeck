@@ -91,6 +91,7 @@ type Handler struct {
 	Bus                   *events.Bus
 	TaskService           *service.TaskService
 	AutopilotService      *service.AutopilotService
+	WorkflowService      *service.WorkflowService
 	EmailService          *service.EmailService
 	UpdateStore           UpdateStore
 	ModelListStore        ModelListStore
@@ -181,6 +182,7 @@ func timestampToString(t pgtype.Timestamptz) string { return util.TimestampToStr
 func timestampToPtr(t pgtype.Timestamptz) *string   { return util.TimestampToPtr(t) }
 func dateToPtr(d pgtype.Date) *string               { return util.DateToPtr(d) }
 func uuidToPtr(u pgtype.UUID) *string               { return util.UUIDToPtr(u) }
+func ptrToUUID(s *string) pgtype.UUID               { return util.PtrToUUID(s) }
 func int8ToPtr(v pgtype.Int8) *int64                { return util.Int8ToPtr(v) }
 
 // parseUUIDOrBadRequest validates a UUID string sourced from user input

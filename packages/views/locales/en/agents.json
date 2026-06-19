@@ -146,6 +146,7 @@
     "section_properties": "Properties",
     "section_details": "Details",
     "section_skills": "Skills",
+    "section_workflows": "Workflows",
     "prop_runtime": "Runtime",
     "prop_model": "Model",
     "prop_thinking": "Thinking",
@@ -168,6 +169,10 @@
   },
   "skill_attach": {
     "trigger_aria": "Attach a workspace skill",
+    "trigger_label": "Attach"
+  },
+  "workflow_attach": {
+    "trigger_aria": "Attach a workflow",
     "trigger_label": "Attach"
   },
   "pickers": {
@@ -211,6 +216,7 @@
     "tasks": "Tasks",
     "instructions": "Instructions",
     "skills": "Skills",
+    "workflows": "Workflows",
     "environment": "Environment",
     "custom_args": "Custom Args",
     "mcp_config": "MCP",
@@ -466,5 +472,18 @@
     "runtime_offline": "Daemon offline",
     "runtime_recovery": "Daemon restarted",
     "manual": "Cancelled by user"
+  },
+  "workflows": {
+    "intro": "Workflows attached to this agent use its model, instructions, and skills for LLM nodes.",
+    "add_action": "Attach",
+    "empty_title": "No workflows attached",
+    "empty_hint": "Attach a workflow to let this agent execute it. The agent's model and skills will be used for all LLM nodes.",
+    "detach_aria": "Detach workflow",
+    "detach_success_toast": "Workflow detached",
+    "detach_failed_toast": "Failed to detach workflow",
+    "attach_dialog_title": "Attach Workflow",
+    "attach_dialog_empty": "No workflows available to attach.",
+    "attach_success_toast": "Workflow attached",
+    "attach_failed_toast": "Failed to attach workflow"
   }
 }

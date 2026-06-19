@@ -1,0 +1,98 @@
+{
+  "ruleChain": {
+    "id": "lead-enrichment",
+    "name": "Lead Enrichment Pipeline",
+    "configuration": {
+      "category": "sales"
+    },
+    "additionalInfo": {
+      "description": "Read lead data from a CSV spreadsheet, enrich each lead via an external API, score them with AI, and output the enriched results to a new CSV.",
+      "icon": "🎯",
+      "inputSchema": []
+    }
+  },
+  "metadata": {
+    "firstNodeIndex": 0,
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "spreadsheet",
+        "name": "读取CSV",
+        "configuration": {
+          "operation": "read",
+          "format": "csv",
+          "hasHeader": true
+        },
+        "additionalInfo": {
+          "description": "Read lead data from the input CSV file",
+          "layoutX": 100,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n2",
+        "type": "restApiCall",
+        "name": "调用enrichment API",
+        "configuration": {
+          "restEndpointUrlPattern": "https://api.example.com/enrich",
+          "requestMethod": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "readTimeoutMs": 30000
+        },
+        "additionalInfo": {
+          "description": "Call external enrichment API to augment lead data with company info, social profiles, etc.",
+          "layoutX": 350,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n3",
+        "type": "agentLLM",
+        "name": "评分",
+        "configuration": {
+          "prompt": "You are a sales lead scoring expert. Analyze the following enriched lead data and assign a quality score.\n\nFor each lead, evaluate:\n1. Company size and revenue (if available)\n2. Industry fit\n3. Job title seniority\n4. Technology stack alignment\n5. Recent funding or growth signals\n\nReturn a JSON array where each lead has the original fields plus:\n- \"lead_score\": integer 1-100\n- \"score_reasoning\": brief explanation\n- \"priority\": \"hot\", \"warm\", or \"cold\"\n- \"recommended_action\": suggested next step\n\nLead data:\n${msg}",
+          "model": "default"
+        },
+        "additionalInfo": {
+          "description": "Use AI to score and prioritize each lead",
+          "layoutX": 600,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n4",
+        "type": "spreadsheet",
+        "name": "输出CSV",
+        "configuration": {
+          "operation": "write",
+          "format": "csv",
+          "filename": "enriched-leads-${date}"
+        },
+        "additionalInfo": {
+          "description": "Write the enriched and scored leads to a new CSV file",
+          "layoutX": 850,
+          "layoutY": 200
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromId": "n1",
+        "toId": "n2",
+        "type": "Success"
+      },
+      {
+        "fromId": "n2",
+        "toId": "n3",
+        "type": "Success"
+      },
+      {
+        "fromId": "n3",
+        "toId": "n4",
+        "type": "Success"
+      }
+    ]
+  }
+}

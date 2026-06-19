@@ -1,0 +1,105 @@
+{
+  "ruleChain": {
+    "id": "price-tracker",
+    "name": "Price Tracker",
+    "configuration": {
+      "category": "scraper"
+    },
+    "additionalInfo": {
+      "description": "Scrape product pages for price information, detect price changes, and send email notifications when prices drop.",
+      "icon": "💰",
+      "inputSchema": [
+        {
+          "name": "url",
+          "type": "string",
+          "required": true,
+          "description": "The product page URL to scrape for price data"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": true,
+          "description": "Email address to send price change notifications to"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "firstNodeIndex": 0,
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "webScrape",
+        "name": "抓取商品页",
+        "configuration": {
+          "url": "${url}",
+          "selector": "body",
+          "timeoutMs": 15000
+        },
+        "additionalInfo": {
+          "description": "Scrape the product page HTML content",
+          "layoutX": 100,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n2",
+        "type": "jsTransform",
+        "name": "提取价格",
+        "configuration": {
+          "jsScript": "var html = msg;\nvar priceMatch = html.match(/[\\$¥€£]\\s*([\\d,]+\\.?\\d*)/)\n  || html.match(/price[\"']?\\s*[:=]\\s*[\"']?([\\d,]+\\.?\\d*)/);\nvar result = {\n  product_url: metadata.url || '',\n  current_price: priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : null,\n  currency: html.match(/[\\$¥€£]/) ? html.match(/[\\$¥€£]/)[0] : 'USD',\n  scraped_at: new Date().toISOString(),\n  previous_price: metadata.previous_price ? parseFloat(metadata.previous_price) : null\n};\nif (result.current_price && result.previous_price) {\n  result.price_changed = result.current_price !== result.previous_price;\n  result.price_diff = result.current_price - result.previous_price;\n  result.price_diff_pct = ((result.price_diff / result.previous_price) * 100).toFixed(2);\n} else {\n  result.price_changed = false;\n}\nmsg = JSON.stringify(result);\nreturn {'msg': msg, 'metadata': metadata, 'msgType': msgType};"
+        },
+        "additionalInfo": {
+          "description": "Extract price data from the scraped HTML content",
+          "layoutX": 350,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n3",
+        "type": "jsFilter",
+        "name": "价格变化?",
+        "configuration": {
+          "jsScript": "try { var data = JSON.parse(msg);\nreturn data.price_changed === true; } catch(e) { return msg.length > 50; }"
+        },
+        "additionalInfo": {
+          "description": "Filter: only proceed if the price has changed",
+          "layoutX": 600,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n4",
+        "type": "sendEmail",
+        "name": "通知",
+        "configuration": {
+          "to": "${email}",
+          "subject": "Price Alert: Price changed for tracked product",
+          "body": "Price change detected!\n\nProduct: ${url}\nPrevious price: ${previous_price}\nCurrent price: ${current_price}\nChange: ${price_diff_pct}%\n\nScraped at: ${scraped_at}"
+        },
+        "additionalInfo": {
+          "description": "Send email notification about the price change",
+          "layoutX": 850,
+          "layoutY": 200
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromId": "n1",
+        "toId": "n2",
+        "type": "Success"
+      },
+      {
+        "fromId": "n2",
+        "toId": "n3",
+        "type": "Success"
+      },
+      {
+        "fromId": "n3",
+        "toId": "n4",
+        "type": "True"
+      }
+    ]
+  }
+}

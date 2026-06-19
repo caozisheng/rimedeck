@@ -1,0 +1,84 @@
+{
+  "ruleChain": {
+    "id": "weekly-report",
+    "name": "Weekly Report Generator",
+    "configuration": {
+      "category": "document"
+    },
+    "additionalInfo": {
+      "description": "Pull task data from an API endpoint and use AI to generate a structured weekly report in Markdown format.",
+      "icon": "📊",
+      "inputSchema": [
+        {
+          "name": "api_url",
+          "type": "string",
+          "required": true,
+          "description": "The API endpoint to fetch task/project data from"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "firstNodeIndex": 0,
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "restApiCall",
+        "name": "拉取任务API",
+        "configuration": {
+          "restEndpointUrlPattern": "${api_url}",
+          "requestMethod": "GET",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "readTimeoutMs": 10000
+        },
+        "additionalInfo": {
+          "description": "Fetch task and project data from the configured API",
+          "layoutX": 100,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n2",
+        "type": "agentLLM",
+        "name": "总结生成周报",
+        "configuration": {
+          "prompt": "You are a project manager assistant. Based on the following task data, generate a professional weekly report in Markdown format.\n\nInclude these sections:\n1. **Summary** - A brief overview of progress this week\n2. **Completed Tasks** - List tasks that were finished\n3. **In Progress** - Tasks currently being worked on\n4. **Blockers** - Any issues preventing progress\n5. **Next Week Plan** - Planned work for next week\n\nTask data:\n${msg}",
+          "model": "default"
+        },
+        "additionalInfo": {
+          "description": "Use LLM to summarize task data into a structured weekly report",
+          "layoutX": 350,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n3",
+        "type": "docGenerate",
+        "name": "输出markdown",
+        "configuration": {
+          "format": "markdown",
+          "filename": "weekly-report-${date}"
+        },
+        "additionalInfo": {
+          "description": "Generate the final Markdown document",
+          "layoutX": 600,
+          "layoutY": 200
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromId": "n1",
+        "toId": "n2",
+        "type": "Success"
+      },
+      {
+        "fromId": "n2",
+        "toId": "n3",
+        "type": "Success"
+      }
+    ]
+  }
+}

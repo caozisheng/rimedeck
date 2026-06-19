@@ -62,6 +62,7 @@ type AgentResponse struct {
 	ThinkingLevel string              `json:"thinking_level"`
 	OwnerID       *string             `json:"owner_id"`
 	Skills        []AgentSkillSummary `json:"skills"`
+	Workflows     []AgentWorkflowSummary `json:"workflows"`
 	CreatedAt     string              `json:"created_at"`
 	UpdatedAt     string              `json:"updated_at"`
 	ArchivedAt    *string             `json:"archived_at"`
@@ -570,6 +571,25 @@ func (h *Handler) ListAgents(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Batch-load workflows for all agents to avoid N+1.
+	workflowRows, err := h.Queries.ListAgentWorkflowsByWorkspace(r.Context(), parseUUID(workspaceID))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load agent workflows")
+		return
+	}
+	workflowMap := map[string][]AgentWorkflowSummary{}
+	for _, row := range workflowRows {
+		agentID := uuidToString(row.AgentID)
+		workflowMap[agentID] = append(workflowMap[agentID], AgentWorkflowSummary{
+			ID:          uuidToString(row.ID),
+			Name:        row.Name,
+			Description: row.Description,
+			Icon:        row.Icon,
+			Category:    row.Category,
+			Status:      row.Status,
+		})
+	}
+
 	// mcp_config still uses the workspace-level always-redact setting and
 	// the per-row owner/admin gate — secrets in MCP server configs follow
 	// the same exposure rules as custom_env used to. custom_env itself is
@@ -597,6 +617,9 @@ func (h *Handler) ListAgents(w http.ResponseWriter, r *http.Request) {
 		resp := agentToResponse(a)
 		if skills, ok := skillMap[resp.ID]; ok {
 			resp.Skills = skills
+		}
+		if workflows, ok := workflowMap[resp.ID]; ok {
+			resp.Workflows = workflows
 		}
 		// Agent actors NEVER see mcp_config secrets, even when their host's
 		// PAT would normally satisfy the owner/admin role gate. Otherwise an
@@ -635,6 +658,10 @@ func (h *Handler) GetAgent(w http.ResponseWriter, r *http.Request) {
 	// in #2174.
 	if err := h.attachAgentSkills(r.Context(), &resp, agent.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load agent skills")
+		return
+	}
+	if err := h.attachAgentWorkflows(r.Context(), &resp, agent.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load agent workflows")
 		return
 	}
 
@@ -1197,6 +1224,11 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load agent skills")
 		return
 	}
+	if err := h.attachAgentWorkflows(r.Context(), &resp, updated.ID); err != nil {
+		slog.Warn("load agent workflows after update failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+		writeError(w, http.StatusInternalServerError, "failed to load agent workflows")
+		return
+	}
 	slog.Info("agent updated", append(logger.RequestAttrs(r), "agent_id", id, "workspace_id", uuidToString(updated.WorkspaceID))...)
 	userID := requestUserID(r)
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(updated.WorkspaceID))
@@ -1226,6 +1258,31 @@ func (h *Handler) attachAgentSkills(ctx context.Context, resp *AgentResponse, ag
 		}
 	}
 	resp.Skills = out
+	return nil
+}
+
+// attachAgentWorkflows populates resp.Workflows from the agent_workflow
+// junction table for the given agent. Mirrors attachAgentSkills.
+func (h *Handler) attachAgentWorkflows(ctx context.Context, resp *AgentResponse, agentID pgtype.UUID) error {
+	rows, err := h.Queries.ListAgentWorkflows(ctx, agentID)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	out := make([]AgentWorkflowSummary, len(rows))
+	for i, w := range rows {
+		out[i] = AgentWorkflowSummary{
+			ID:          uuidToString(w.ID),
+			Name:        w.Name,
+			Description: w.Description,
+			Icon:        w.Icon,
+			Category:    w.Category,
+			Status:      w.Status,
+		}
+	}
+	resp.Workflows = out
 	return nil
 }
 
@@ -1287,6 +1344,11 @@ func (h *Handler) ArchiveAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load agent skills")
 		return
 	}
+	if err := h.attachAgentWorkflows(r.Context(), &resp, archived.ID); err != nil {
+		slog.Warn("load agent workflows after archive failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+		writeError(w, http.StatusInternalServerError, "failed to load agent workflows")
+		return
+	}
 	actorType, actorID := h.resolveActor(r, userID, wsID)
 	h.publish(protocol.EventAgentArchived, wsID, actorType, actorID, map[string]any{"agent": broadcastAgentResponse(resp)})
 	redactAgentResponseForActor(&resp, actorType)
@@ -1320,6 +1382,11 @@ func (h *Handler) RestoreAgent(w http.ResponseWriter, r *http.Request) {
 	if err := h.attachAgentSkills(r.Context(), &resp, restored.ID); err != nil {
 		slog.Warn("load agent skills after restore failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
 		writeError(w, http.StatusInternalServerError, "failed to load agent skills")
+		return
+	}
+	if err := h.attachAgentWorkflows(r.Context(), &resp, restored.ID); err != nil {
+		slog.Warn("load agent workflows after restore failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+		writeError(w, http.StatusInternalServerError, "failed to load agent workflows")
 		return
 	}
 	userID := requestUserID(r)

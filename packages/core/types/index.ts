@@ -23,6 +23,7 @@ export type {
   Skill,
   SkillSummary,
   AgentSkillSummary,
+  AgentWorkflowSummary,
   SkillFile,
   CreateSkillRequest,
   UpdateSkillRequest,
@@ -157,3 +158,4 @@ export type {
   ImportResultCounts,
   ImportRequest,
 } from "./backup";
+export type { Workflow, WorkflowSummary, WorkflowStatus, WorkflowRun, WorkflowRunStatus, WorkflowNodeExecution, WorkflowTemplate, ImportWarning, WorkflowStats } from "./workflow";

@@ -1,0 +1,92 @@
+{
+  "templates": [
+    {
+      "id": "weekly-report",
+      "name": "Weekly Report Generator",
+      "name_zh": "周报生成器",
+      "category": "document",
+      "description": "Pull task data from an API and generate a structured weekly report",
+      "description_zh": "从任务API拉取数据，AI生成结构化周报",
+      "node_count": 3,
+      "tags": ["report", "document", "scheduled"],
+      "file": "document/weekly-report.json"
+    },
+    {
+      "id": "meeting-minutes",
+      "name": "Meeting Minutes Generator",
+      "name_zh": "会议纪要生成器",
+      "category": "document",
+      "description": "Process meeting transcripts to extract action items and generate formatted minutes",
+      "description_zh": "处理会议记录，提取待办事项并生成格式化纪要",
+      "node_count": 3,
+      "tags": ["meeting", "document", "ai"],
+      "file": "document/meeting-minutes.json"
+    },
+    {
+      "id": "competitor-monitor",
+      "name": "Competitor Monitor",
+      "name_zh": "竞品监控",
+      "category": "scraper",
+      "description": "Monitor competitor RSS feeds and generate reports on significant changes",
+      "description_zh": "监控竞品RSS源，检测重大变化时生成分析报告",
+      "node_count": 4,
+      "tags": ["monitoring", "competitive-intelligence", "rss"],
+      "file": "scraper/competitor-monitor.json"
+    },
+    {
+      "id": "news-aggregator",
+      "name": "News Aggregator",
+      "name_zh": "新闻聚合器",
+      "category": "scraper",
+      "description": "Aggregate news from RSS sources and generate AI-powered summaries",
+      "description_zh": "从RSS源聚合新闻，AI生成摘要与排版",
+      "node_count": 3,
+      "tags": ["news", "rss", "digest"],
+      "file": "scraper/news-aggregator.json"
+    },
+    {
+      "id": "price-tracker",
+      "name": "Price Tracker",
+      "name_zh": "价格追踪器",
+      "category": "scraper",
+      "description": "Scrape product pages for price changes and send email notifications",
+      "description_zh": "抓取商品页面价格变化，邮件通知提醒",
+      "node_count": 4,
+      "tags": ["price", "monitoring", "email", "scraper"],
+      "file": "scraper/price-tracker.json"
+    },
+    {
+      "id": "lead-enrichment",
+      "name": "Lead Enrichment Pipeline",
+      "name_zh": "线索增强流水线",
+      "category": "sales",
+      "description": "Enrich sales leads from CSV via API, score with AI, and export results",
+      "description_zh": "从CSV读取销售线索，API增强数据，AI评分后导出",
+      "node_count": 4,
+      "tags": ["sales", "crm", "enrichment", "csv"],
+      "file": "sales/lead-enrichment.json"
+    },
+    {
+      "id": "api-report",
+      "name": "API Data Report",
+      "name_zh": "API数据报告",
+      "category": "data",
+      "description": "Fetch data from an API, aggregate it, export to CSV, and generate a report",
+      "description_zh": "拉取API数据，聚合分析，导出CSV并生成报告",
+      "node_count": 4,
+      "tags": ["api", "data", "report", "csv"],
+      "file": "data/api-report.json"
+    },
+    {
+      "id": "invoice-extract",
+      "name": "Invoice Data Extractor",
+      "name_zh": "发票数据提取",
+      "category": "data",
+      "description": "Extract structured data from invoice text using AI and export to CSV",
+      "description_zh": "AI提取发票结构化数据，导出CSV供财务系统使用",
+      "node_count": 3,
+      "tags": ["invoice", "extraction", "ai", "csv"],
+      "file": "data/invoice-extract.json"
+    }
+  ]
+}

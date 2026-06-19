@@ -111,6 +111,12 @@ import type {
   IssueDependency,
   DependencyGraphResponse,
   IssueDependenciesResponse,
+  WorkflowSummary,
+  Workflow,
+  WorkflowRun,
+  WorkflowTemplate,
+  ImportWarning,
+  WorkflowStats,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import { type Logger, noopLogger } from "../logger";
@@ -1330,6 +1336,99 @@ export class ApiClient {
       method: "PUT",
       body: JSON.stringify(data),
     });
+  }
+
+  async setAgentWorkflows(agentId: string, workflowIds: string[]): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/workflows`, {
+      method: "PUT",
+      body: JSON.stringify({ workflow_ids: workflowIds }),
+    });
+  }
+
+  async addAgentWorkflows(agentId: string, workflowIds: string[]): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/workflows/add`, {
+      method: "POST",
+      body: JSON.stringify({ workflow_ids: workflowIds }),
+    });
+  }
+
+  // Workflows
+  async listWorkflows(): Promise<WorkflowSummary[]> {
+    return this.fetch("/api/workflows");
+  }
+
+  async createWorkflow(data: { name: string; description?: string; icon?: string; category?: string }): Promise<Workflow> {
+    return this.fetch("/api/workflows", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getWorkflow(workflowId: string): Promise<Workflow> {
+    return this.fetch(`/api/workflows/${workflowId}`);
+  }
+
+  async updateWorkflow(workflowId: string, data: { name?: string; description?: string; icon?: string; category?: string; graph?: Record<string, unknown> }): Promise<Workflow> {
+    return this.fetch(`/api/workflows/${workflowId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteWorkflow(workflowId: string): Promise<void> {
+    await this.fetch(`/api/workflows/${workflowId}`, { method: "DELETE" });
+  }
+
+  async publishWorkflow(workflowId: string): Promise<Workflow> {
+    return this.fetch(`/api/workflows/${workflowId}/publish`, { method: "POST" });
+  }
+
+  async listWorkflowRuns(workflowId: string): Promise<WorkflowRun[]> {
+    return this.fetch(`/api/workflows/${workflowId}/runs`);
+  }
+
+  async getWorkflowRun(workflowId: string, runId: string): Promise<WorkflowRun> {
+    return this.fetch(`/api/workflows/${workflowId}/runs/${runId}`);
+  }
+
+  async triggerWorkflowRun(workflowId: string, agentId?: string, input?: Record<string, unknown>): Promise<WorkflowRun> {
+    return this.fetch(`/api/workflows/${workflowId}/runs`, {
+      method: "POST",
+      body: JSON.stringify({ agent_id: agentId, input: input ?? {} }),
+    });
+  }
+
+  async cancelWorkflowRun(workflowId: string, runId: string): Promise<void> {
+    await this.fetch(`/api/workflows/${workflowId}/runs/${runId}/cancel`, {
+      method: "POST",
+    });
+  }
+
+  async listWorkflowTemplates(): Promise<WorkflowTemplate[]> {
+    return this.fetch("/api/workflows/templates");
+  }
+
+  async cloneWorkflowTemplate(templateId: string, name?: string): Promise<Workflow> {
+    return this.fetch("/api/workflows/templates/clone", {
+      method: "POST",
+      body: JSON.stringify({ template_id: templateId, name }),
+    });
+  }
+
+  async importWorkflow(raw: string): Promise<{ workflow: WorkflowSummary; warnings: ImportWarning[] }> {
+    return this.fetch("/api/workflows/import", {
+      method: "POST",
+      body: JSON.stringify({ raw }),
+    });
+  }
+
+  async exportWorkflow(workflowId: string, format: "json" | "n8n" | "dify" = "json"): Promise<Blob> {
+    const res = await this.fetchRaw(`/api/workflows/${workflowId}/export?format=${format}`);
+    return res.blob();
+  }
+
+  async getWorkflowStats(workflowId: string): Promise<WorkflowStats> {
+    return this.fetch(`/api/workflows/${workflowId}/stats`);
   }
 
   // Personal Access Tokens

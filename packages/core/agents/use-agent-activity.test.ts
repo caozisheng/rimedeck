@@ -45,6 +45,7 @@ const fullHistoryAgent: Agent = {
   model: "",
   owner_id: null,
   skills: [],
+  workflows: [],
   // Older than the window so daysSinceCreated saturates at DAYS.
   created_at: new Date(NOW - 100 * DAY).toISOString(),
   updated_at: new Date(NOW).toISOString(),

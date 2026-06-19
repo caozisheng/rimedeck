@@ -146,6 +146,7 @@
     "section_properties": "속성",
     "section_details": "세부 정보",
     "section_skills": "스킬",
+    "section_workflows": "워크플로우",
     "prop_runtime": "런타임",
     "prop_model": "모델",
     "prop_thinking": "추론",
@@ -168,6 +169,10 @@
   },
   "skill_attach": {
     "trigger_aria": "워크스페이스 스킬 연결",
+    "trigger_label": "연결"
+  },
+  "workflow_attach": {
+    "trigger_aria": "워크플로우 연결",
     "trigger_label": "연결"
   },
   "pickers": {
@@ -211,6 +216,7 @@
     "tasks": "작업",
     "instructions": "지침",
     "skills": "스킬",
+    "workflows": "워크플로우",
     "environment": "환경",
     "custom_args": "사용자 지정 인자",
     "mcp_config": "MCP",
@@ -466,5 +472,18 @@
     "runtime_offline": "데몬 오프라인",
     "runtime_recovery": "데몬 재시작됨",
     "manual": "사용자가 취소함"
+  },
+  "workflows": {
+    "intro": "이 에이전트에 연결된 워크플로우는 에이전트의 모델, 지침, 스킬을 LLM 노드에 사용합니다.",
+    "add_action": "연결",
+    "empty_title": "연결된 워크플로우가 없습니다",
+    "empty_hint": "워크플로우를 연결해 이 에이전트가 실행하도록 하세요. 모든 LLM 노드에 에이전트의 모델과 스킬이 사용됩니다.",
+    "detach_aria": "워크플로우 해제",
+    "detach_success_toast": "워크플로우가 해제되었습니다",
+    "detach_failed_toast": "워크플로우 해제에 실패했습니다",
+    "attach_dialog_title": "워크플로우 연결",
+    "attach_dialog_empty": "연결할 수 있는 워크플로우가 없습니다.",
+    "attach_success_toast": "워크플로우가 연결되었습니다",
+    "attach_failed_toast": "워크플로우 연결에 실패했습니다"
   }
 }

@@ -1,0 +1,162 @@
+{
+  "page": {
+    "title": "ワークフロー",
+    "create": "ワークフローを作成",
+    "search_placeholder": "ワークフローを検索…",
+    "load_failed": "ワークフローの読み込みに失敗しました",
+    "unknown_error": "不明なエラー",
+    "retry": "再試行",
+    "untitled_workflow": "無題のワークフロー",
+    "empty": {
+      "title": "ワークフローがありません",
+      "description": "ワークフローはビジュアル DAG エディターを使用してマルチステップエージェントプロセスを構成します。最初のワークフローを作成して始めましょう。"
+    },
+    "no_matches": {
+      "title": "一致するワークフローがありません",
+      "with_query": "「{{query}}」に一致するワークフローはありません{{filterSuffix}}。",
+      "with_query_filter_suffix": "（ステータス「{{status}}」）",
+      "filter_only": "{{status}}のワークフローはありません。",
+      "try_different": "別の検索語またはフィルターをお試しください。"
+    },
+    "filters": {
+      "all": "すべて",
+      "draft": "下書き",
+      "published": "公開済み",
+      "archived": "アーカイブ済み"
+    }
+  },
+  "table": {
+    "name": "名前",
+    "used_by": "使用先",
+    "category": "カテゴリ",
+    "status": "ステータス",
+    "updated": "更新日時",
+    "not_mounted": "未マウント",
+    "no_description": "説明なし",
+    "delete_aria": "ワークフローを削除",
+    "delete_tooltip": "削除"
+  },
+  "create_dialog": {
+    "title": "ワークフローを作成",
+    "blank": "空白",
+    "blank_description": "空のキャンバスから開始",
+    "from_template": "テンプレートから",
+    "from_template_description": "ビルド済みのワークフローを選択",
+    "import": "インポート",
+    "import_description": "n8n または Dify からインポート"
+  },
+  "delete_dialog": {
+    "title": "ワークフローを削除",
+    "description": "<strong>{{name}}</strong> を削除してもよろしいですか？この操作は元に戻せません。このワークフローを参照しているオートパイロットやエージェントは切断されます。",
+    "cancel": "キャンセル",
+    "confirm": "削除",
+    "deleting": "削除中…"
+  },
+  "toast": {
+    "created": "ワークフローを作成しました",
+    "create_failed": "ワークフローの作成に失敗しました",
+    "deleted": "「{{name}}」を削除しました",
+    "delete_failed": "ワークフローの削除に失敗しました"
+  },
+  "detail": {
+    "not_found": "ワークフローが見つかりません",
+    "publish": "公開",
+    "published": "ワークフローを公開しました",
+    "publish_failed": "ワークフローの公開に失敗しました",
+    "saved": "ワークフローを保存しました",
+    "save_failed": "ワークフローの保存に失敗しました",
+    "export_failed": "ワークフローのエクスポートに失敗しました",
+    "export_json": "JSON をダウンロード",
+    "export_n8n": "n8n としてエクスポート",
+    "export_dify": "Dify YAML としてエクスポート"
+  },
+  "editor": {
+    "nodes": "ノード",
+    "save": "保存",
+    "test_run": "テスト実行",
+    "run_history": "実行履歴",
+    "current_run": "現在の実行",
+    "node_config": "ノード設定",
+    "name_label": "名前",
+    "type_label": "タイプ",
+    "description_label": "説明",
+    "configuration_label": "設定",
+    "edge_success": "成功",
+    "delete_node": "ノードを削除",
+    "select_agent": "エージェントを選択…",
+    "no_agents": "エージェントがありません",
+    "test_run_failed": "テスト実行に失敗しました"
+  },
+  "template_gallery": {
+    "title": "テンプレートギャラリー",
+    "created_from_template": "テンプレートから「{{name}}」を作成しました",
+    "create_failed": "テンプレートからのワークフロー作成に失敗しました",
+    "no_templates": "このカテゴリにはテンプレートがありません。",
+    "creating": "ワークフローを作成中…"
+  },
+  "import_dialog": {
+    "title": "ワークフローをインポート",
+    "tab_upload": "ファイルをアップロード",
+    "tab_paste": "貼り付け",
+    "tab_url": "URL から",
+    "drop_hint": "<strong>.json</strong> または <strong>.yml</strong> ファイルをここにドロップするか、クリックして参照",
+    "paste_placeholder": "n8n JSON または Dify YAML をここに貼り付け…",
+    "url_placeholder": "https://example.com/workflow.json",
+    "fetch": "取得",
+    "fetch_failed": "URL からの取得に失敗しました",
+    "import_failed": "ワークフローのインポートに失敗しました",
+    "imported": "「{{name}}」をインポートしました",
+    "import_edit": "インポートして編集",
+    "detected_format": "検出された形式：",
+    "dify_note": "Dify ワークフローのノードマッピングはサーバー側で処理されます。",
+    "warnings_title": "インポート警告",
+    "mapped": "{{count}} 件マッピング済み",
+    "degraded": "{{count}} 件降格",
+    "unsupported": "{{count}} 件未対応",
+    "skipped": "{{count}} 件スキップ"
+  },
+  "categories": {
+    "all": "すべて",
+    "document": "ドキュメント",
+    "scraper": "スクレイパー",
+    "subscription": "サブスクリプション",
+    "spreadsheet": "スプレッドシート",
+    "sales": "セールス",
+    "data": "データ",
+    "general": "一般"
+  },
+  "status": {
+    "draft": "下書き",
+    "published": "公開済み",
+    "archived": "アーカイブ済み"
+  },
+  "run": {
+    "cancel": "実行をキャンセル",
+    "cancel_button": "キャンセル",
+    "completed": "完了",
+    "failed": "失敗",
+    "running": "実行中",
+    "pending": "保留中",
+    "cancelled": "キャンセル済み",
+    "no_runs": "実行履歴がありません",
+    "no_runs_hint": "実行履歴がありません。<strong>▶ テスト実行</strong> をクリックしてワークフローを実行してください。",
+    "not_found": "実行が見つかりません",
+    "output": "出力",
+    "error": "エラー",
+    "nodes_progress": "{{completed}}/{{total}} ノード",
+    "waiting_first": "最初のノードを待機中…"
+  },
+  "stats": {
+    "title": "実行統計",
+    "runs_count": "{{count}} 回実行",
+    "total_runs": "合計実行回数",
+    "success_rate": "成功率",
+    "avg_duration": "平均所要時間",
+    "total_tokens": "合計トークン数",
+    "last_run": "最終実行",
+    "just_now": "たった今",
+    "minutes_ago": "{{count}}分前",
+    "hours_ago": "{{count}}時間前",
+    "days_ago": "{{count}}日前"
+  }
+}

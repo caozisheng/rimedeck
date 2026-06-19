@@ -141,6 +141,7 @@
     "section_properties": "属性",
     "section_details": "详情",
     "section_skills": "Skills",
+    "section_workflows": "工作流",
     "prop_runtime": "运行时",
     "prop_model": "模型",
     "prop_thinking": "思考",
@@ -163,6 +164,10 @@
   },
   "skill_attach": {
     "trigger_aria": "附加工作区 skill",
+    "trigger_label": "附加"
+  },
+  "workflow_attach": {
+    "trigger_aria": "附加工作流",
     "trigger_label": "附加"
   },
   "pickers": {
@@ -206,6 +211,7 @@
     "tasks": "Tasks",
     "instructions": "指令",
     "skills": "Skills",
+    "workflows": "工作流",
     "environment": "环境变量",
     "custom_args": "自定义参数",
     "mcp_config": "MCP",
@@ -454,5 +460,18 @@
     "runtime_offline": "守护进程离线",
     "runtime_recovery": "守护进程已重启",
     "manual": "用户取消"
+  },
+  "workflows": {
+    "intro": "附加到该智能体的工作流使用其模型、指令和 skill 执行 LLM 节点。",
+    "add_action": "附加",
+    "empty_title": "尚未附加工作流",
+    "empty_hint": "附加一个工作流让该智能体执行。LLM 节点将使用该智能体的模型和 skill。",
+    "detach_aria": "解除工作流",
+    "detach_success_toast": "已解除工作流",
+    "detach_failed_toast": "解除工作流失败",
+    "attach_dialog_title": "附加工作流",
+    "attach_dialog_empty": "没有可附加的工作流。",
+    "attach_success_toast": "已附加工作流",
+    "attach_failed_toast": "附加工作流失败"
   }
 }

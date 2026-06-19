@@ -1,0 +1,191 @@
+"use client";
+
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { useWorkspacePaths } from "@multica/core/paths";
+import { workflowDetailOptions, workspaceKeys } from "@multica/core/workspace/queries";
+import { api } from "@multica/core/api";
+import { Button } from "@multica/ui/components/ui/button";
+import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@multica/ui/components/ui/dropdown-menu";
+import { ArrowLeft, Workflow as WorkflowIcon, Upload, MoreHorizontal, Download } from "lucide-react";
+import { toast } from "sonner";
+import { useNavigation } from "../../navigation";
+import { useT } from "../../i18n";
+import { WorkflowEditor } from "./workflow-editor";
+import { WorkflowStats } from "./workflow-stats";
+import type { RuleGoChain, RuleGoChainInfo } from "../utils/rulego-adapter";
+
+interface WorkflowDetailPageProps {
+  workflowId: string;
+}
+
+export function WorkflowDetailPage({ workflowId }: WorkflowDetailPageProps) {
+  const wsId = useWorkspaceId();
+  const paths = useWorkspacePaths();
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
+  const { t } = useT("workflows");
+
+  const { data: workflow, isLoading } = useQuery(
+    workflowDetailOptions(wsId, workflowId),
+  );
+
+  const publishMutation = useMutation({
+    mutationFn: () => api.publishWorkflow(workflowId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.workflows(wsId) });
+      queryClient.invalidateQueries({
+        queryKey: [...workspaceKeys.workflows(wsId), workflowId],
+      });
+      toast.success(t(($) => $.detail.published));
+    },
+    onError: () => toast.error(t(($) => $.detail.publish_failed)),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-1 flex-col">
+        <div className="flex h-12 items-center gap-3 border-b px-4">
+          <Skeleton className="h-5 w-5 rounded" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="flex-1">
+          <Skeleton className="h-full w-full" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!workflow) {
+    return (
+      <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+        {t(($) => $.detail.not_found)}
+      </div>
+    );
+  }
+
+  const graph = (workflow.graph as unknown as RuleGoChain) ?? { ruleChain: {}, metadata: { firstNodeIndex: 0, nodes: [], connections: [] } };
+  const chainInfo: RuleGoChainInfo = graph.ruleChain ?? {
+    id: workflowId,
+    name: workflow.name,
+  };
+
+  async function handleGraphChange(updated: RuleGoChain): Promise<void> {
+    try {
+      await api.updateWorkflow(workflowId, { graph: updated as unknown as Record<string, unknown> });
+      queryClient.invalidateQueries({
+        queryKey: [...workspaceKeys.workflows(wsId), workflowId],
+      });
+      toast.success(t(($) => $.detail.saved));
+    } catch {
+      toast.error(t(($) => $.detail.save_failed));
+    }
+  }
+
+  function handleExport(format: "json" | "n8n" | "dify") {
+    const ext = format === "dify" ? "yaml" : "json";
+    const suffix = format === "json" ? "" : `_${format}`;
+    api
+      .exportWorkflow(workflowId, format)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${workflow!.name}${suffix}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => toast.error(t(($) => $.detail.export_failed)));
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Header bar */}
+      <div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => navigation.push(paths.workflows())}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <WorkflowIcon className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">{workflow.name}</span>
+          <StatusBadge status={workflow.status} />
+        </div>
+        <div className="flex items-center gap-2">
+          {workflow.status === "draft" && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => publishMutation.mutate()}
+              disabled={publishMutation.isPending}
+            >
+              <Upload className="mr-1 h-3 w-3" />
+              {t(($) => $.detail.publish)}
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" size="icon-sm" />}
+            >
+              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-auto">
+              <DropdownMenuItem onClick={() => handleExport("json")}>
+                <Download className="h-3.5 w-3.5" />
+                {t(($) => $.detail.export_json)}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("n8n")}>
+                <Download className="h-3.5 w-3.5" />
+                {t(($) => $.detail.export_n8n)}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("dify")}>
+                <Download className="h-3.5 w-3.5" />
+                {t(($) => $.detail.export_dify)}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Stats panel */}
+      <WorkflowStats workflowId={workflowId} />
+
+      {/* Editor */}
+      <div className="flex-1 overflow-hidden">
+        <WorkflowEditor
+          workflowId={workflowId}
+          graph={graph}
+          chainInfo={chainInfo}
+          onChange={handleGraphChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const { t } = useT("workflows");
+  const label = (t(($) => $.status[status as keyof typeof $.status]) as string) ?? status;
+  const colors: Record<string, string> = {
+    draft: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+    published: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    archived: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+  };
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${colors[status] ?? colors.draft}`}
+    >
+      {label}
+    </span>
+  );
+}

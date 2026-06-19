@@ -228,6 +228,7 @@ function makeAgent(overrides: Partial<Agent> & { id: string; name: string; owner
     max_concurrent_tasks: 1,
     model: "",
     skills: [],
+    workflows: [],
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     archived_at: null,

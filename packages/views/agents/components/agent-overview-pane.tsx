@@ -10,6 +10,7 @@ import {
   Plug,
   Router,
   Terminal,
+  Workflow,
 } from "lucide-react";
 import type { Agent, AgentRuntime } from "@multica/core/types";
 import { providerSupportsMcpConfig } from "@multica/core/agents";
@@ -26,6 +27,7 @@ import {
 import { ActivityTab } from "./tabs/activity-tab";
 import { InstructionsTab } from "./tabs/instructions-tab";
 import { SkillsTab } from "./tabs/skills-tab";
+import { WorkflowsTab } from "./tabs/workflows-tab";
 import { EnvTab } from "./tabs/env-tab";
 import { CustomArgsTab } from "./tabs/custom-args-tab";
 import { McpConfigTab } from "./tabs/mcp-config-tab";
@@ -38,16 +40,18 @@ export type DetailTab =
   | "tasks"
   | "instructions"
   | "skills"
+  | "workflows"
   | "env"
   | "custom_args"
   | "mcp_config"
   | "runtime_config";
 
-const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "environment" | "custom_args" | "mcp_config" | "runtime_config"> = {
+const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "workflows" | "environment" | "custom_args" | "mcp_config" | "runtime_config"> = {
   activity: "activity",
   tasks: "tasks",
   instructions: "instructions",
   skills: "skills",
+  workflows: "workflows",
   env: "environment",
   custom_args: "custom_args",
   mcp_config: "mcp_config",
@@ -62,6 +66,7 @@ const detailTabs: {
   { id: "tasks", icon: ListTodo },
   { id: "instructions", icon: FileText },
   { id: "skills", icon: BookOpenText },
+  { id: "workflows", icon: Workflow },
   { id: "env", icon: KeyRound },
   { id: "custom_args", icon: Terminal },
   { id: "mcp_config", icon: Plug },
@@ -225,6 +230,11 @@ export function AgentOverviewPane({
         {effectiveTab === "skills" && (
           <TabContent>
             <SkillsTab agent={agent} />
+          </TabContent>
+        )}
+        {effectiveTab === "workflows" && (
+          <TabContent>
+            <WorkflowsTab agent={agent} />
           </TabContent>
         )}
         {effectiveTab === "env" && (

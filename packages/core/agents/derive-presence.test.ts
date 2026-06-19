@@ -26,6 +26,7 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
     model: "",
     owner_id: null,
     skills: [],
+    workflows: [],
     created_at: "2026-04-01T00:00:00Z",
     updated_at: "2026-04-01T00:00:00Z",
     archived_at: null,

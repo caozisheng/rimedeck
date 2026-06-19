@@ -68,6 +68,12 @@ const (
 	EventSkillUpdated = "skill:updated"
 	EventSkillDeleted = "skill:deleted"
 
+	// Workflow events
+	EventWorkflowCreated   = "workflow:created"
+	EventWorkflowUpdated   = "workflow:updated"
+	EventWorkflowDeleted   = "workflow:deleted"
+	EventWorkflowPublished = "workflow:published"
+
 	// Chat events
 	EventChatMessage        = "chat:message"
 	EventChatDone           = "chat:done"

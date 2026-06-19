@@ -16,6 +16,8 @@ export const workspaceKeys = {
   squadMemberStatus: (wsId: string, squadId: string) =>
     ["workspaces", wsId, "squads", squadId, "members-status"] as const,
   skills: (wsId: string) => ["workspaces", wsId, "skills"] as const,
+  workflows: (wsId: string) => ["workspaces", wsId, "workflows"] as const,
+  workflowTemplates: (wsId: string) => ["workspaces", wsId, "workflows", "templates"] as const,
   assigneeFrequency: (wsId: string) => ["workspaces", wsId, "assignee-frequency"] as const,
 };
 
@@ -86,6 +88,66 @@ export function skillDetailOptions(wsId: string, skillId: string) {
   });
 }
 
+export function workflowListOptions(wsId: string) {
+  return queryOptions({
+    queryKey: workspaceKeys.workflows(wsId),
+    queryFn: () => api.listWorkflows(),
+  });
+}
+
+export function workflowDetailOptions(wsId: string, workflowId: string) {
+  return queryOptions({
+    queryKey: [...workspaceKeys.workflows(wsId), workflowId] as const,
+    queryFn: () => api.getWorkflow(workflowId),
+    enabled: !!workflowId,
+  });
+}
+
+export function workflowStatsOptions(wsId: string, workflowId: string) {
+  return queryOptions({
+    queryKey: [...workspaceKeys.workflows(wsId), workflowId, "stats"] as const,
+    queryFn: () => api.getWorkflowStats(workflowId),
+    enabled: !!workflowId,
+  });
+}
+
+export function workflowTemplateListOptions(wsId: string) {
+  return queryOptions({
+    queryKey: workspaceKeys.workflowTemplates(wsId),
+    queryFn: () => api.listWorkflowTemplates(),
+  });
+}
+
+export const workflowRunKeys = {
+  all: (wsId: string) => ["workflows", wsId, "runs"] as const,
+  list: (wsId: string, workflowId: string) =>
+    [...workflowRunKeys.all(wsId), "list", workflowId] as const,
+  detail: (wsId: string, workflowId: string, runId: string) =>
+    [...workflowRunKeys.all(wsId), "detail", workflowId, runId] as const,
+};
+
+export function workflowRunListOptions(wsId: string, workflowId: string) {
+  return queryOptions({
+    queryKey: workflowRunKeys.list(wsId, workflowId),
+    queryFn: () => api.listWorkflowRuns(workflowId),
+    enabled: !!workflowId,
+  });
+}
+
+export function workflowRunDetailOptions(
+  wsId: string,
+  workflowId: string,
+  runId: string,
+  opts?: { refetchInterval?: number },
+) {
+  return queryOptions({
+    queryKey: workflowRunKeys.detail(wsId, workflowId, runId),
+    queryFn: () => api.getWorkflowRun(workflowId, runId),
+    enabled: !!runId,
+    refetchInterval: opts?.refetchInterval,
+  });
+}
+
 /**
  * Builds a `Map<skillId, Agent[]>` from the cached agent list. The server
  * already returns each agent with its full skill list inline, so no extra
@@ -109,6 +171,26 @@ export function selectSkillAssignments(
       const existing = map.get(s.id);
       if (existing) existing.push(a);
       else map.set(s.id, [a]);
+    }
+  }
+  return map;
+}
+
+/**
+ * Builds a `workflowId → Agent[]` lookup from the `workflows` array
+ * embedded in each agent, mirroring `selectSkillAssignments`.
+ */
+export function selectWorkflowAssignments(
+  agents: Agent[] | undefined,
+): Map<string, Agent[]> {
+  const map = new Map<string, Agent[]>();
+  if (!agents) return map;
+  for (const a of agents) {
+    if (a.archived_at) continue;
+    for (const w of a.workflows ?? []) {
+      const existing = map.get(w.id);
+      if (existing) existing.push(a);
+      else map.set(w.id, [a]);
     }
   }
   return map;

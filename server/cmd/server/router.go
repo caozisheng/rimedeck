@@ -171,6 +171,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// as "no cache, always hit DB" (existing behavior).
 	h.TaskService.EmptyClaim = service.NewEmptyClaimCache(rdb)
 
+	// Workflow engine: create the service and wire it into both the
+	// autopilot dispatch path and the handler for API endpoints.
+	workflowSvc := service.NewWorkflowService(queries, pool, bus)
+	workflowSvc.SetTaskService(h.TaskService)
+	h.AutopilotService.WorkflowSvc = workflowSvc
+	h.WorkflowService = workflowSvc
+
 	// Wire WS heartbeat after stores are finalized so the WS path uses the
 	// same (possibly Redis-backed) stores as the HTTP path.
 	daemonHub.SetHeartbeatHandler(h.HandleDaemonWSHeartbeat)
@@ -576,6 +583,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/skills", h.ListAgentSkills)
 					r.Put("/skills", h.SetAgentSkills)
 					r.Post("/skills/add", h.AddAgentSkills)
+					r.Get("/workflows", h.ListAgentWorkflows)
+					r.Put("/workflows", h.SetAgentWorkflows)
+					r.Post("/workflows/add", h.AddAgentWorkflows)
 					// Dedicated env-management endpoint. Owner/admin only;
 					// agent actors are denied. Every reveal / write is
 					// audited to activity_log. See MUL-2600 and
@@ -606,6 +616,45 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/files", h.ListSkillFiles)
 					r.Put("/files", h.UpsertSkillFile)
 					r.Delete("/files/{fileId}", h.DeleteSkillFile)
+				})
+			})
+
+			// Workflows
+			r.Route("/api/workflows", func(r chi.Router) {
+				r.Get("/", h.ListWorkflows)
+				r.Post("/", h.CreateWorkflow)
+				r.Get("/templates", h.ListWorkflowTemplates)
+				r.Post("/templates/clone", h.CloneWorkflowTemplate)
+				r.Route("/templates/{templateId}", func(r chi.Router) {
+					r.Get("/", h.GetWorkflowTemplate)
+					r.Post("/clone", h.CloneWorkflowTemplate)
+				})
+				r.Post("/import", h.ImportWorkflow)
+				r.Route("/credentials", func(r chi.Router) {
+					r.Get("/", h.ListWorkflowCredentials)
+					r.Post("/", h.CreateWorkflowCredential)
+					r.Route("/{credId}", func(r chi.Router) {
+						r.Patch("/", h.UpdateWorkflowCredential)
+						r.Delete("/", h.DeleteWorkflowCredential)
+					})
+				})
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetWorkflow)
+					r.Patch("/", h.UpdateWorkflow)
+					r.Delete("/", h.DeleteWorkflow)
+					r.Post("/publish", h.PublishWorkflow)
+					r.Get("/versions", h.ListWorkflowVersions)
+					r.Post("/versions/{version}/rollback", h.RollbackWorkflowVersion)
+					r.Get("/export", h.ExportWorkflow)
+					r.Get("/stats", h.GetWorkflowStats)
+					r.Route("/runs", func(r chi.Router) {
+						r.Post("/", h.TriggerWorkflowRun)
+						r.Get("/", h.ListWorkflowRuns)
+						r.Route("/{runId}", func(r chi.Router) {
+							r.Get("/", h.GetWorkflowRun)
+							r.Post("/cancel", h.CancelWorkflowRun)
+						})
+					})
 				})
 			})
 

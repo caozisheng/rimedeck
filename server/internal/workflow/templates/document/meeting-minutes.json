@@ -1,0 +1,79 @@
+{
+  "ruleChain": {
+    "id": "meeting-minutes",
+    "name": "Meeting Minutes Generator",
+    "configuration": {
+      "category": "document"
+    },
+    "additionalInfo": {
+      "description": "Process meeting transcripts with AI to extract action items, decisions, and generate formatted meeting minutes.",
+      "icon": "📝",
+      "inputSchema": [
+        {
+          "name": "transcript",
+          "type": "string",
+          "required": true,
+          "description": "The raw meeting transcript or notes to process"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "firstNodeIndex": 0,
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "agentLLM",
+        "name": "整理会议内容",
+        "configuration": {
+          "prompt": "You are a meeting secretary. Analyze the following meeting transcript and extract structured information.\n\nReturn a JSON object with these fields:\n- \"title\": a concise meeting title\n- \"date\": the meeting date if mentioned, otherwise today's date\n- \"attendees\": list of participants mentioned\n- \"agenda_items\": list of topics discussed\n- \"decisions\": list of decisions made\n- \"action_items\": list of {\"assignee\": \"...\", \"task\": \"...\", \"deadline\": \"...\"}\n- \"key_discussion_points\": list of important points raised\n- \"next_meeting\": any mention of follow-up meetings\n\nTranscript:\n${msg}",
+          "model": "default"
+        },
+        "additionalInfo": {
+          "description": "Use LLM to analyze transcript and extract structured meeting data",
+          "layoutX": 100,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n2",
+        "type": "jsTransform",
+        "name": "格式化",
+        "configuration": {
+          "jsScript": "try { var data = JSON.parse(msg);\nvar lines = [];\nlines.push('# ' + (data.title || 'Meeting Minutes'));\nlines.push('');\nlines.push('**Date:** ' + (data.date || 'N/A'));\nlines.push('**Attendees:** ' + (data.attendees || []).join(', '));\nlines.push('');\nif (data.agenda_items && data.agenda_items.length > 0) {\n  lines.push('## Agenda');\n  data.agenda_items.forEach(function(item) { lines.push('- ' + item); });\n  lines.push('');\n}\nif (data.decisions && data.decisions.length > 0) {\n  lines.push('## Decisions');\n  data.decisions.forEach(function(d) { lines.push('- ' + d); });\n  lines.push('');\n}\nif (data.action_items && data.action_items.length > 0) {\n  lines.push('## Action Items');\n  lines.push('| Assignee | Task | Deadline |');\n  lines.push('|----------|------|----------|');\n  data.action_items.forEach(function(a) {\n    lines.push('| ' + (a.assignee||'TBD') + ' | ' + a.task + ' | ' + (a.deadline||'TBD') + ' |');\n  });\n  lines.push('');\n}\nif (data.key_discussion_points && data.key_discussion_points.length > 0) {\n  lines.push('## Key Discussion Points');\n  data.key_discussion_points.forEach(function(p) { lines.push('- ' + p); });\n}\nmsg = lines.join('\\n');\nreturn {'msg': msg, 'metadata': metadata, 'msgType': msgType};"
+        },
+        "additionalInfo": {
+          "description": "Format the extracted meeting data into Markdown",
+          "layoutX": 350,
+          "layoutY": 200
+        }
+      },
+      {
+        "id": "n3",
+        "type": "docGenerate",
+        "name": "输出markdown",
+        "configuration": {
+          "format": "markdown",
+          "filename": "meeting-minutes-${date}"
+        },
+        "additionalInfo": {
+          "description": "Generate the final Markdown document",
+          "layoutX": 600,
+          "layoutY": 200
+        }
+      }
+    ],
+    "connections": [
+      {
+        "fromId": "n1",
+        "toId": "n2",
+        "type": "Success"
+      },
+      {
+        "fromId": "n2",
+        "toId": "n3",
+        "type": "Success"
+      }
+    ]
+  }
+}

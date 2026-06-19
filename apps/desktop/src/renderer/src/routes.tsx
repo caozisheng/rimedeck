@@ -10,6 +10,7 @@ import { IssueDetailPage } from "./pages/issue-detail-page";
 import { ProjectDetailPage } from "./pages/project-detail-page";
 import { AutopilotDetailPage } from "./pages/autopilot-detail-page";
 import { SkillDetailPage } from "./pages/skill-detail-page";
+import { WorkflowDetailPage } from "./pages/workflow-detail-page";
 import { AgentDetailPage } from "./pages/agent-detail-page";
 import { MemberDetailPage } from "./pages/member-detail-page";
 import { RuntimeDetailPage } from "./pages/runtime-detail-page";
@@ -20,6 +21,7 @@ import { DashboardPage } from "@multica/views/dashboard";
 import { AutopilotsPage } from "@multica/views/autopilots/components";
 import { MyIssuesPage } from "@multica/views/my-issues";
 import { SkillsPage } from "@multica/views/skills";
+import { WorkflowsPage } from "@multica/views/workflows";
 import { DesktopRuntimesPage } from "./components/desktop-runtimes-page";
 import { DesktopAgentsPage } from "./components/desktop-agents-page";
 import { SquadsPage, SquadDetailPage as SquadDetailPageView } from "@multica/views/squads/components";
@@ -167,6 +169,12 @@ export const appRoutes: RouteObject[] = [
             path: "skills/:id",
             element: <SkillDetailPage />,
             handle: { title: "Skill" },
+          },
+          { path: "workflows", element: <WorkflowsPage />, handle: { title: "Workflows" } },
+          {
+            path: "workflows/:id",
+            element: <WorkflowDetailPage />,
+            handle: { title: "Workflow" },
           },
           { path: "agents", element: <DesktopAgentsPage />, handle: { title: "Agents" } },
           {
