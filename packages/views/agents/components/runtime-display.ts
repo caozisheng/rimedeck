@@ -1,4 +1,4 @@
-import type { AgentRuntime, RuntimeDevice } from "@multica/core/types";
+import type { AgentRuntime, RuntimeDevice } from "@rimedeck/core/types";
 
 type RuntimeLike = AgentRuntime | RuntimeDevice;
 

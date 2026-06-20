@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { copyText } from "@multica/ui/lib/clipboard";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 
 // jsdom implements neither navigator.clipboard nor document.execCommand, so we
 // define them per test to simulate secure (https/localhost) vs insecure (plain

@@ -2,18 +2,18 @@
 
 import { Cloud, Lock, Monitor } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Agent, AgentRuntime } from "@multica/core/types";
+import type { Agent, AgentRuntime } from "@rimedeck/core/types";
 import {
   type AgentActivity,
   type AgentPresenceDetail,
   summarizeActivityWindow,
   VISIBILITY_TOOLTIP,
-} from "@multica/core/agents";
+} from "@rimedeck/core/agents";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/ui/components/ui/tooltip";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { availabilityConfig, workloadConfig } from "../presence";
 import { AgentRowActions } from "./agent-row-actions";

@@ -30,7 +30,7 @@ const BLANK_LINE_RE = /\r?\n[ \t]*\r?\n/;
 /**
  * Spans where `==` must NOT be interpreted as highlight syntax: fenced code,
  * inline code, and inline/display math. Mirrors the code-range scan in
- * @multica/ui/markdown's linkify so highlight and autolink skip the same
+ * @rimedeck/ui/markdown's linkify so highlight and autolink skip the same
  * literal contexts. Earlier (block-level) ranges win so a `==`/backtick inside
  * a fenced block is not also counted as inline.
  */

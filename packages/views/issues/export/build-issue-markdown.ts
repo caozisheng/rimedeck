@@ -1,4 +1,4 @@
-import type { Issue, TimelineEntry, AgentTask } from "@multica/core/types";
+import type { Issue, TimelineEntry, AgentTask } from "@rimedeck/core/types";
 import type { TimelineItem } from "../../common/task-transcript/build-timeline";
 
 export interface ExportContext {

@@ -30,11 +30,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@multica/ui/lib/utils";
-import { copyText } from "@multica/ui/lib/clipboard";
-import { api } from "@multica/core/api";
-import { useConfigStore } from "@multica/core/config";
-import type { Attachment as AttachmentRecord } from "@multica/core/types";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
+import { api } from "@rimedeck/core/api";
+import { useConfigStore } from "@rimedeck/core/config";
+import type { Attachment as AttachmentRecord } from "@rimedeck/core/types";
 import { useT } from "../i18n";
 import { useAttachmentDownloadResolver } from "./attachment-download-context";
 import { useAttachmentPreview } from "./attachment-preview-modal";

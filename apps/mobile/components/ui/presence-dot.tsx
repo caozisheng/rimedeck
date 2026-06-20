@@ -16,7 +16,7 @@
  * call site — this component always renders.
  */
 import { View } from "react-native";
-import type { AgentAvailability } from "@multica/core/agents";
+import type { AgentAvailability } from "@rimedeck/core/agents";
 import { cn } from "@/lib/utils";
 
 interface Props {

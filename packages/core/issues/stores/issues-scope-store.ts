@@ -19,7 +19,7 @@ export const useIssuesScopeStore = create<IssuesScopeState>()(
       setScope: (scope) => set({ scope }),
     }),
     {
-      name: "multica_issues_scope",
+      name: "rimedeck_issues_scope",
       storage: createJSONStorage(() => createWorkspaceAwareStorage(defaultStorage)),
     },
   ),

@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react";
 import { Check, Copy, Globe, Wifi } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@multica/core/api";
-import type { NetworkAddress } from "@multica/core/types";
-import { copyText } from "@multica/ui/lib/clipboard";
-import { cn } from "@multica/ui/lib/utils";
-import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
+import { api } from "@rimedeck/core/api";
+import type { NetworkAddress } from "@rimedeck/core/types";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { CODE_LIGATURE_CLASS } from "@rimedeck/ui/lib/code-style";
 import { useT } from "../i18n";
 
 function formatAddress(addr: NetworkAddress, port: number): string {

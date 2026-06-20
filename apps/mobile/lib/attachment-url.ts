@@ -12,7 +12,7 @@
  *
  * Mirrors `packages/core/workspace/avatar-url.ts:resolvePublicFileUrl`
  * exactly. We don't import the core helper because its `getBaseUrl()`
- * pulls from a singleton ApiClient that lives in `@multica/core/api` —
+ * pulls from a singleton ApiClient that lives in `@rimedeck/core/api` —
  * not on the mobile sharing whitelist (apps/mobile/CLAUDE.md "mirror,
  * don't import"). Mobile reads its own `EXPO_PUBLIC_API_URL` from the
  * Expo env, the same value the rest of `data/api.ts` uses.

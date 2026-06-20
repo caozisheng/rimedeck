@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import dagre from "@dagrejs/dagre";
-import type { IssueDependency } from "@multica/core/types";
+import type { IssueDependency } from "@rimedeck/core/types";
 
 export interface DagNode {
   id: string;

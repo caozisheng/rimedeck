@@ -8,11 +8,11 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@multica/ui/components/ui/dialog";
-import { Input } from "@multica/ui/components/ui/input";
-import { Label } from "@multica/ui/components/ui/label";
-import { Button } from "@multica/ui/components/ui/button";
-import { isImeComposing } from "@multica/core/utils";
+} from "@rimedeck/ui/components/ui/dialog";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Label } from "@rimedeck/ui/components/ui/label";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { isImeComposing } from "@rimedeck/core/utils";
 import { useT } from "../../i18n";
 
 /**

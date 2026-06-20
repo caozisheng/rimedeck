@@ -37,15 +37,15 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-} from "@multica/ui/components/ui/context-menu";
-import { cn } from "@multica/ui/lib/utils";
+} from "@rimedeck/ui/components/ui/context-menu";
+import { cn } from "@rimedeck/ui/lib/utils";
 import {
   useTabStore,
   useActiveGroup,
   resolveRouteIcon,
   type Tab,
 } from "@/stores/tab-store";
-import { paths } from "@multica/core/paths";
+import { paths } from "@rimedeck/core/paths";
 
 const TAB_ICONS: Record<string, LucideIcon> = {
   Inbox,

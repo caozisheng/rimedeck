@@ -3,22 +3,22 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Workflow, Plus, X } from "lucide-react";
-import type { Agent } from "@multica/core/types";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
+import type { Agent } from "@rimedeck/core/types";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import {
   workflowListOptions,
   workspaceKeys,
-} from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import { Button } from "@multica/ui/components/ui/button";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+} from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import { toast } from "sonner";
 import { useNavigation } from "../../../navigation";
 import { useT } from "../../../i18n";

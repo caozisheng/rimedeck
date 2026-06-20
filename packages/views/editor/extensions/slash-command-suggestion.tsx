@@ -11,13 +11,13 @@ import {
 import type { QueryClient } from "@tanstack/react-query";
 import type { SuggestionOptions } from "@tiptap/suggestion";
 import { PluginKey } from "@tiptap/pm/state";
-import { useAuthStore } from "@multica/core/auth";
-import { useChatStore } from "@multica/core/chat";
-import { getCurrentWsId } from "@multica/core/platform";
-import { canAssignAgentToIssue } from "@multica/core/permissions";
-import { isImeComposing } from "@multica/core/utils";
-import { workspaceKeys } from "@multica/core/workspace/queries";
-import type { Agent, MemberWithUser } from "@multica/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useChatStore } from "@rimedeck/core/chat";
+import { getCurrentWsId } from "@rimedeck/core/platform";
+import { canAssignAgentToIssue } from "@rimedeck/core/permissions";
+import { isImeComposing } from "@rimedeck/core/utils";
+import { workspaceKeys } from "@rimedeck/core/workspace/queries";
+import type { Agent, MemberWithUser } from "@rimedeck/core/types";
 import { useT } from "../../i18n";
 import { createSuggestionPopupRender } from "./suggestion-popup";
 

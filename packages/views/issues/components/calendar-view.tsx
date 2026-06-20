@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Issue, IssueStatus } from "@multica/core/types";
+import type { Issue, IssueStatus } from "@rimedeck/core/types";
 import { StatusIcon } from "./status-icon";
 import { useT } from "../../i18n";
 

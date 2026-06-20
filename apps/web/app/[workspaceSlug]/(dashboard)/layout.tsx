@@ -1,15 +1,15 @@
 "use client";
 
-import { DashboardLayout } from "@multica/views/layout";
-import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
-import { SearchCommand, SearchTrigger } from "@multica/views/search";
-import { ChatFab, ChatWindow } from "@multica/views/chat";
+import { DashboardLayout } from "@rimedeck/views/layout";
+import { RimeDeckIcon } from "@rimedeck/ui/components/common/rimedeck-icon";
+import { SearchCommand, SearchTrigger } from "@rimedeck/views/search";
+import { ChatFab, ChatWindow } from "@rimedeck/views/chat";
 import { WebNotificationBridge } from "@/components/web-notification-bridge";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <DashboardLayout
-      loadingIndicator={<MulticaIcon className="size-6" />}
+      loadingIndicator={<RimeDeckIcon className="size-6" />}
       searchSlot={<SearchTrigger />}
       extra={
         <>

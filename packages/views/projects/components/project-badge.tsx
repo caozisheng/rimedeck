@@ -6,15 +6,15 @@ import {
   PROJECT_STATUS_ORDER,
   PROJECT_PRIORITY_CONFIG,
   PROJECT_PRIORITY_ORDER
-} from "@multica/core/projects/config";
-import { cn } from "@multica/ui/lib/utils";
+} from "@rimedeck/core/projects/config";
+import { cn } from "@rimedeck/ui/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
-import type { Project, ProjectStatus, ProjectPriority, UpdateProjectRequest } from "@multica/core/types";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
+import type { Project, ProjectStatus, ProjectPriority, UpdateProjectRequest } from "@rimedeck/core/types";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { useProjectStatusLabels, useProjectPriorityLabels } from "./labels";
 

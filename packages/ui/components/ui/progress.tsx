@@ -2,7 +2,7 @@
 
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress"
 
-import { cn } from "@multica/ui/lib/utils"
+import { cn } from "@rimedeck/ui/lib/utils"
 
 function Progress({
   className,

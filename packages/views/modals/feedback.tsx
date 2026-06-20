@@ -7,22 +7,22 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
-import { Button } from "@multica/ui/components/ui/button";
-import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
+} from "@rimedeck/ui/components/ui/dialog";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { FileUploadButton } from "@rimedeck/ui/components/common/file-upload-button";
 import {
   ContentEditor,
   type ContentEditorRef,
   useFileDropZone,
   FileDropOverlay,
 } from "../editor";
-import { useCreateFeedback, useFeedbackDraftStore } from "@multica/core/feedback";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { useFileUpload } from "@multica/core/hooks/use-file-upload";
-import { api } from "@multica/core/api";
-import { captureFeedbackOpened } from "@multica/core/analytics";
+import { useCreateFeedback, useFeedbackDraftStore } from "@rimedeck/core/feedback";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { useFileUpload } from "@rimedeck/core/hooks/use-file-upload";
+import { api } from "@rimedeck/core/api";
+import { captureFeedbackOpened } from "@rimedeck/core/analytics";
 import { useT } from "../i18n";
-import { formatShortcut, modKey, enterKey } from "@multica/core/platform";
+import { formatShortcut, modKey, enterKey } from "@rimedeck/core/platform";
 
 const MAX_MESSAGE_LEN = 10000;
 

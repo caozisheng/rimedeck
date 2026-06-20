@@ -2,7 +2,7 @@ import type {
   QuestionnaireAnswers,
   Role,
   UseCase,
-} from "@multica/core/onboarding";
+} from "@rimedeck/core/onboarding";
 
 /**
  * `PATCH /api/me/onboarding` overwrites the JSONB column wholesale —

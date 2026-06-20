@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { buttonVariants } from "@multica/ui/components/ui/button";
+import { buttonVariants } from "@rimedeck/ui/components/ui/button";
 
 export default function NotFound() {
   return (

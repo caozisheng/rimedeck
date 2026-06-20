@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Issue } from "@multica/core/types";
+import type { Issue } from "@rimedeck/core/types";
 import { useQuery } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
 import {
   memberListOptions,
   agentListOptions,
   squadListOptions,
-} from "@multica/core/workspace/queries";
+} from "@rimedeck/core/workspace/queries";
 import { useT } from "../../../i18n";
 
 interface WorkloadEntry {

@@ -17,27 +17,27 @@ import {
   useCreateProjectResource,
   useDeleteProjectResource,
   useUpdateProjectResource,
-} from "@multica/core/projects";
-import { runtimeListOptions } from "@multica/core/runtimes/queries";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useCurrentWorkspace } from "@multica/core/paths";
+} from "@rimedeck/core/projects";
+import { runtimeListOptions } from "@rimedeck/core/runtimes/queries";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
 import type {
   AgentRuntime,
   GithubRepoResourceRef,
   LocalDirectoryResourceRef,
   ProjectResource,
-} from "@multica/core/types";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/core/types";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@multica/ui/components/ui/popover";
+} from "@rimedeck/ui/components/ui/popover";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-} from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/ui/components/ui/tooltip";
 import {
   isDesktopShell,
   pickDirectory,
@@ -52,7 +52,7 @@ import { useT } from "../../i18n";
 //
 // Type-dispatched at the row + add-flow level. Add a new resource_type by:
 //   (1) extending the server validator
-//   (2) extending ProjectResourceType in @multica/core/types
+//   (2) extending ProjectResourceType in @rimedeck/core/types
 //   (3) adding a render case in ResourceRow and an add-control here
 function isGithubRef(r: ProjectResource): r is ProjectResource & {
   resource_ref: GithubRepoResourceRef;

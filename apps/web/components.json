@@ -13,11 +13,11 @@
   "iconLibrary": "lucide",
   "rtl": false,
   "aliases": {
-    "components": "@multica/ui/components",
-    "utils": "@multica/ui/lib/utils",
-    "ui": "@multica/ui/components/ui",
-    "lib": "@multica/ui/lib",
-    "hooks": "@multica/ui/hooks"
+    "components": "@rimedeck/ui/components",
+    "utils": "@rimedeck/ui/lib/utils",
+    "ui": "@rimedeck/ui/components/ui",
+    "lib": "@rimedeck/ui/lib",
+    "hooks": "@rimedeck/ui/hooks"
   },
   "menuColor": "default",
   "menuAccent": "subtle",

@@ -17,7 +17,7 @@
  *   - Resources       (projectKeys.resources)    → `ProjectResource[]`
  */
 import type { QueryClient } from "@tanstack/react-query";
-import type { Project } from "@multica/core/types";
+import type { Project } from "@rimedeck/core/types";
 import { projectKeys } from "@/data/queries/projects";
 
 export function patchProjectsList(

@@ -1,5 +1,5 @@
 {
-  "name": "@multica/views",
+  "name": "@rimedeck/views",
   "version": "0.4.5",
   "private": true,
   "type": "module",
@@ -61,8 +61,8 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@floating-ui/dom": "^1.7.6",
-    "@multica/core": "workspace:*",
-    "@multica/ui": "workspace:*",
+    "@rimedeck/core": "workspace:*",
+    "@rimedeck/ui": "workspace:*",
     "@tiptap/core": "^3.22.1",
     "@tiptap/extension-code-block-lowlight": "^3.22.1",
     "@tiptap/extension-document": "^3.22.1",
@@ -115,8 +115,8 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@multica/eslint-config": "workspace:*",
-    "@multica/tsconfig": "workspace:*",
+    "@rimedeck/eslint-config": "workspace:*",
+    "@rimedeck/tsconfig": "workspace:*",
     "@testing-library/jest-dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@testing-library/user-event": "catalog:",

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy, Terminal } from "lucide-react";
-import { copyText } from "@multica/ui/lib/clipboard";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 import { useLocale } from "../../i18n";
 
 const INSTALL_CMD =

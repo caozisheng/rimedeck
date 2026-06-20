@@ -12,8 +12,8 @@ import {
 import type {
   RuntimeModel,
   RuntimeModelListRequest,
-} from "@multica/core/types";
-import { I18nProvider } from "@multica/core/i18n/react";
+} from "@rimedeck/core/types";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
 import enCommon from "../../../locales/en/common.json";
 import enAgents from "../../../locales/en/agents.json";
 import enIssues from "../../../locales/en/issues.json";
@@ -25,7 +25,7 @@ const TEST_RESOURCES = {
 const mockInitiateListModels = vi.hoisted(() => vi.fn());
 const mockGetListModelsResult = vi.hoisted(() => vi.fn());
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     initiateListModels: (...args: unknown[]) =>
       mockInitiateListModels(...args),

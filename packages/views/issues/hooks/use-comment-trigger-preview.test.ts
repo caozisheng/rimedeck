@@ -2,14 +2,14 @@ import { createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "@multica/core/api";
+import { api } from "@rimedeck/core/api";
 import {
   commentTriggerPreviewSignature,
   isNoteCommentDraft,
   useCommentTriggerPreview,
 } from "./use-comment-trigger-preview";
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     previewCommentTriggers: vi.fn(),
   },

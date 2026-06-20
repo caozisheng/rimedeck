@@ -1,5 +1,5 @@
 {
-  "name": "@multica/ui",
+  "name": "@rimedeck/ui",
   "version": "0.4.5",
   "private": true,
   "type": "module",
@@ -62,8 +62,8 @@
     "react-i18next": "catalog:"
   },
   "devDependencies": {
-    "@multica/eslint-config": "workspace:*",
-    "@multica/tsconfig": "workspace:*",
+    "@rimedeck/eslint-config": "workspace:*",
+    "@rimedeck/tsconfig": "workspace:*",
     "@types/linkify-it": "^5.0.0",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

@@ -1,1 +1,1 @@
-export { WorkflowsPage as default } from "@multica/views/workflows";
+export { WorkflowsPage as default } from "@rimedeck/views/workflows";

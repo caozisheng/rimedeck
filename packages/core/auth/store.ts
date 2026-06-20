@@ -3,6 +3,7 @@ import type { User, StorageAdapter } from "../types";
 import { identify as identifyAnalytics, resetAnalytics } from "../analytics";
 import { ApiError, type ApiClient } from "../api/client";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
+import { migrateLocalStorageKeys } from "../storage-migration";
 
 export interface AuthStoreOptions {
   api: ApiClient;
@@ -34,6 +35,7 @@ export function createAuthStore(options: AuthStoreOptions) {
     isLoading: true,
 
     initialize: async () => {
+      migrateLocalStorageKeys();
       if (cookieAuth) {
         // In cookie mode, the HttpOnly cookie is sent automatically.
         // Try to fetch the current user — if the cookie exists the server will accept it.
@@ -47,7 +49,7 @@ export function createAuthStore(options: AuthStoreOptions) {
       }
 
       // Token mode: read from localStorage (Electron / legacy).
-      const token = storage.getItem("multica_token");
+      const token = storage.getItem("rimedeck_token");
       if (!token) {
         set({ isLoading: false });
         return;
@@ -81,7 +83,7 @@ export function createAuthStore(options: AuthStoreOptions) {
       const { token, user } = await api.verifyCode(email, code);
       if (!cookieAuth) {
         // Token mode: persist for Electron / legacy.
-        storage.setItem("multica_token", token);
+        storage.setItem("rimedeck_token", token);
         api.setToken(token);
       }
       onLogin?.();
@@ -91,7 +93,7 @@ export function createAuthStore(options: AuthStoreOptions) {
     },
 
     loginWithToken: async (token: string) => {
-      storage.setItem("multica_token", token);
+      storage.setItem("rimedeck_token", token);
       api.setToken(token);
       const user = await api.getMe();
       onLogin?.();
@@ -105,7 +107,7 @@ export function createAuthStore(options: AuthStoreOptions) {
         // Clear server-side HttpOnly cookie.
         api.logout().catch(() => {});
       }
-      storage.removeItem("multica_token");
+      storage.removeItem("rimedeck_token");
       api.setToken(null);
       setCurrentWorkspace(null, null);
       resetAnalytics();

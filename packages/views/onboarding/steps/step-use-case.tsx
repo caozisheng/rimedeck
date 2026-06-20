@@ -10,7 +10,7 @@ import {
   Settings2,
   User,
 } from "lucide-react";
-import type { QuestionnaireAnswers, UseCase } from "@multica/core/onboarding";
+import type { QuestionnaireAnswers, UseCase } from "@rimedeck/core/onboarding";
 import { StepQuestion, type QuestionOption } from "./step-question";
 import { useT } from "../../i18n";
 

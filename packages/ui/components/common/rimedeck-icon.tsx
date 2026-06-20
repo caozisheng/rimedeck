@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "../../lib/utils";
 
-interface MulticaIconProps extends React.ComponentProps<"span"> {
+interface RimeDeckIconProps extends React.ComponentProps<"span"> {
   animate?: boolean;
   noSpin?: boolean;
   bordered?: boolean;
@@ -61,14 +61,14 @@ function RimedeckSvg({ className }: { className?: string }) {
   );
 }
 
-export function MulticaIcon({
+export function RimeDeckIcon({
   className,
   animate = false,
   noSpin = false,
   bordered = false,
   size = "sm",
   ...props
-}: MulticaIconProps) {
+}: RimeDeckIconProps) {
   const [entranceDone, setEntranceDone] = useState(!animate);
 
   useEffect(() => {

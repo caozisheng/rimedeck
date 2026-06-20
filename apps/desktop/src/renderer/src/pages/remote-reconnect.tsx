@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 import { RefreshCw, Unplug, Link2 } from "lucide-react";
-import { DragStrip } from "@multica/views/platform";
-import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
-import { Button } from "@multica/ui/components/ui/button";
-import { Input } from "@multica/ui/components/ui/input";
-import { useAuthStore } from "@multica/core/auth";
-import { JoinWorkspaceDialog } from "@multica/views/workspace/join-workspace-dialog";
+import { DragStrip } from "@rimedeck/views/platform";
+import { RimeDeckIcon } from "@rimedeck/ui/components/common/rimedeck-icon";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { JoinWorkspaceDialog } from "@rimedeck/views/workspace/join-workspace-dialog";
 
 type Phase = "failed" | "expired" | "rejoin";
 
@@ -86,7 +86,7 @@ export function RemoteReconnectPage({ apiUrl }: Props) {
     <div className="flex h-screen flex-col">
       <DragStrip />
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6">
-        <MulticaIcon bordered size="lg" />
+        <RimeDeckIcon bordered size="lg" />
 
         {phase === "failed" && (
           <div className="flex w-full max-w-sm flex-col gap-4 text-center">

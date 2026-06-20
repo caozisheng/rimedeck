@@ -4,10 +4,10 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ExternalLink, GitCommitHorizontal, Link2, PanelRight } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
-import { Card, CardContent } from "@multica/ui/components/ui/card";
-import { Label } from "@multica/ui/components/ui/label";
-import { Switch } from "@multica/ui/components/ui/switch";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Card, CardContent } from "@rimedeck/ui/components/ui/card";
+import { Label } from "@rimedeck/ui/components/ui/label";
+import { Switch } from "@rimedeck/ui/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,17 +17,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@multica/ui/components/ui/alert-dialog";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { memberListOptions, workspaceKeys } from "@multica/core/workspace/queries";
+} from "@rimedeck/ui/components/ui/alert-dialog";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { memberListOptions, workspaceKeys } from "@rimedeck/core/workspace/queries";
 import {
   deriveGitHubSettings,
   githubInstallationsOptions,
-} from "@multica/core/github";
-import { api } from "@multica/core/api";
-import type { Workspace } from "@multica/core/types";
+} from "@rimedeck/core/github";
+import { api } from "@rimedeck/core/api";
+import type { Workspace } from "@rimedeck/core/types";
 import { useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
 import { GitHubMark } from "./github-mark";

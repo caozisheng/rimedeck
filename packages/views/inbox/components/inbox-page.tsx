@@ -3,15 +3,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useDefaultLayout } from "react-resizable-panels";
 import { useQuery } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { useModalStore } from "@multica/core/modals";
-import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { useModalStore } from "@rimedeck/core/modals";
+import { useIssueDraftStore } from "@rimedeck/core/issues/stores/draft-store";
 import {
   inboxListOptions,
   deduplicateInboxItems,
   useInboxUnreadCount,
-} from "@multica/core/inbox/queries";
+} from "@rimedeck/core/inbox/queries";
 import {
   useMarkInboxRead,
   useArchiveInbox,
@@ -19,10 +19,10 @@ import {
   useArchiveAllInbox,
   useArchiveAllReadInbox,
   useArchiveCompletedInbox,
-} from "@multica/core/inbox/mutations";
+} from "@rimedeck/core/inbox/mutations";
 
 import { IssueDetail } from "../../issues/components";
-import { ErrorBoundary } from "@multica/ui/components/common/error-boundary";
+import { ErrorBoundary } from "@rimedeck/ui/components/common/error-boundary";
 import { useNavigation } from "../../navigation";
 import { toast } from "sonner";
 import {
@@ -34,22 +34,22 @@ import {
   ListChecks,
   ArrowLeft,
 } from "lucide-react";
-import type { InboxItem } from "@multica/core/types";
-import { Button } from "@multica/ui/components/ui/button";
+import type { InboxItem } from "@rimedeck/core/types";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
-} from "@multica/ui/components/ui/resizable";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+} from "@rimedeck/ui/components/ui/resizable";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-} from "@multica/ui/components/ui/dropdown-menu";
-import { useIsMobile } from "@multica/ui/hooks/use-mobile";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
+import { useIsMobile } from "@rimedeck/ui/hooks/use-mobile";
 import { PageHeader } from "../../layout/page-header";
 import { InboxListItem, useTimeAgo } from "./inbox-list-item";
 import { useTypeLabels } from "./inbox-detail-label";

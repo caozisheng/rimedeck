@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { capturePageview } from "@multica/core/analytics";
+import { capturePageview } from "@rimedeck/core/analytics";
 
 /**
  * Fires a PostHog $pageview whenever the Next.js App Router pathname changes.

@@ -2,14 +2,14 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { ContentEditor, type ContentEditorRef, useFileDropZone, FileDropOverlay } from "../../editor";
-import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
-import { SubmitButton } from "@multica/ui/components/common/submit-button";
-import { useFileUpload } from "@multica/core/hooks/use-file-upload";
-import { api } from "@multica/core/api";
-import type { Attachment } from "@multica/core/types";
-import { contentReferencesAttachment } from "@multica/core/types";
-import { enterKey, formatShortcut, modKey } from "@multica/core/platform";
-import { useCommentDraftStore } from "@multica/core/issues/stores";
+import { FileUploadButton } from "@rimedeck/ui/components/common/file-upload-button";
+import { SubmitButton } from "@rimedeck/ui/components/common/submit-button";
+import { useFileUpload } from "@rimedeck/core/hooks/use-file-upload";
+import { api } from "@rimedeck/core/api";
+import type { Attachment } from "@rimedeck/core/types";
+import { contentReferencesAttachment } from "@rimedeck/core/types";
+import { enterKey, formatShortcut, modKey } from "@rimedeck/core/platform";
+import { useCommentDraftStore } from "@rimedeck/core/issues/stores";
 import { useT } from "../../i18n";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";

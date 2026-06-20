@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, type MouseEvent } from "react";
-import type { Issue, IssueDependency } from "@multica/core/types";
+import type { Issue, IssueDependency } from "@rimedeck/core/types";
 import { DagCanvas } from "./dag-canvas";
 import { DagEdges } from "./dag-edges";
 import { DagNodeCard } from "./dag-node-card";

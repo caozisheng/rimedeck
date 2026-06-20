@@ -10,23 +10,23 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import type { AgentRuntime, Agent, MemberWithUser } from "@multica/core/types";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { memberListOptions, agentListOptions } from "@multica/core/workspace/queries";
-import { useUpdateRuntime } from "@multica/core/runtimes/mutations";
-import { deriveRuntimeHealth } from "@multica/core/runtimes";
+import type { AgentRuntime, Agent, MemberWithUser } from "@rimedeck/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { memberListOptions, agentListOptions } from "@rimedeck/core/workspace/queries";
+import { useUpdateRuntime } from "@rimedeck/core/runtimes/mutations";
+import { deriveRuntimeHealth } from "@rimedeck/core/runtimes";
 import {
   type AgentPresenceDetail,
   useWorkspacePresenceMap,
-} from "@multica/core/agents";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/core/agents";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/ui/components/ui/tooltip";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { AppLink, useNavigation } from "../../navigation";

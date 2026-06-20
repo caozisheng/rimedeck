@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { issueListOptions, issueDetailOptions } from "@multica/core/issues/queries";
-import { useWorkspaceId } from "@multica/core/hooks";
+import { issueListOptions, issueDetailOptions } from "@rimedeck/core/issues/queries";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
 import { StatusIcon } from "./status-icon";
 
 /**

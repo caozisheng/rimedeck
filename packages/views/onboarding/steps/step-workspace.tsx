@@ -16,16 +16,16 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@multica/ui/components/ui/button";
-import { Input } from "@multica/ui/components/ui/input";
-import { Label } from "@multica/ui/components/ui/label";
-import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
-import { cn } from "@multica/ui/lib/utils";
-import { useCreateWorkspace } from "@multica/core/workspace/mutations";
-import type { Workspace } from "@multica/core/types";
-import { isImeComposing } from "@multica/core/utils";
-import { useConfigStore } from "@multica/core/config";
-import { DragStrip } from "@multica/views/platform";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Label } from "@rimedeck/ui/components/ui/label";
+import { useScrollFade } from "@rimedeck/ui/hooks/use-scroll-fade";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { useCreateWorkspace } from "@rimedeck/core/workspace/mutations";
+import type { Workspace } from "@rimedeck/core/types";
+import { isImeComposing } from "@rimedeck/core/utils";
+import { useConfigStore } from "@rimedeck/core/config";
+import { DragStrip } from "@rimedeck/views/platform";
 import { useLogout } from "../../auth";
 import { StepHeader } from "../components/step-header";
 import { RadioMark } from "../components/option-card";
@@ -36,7 +36,7 @@ import {
   isWorkspaceSlugConflict,
   nameToWorkspaceSlug,
 } from "../../workspace/slug";
-import { isReservedSlug } from "@multica/core/paths";
+import { isReservedSlug } from "@rimedeck/core/paths";
 
 /**
  * Step 2 — create your first workspace, or continue with one set up in

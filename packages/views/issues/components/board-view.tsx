@@ -13,12 +13,12 @@ import {
 } from "@dnd-kit/core";
 import type { QueryKey } from "@tanstack/react-query";
 import { arrayMove } from "@dnd-kit/sortable";
-import type { Issue, IssueAssigneeGroup, IssueStatus } from "@multica/core/types";
-import { useLoadMoreByAssigneeGroup, useLoadMoreByStatus } from "@multica/core/issues/mutations";
-import type { AssigneeGroupedIssuesFilter, IssueSortParam, MyIssuesFilter } from "@multica/core/issues/queries";
-import { useViewStore } from "@multica/core/issues/stores/view-store-context";
-import type { IssueGrouping } from "@multica/core/issues/stores/view-store";
-import { useActorName } from "@multica/core/workspace/hooks";
+import type { Issue, IssueAssigneeGroup, IssueStatus } from "@rimedeck/core/types";
+import { useLoadMoreByAssigneeGroup, useLoadMoreByStatus } from "@rimedeck/core/issues/mutations";
+import type { AssigneeGroupedIssuesFilter, IssueSortParam, MyIssuesFilter } from "@rimedeck/core/issues/queries";
+import { useViewStore } from "@rimedeck/core/issues/stores/view-store-context";
+import type { IssueGrouping } from "@rimedeck/core/issues/stores/view-store";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
 import { BoardColumn, BOARD_CARD_WIDTH, type BoardColumnGroup } from "./board-column";
 import { BoardCardContent } from "./board-card";
 import { HiddenColumnsPanel, HiddenColumnRow } from "./hidden-columns-panel";
@@ -36,7 +36,7 @@ import {
   issueMatchesGroup,
   getMoveUpdates,
 } from "../utils/drag-utils";
-import { useRelationshipFocusStore } from "@multica/core/issues/stores/relationship-focus-store";
+import { useRelationshipFocusStore } from "@rimedeck/core/issues/stores/relationship-focus-store";
 
 function isStatusGroup(
   group: BoardColumnGroup,

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { RuntimesPage, type RuntimeMachine } from "@multica/views/runtimes";
+import { RuntimesPage, type RuntimeMachine } from "@rimedeck/views/runtimes";
 import { Activity, Monitor, Play, RotateCw, Server, Square } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import { toast } from "sonner";
 import { DaemonRuntimeActions } from "./daemon-runtime-card";
 import type {

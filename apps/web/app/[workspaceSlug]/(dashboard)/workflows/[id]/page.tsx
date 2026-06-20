@@ -1,7 +1,7 @@
 "use client";
 
 import { use } from "react";
-import { WorkflowDetailPage } from "@multica/views/workflows";
+import { WorkflowDetailPage } from "@rimedeck/views/workflows";
 
 export default function WorkflowDetailRoute({
   params,

@@ -4,33 +4,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Check, ChevronRight, Maximize2, Minimize2, X as XIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { DialogTitle } from "@multica/ui/components/ui/dialog";
-import { Button } from "@multica/ui/components/ui/button";
-import { Switch } from "@multica/ui/components/ui/switch";
-import { api, ApiError } from "@multica/core/api";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { agentListOptions, squadListOptions } from "@multica/core/workspace/queries";
-import { projectListOptions, projectKeys } from "@multica/core/projects/queries";
+import { DialogTitle } from "@rimedeck/ui/components/ui/dialog";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Switch } from "@rimedeck/ui/components/ui/switch";
+import { api, ApiError } from "@rimedeck/core/api";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { agentListOptions, squadListOptions } from "@rimedeck/core/workspace/queries";
+import { projectListOptions, projectKeys } from "@rimedeck/core/projects/queries";
 import {
   useQuickCreateStore,
   type QuickCreateActorType,
-} from "@multica/core/issues/stores/quick-create-store";
-import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
-import { useCreateModeStore } from "@multica/core/issues/stores/create-mode-store";
-import { useRecentIssuesStore } from "@multica/core/issues/stores";
-import { issueKeys } from "@multica/core/issues/queries";
-import { addIssueToBuckets } from "@multica/core/issues/cache-helpers";
-import type { ListIssuesCache } from "@multica/core/types";
+} from "@rimedeck/core/issues/stores/quick-create-store";
+import { useIssueDraftStore } from "@rimedeck/core/issues/stores/draft-store";
+import { useCreateModeStore } from "@rimedeck/core/issues/stores/create-mode-store";
+import { useRecentIssuesStore } from "@rimedeck/core/issues/stores";
+import { issueKeys } from "@rimedeck/core/issues/queries";
+import { addIssueToBuckets } from "@rimedeck/core/issues/cache-helpers";
+import type { ListIssuesCache } from "@rimedeck/core/types";
 import {
   runtimeListOptions,
   checkQuickCreateCliVersion,
   readRuntimeCliVersion,
   MIN_QUICK_CREATE_CLI_VERSION,
-} from "@multica/core/runtimes";
-import { useFileUpload } from "@multica/core/hooks/use-file-upload";
-import { formatShortcut, modKey, enterKey } from "@multica/core/platform";
-import { contentReferencesAttachment, type Agent, type Attachment, type Squad } from "@multica/core/types";
+} from "@rimedeck/core/runtimes";
+import { useFileUpload } from "@rimedeck/core/hooks/use-file-upload";
+import { formatShortcut, modKey, enterKey } from "@rimedeck/core/platform";
+import { contentReferencesAttachment, type Agent, type Attachment, type Squad } from "@rimedeck/core/types";
 import { ActorAvatar } from "../common/actor-avatar";
 import { PillButton } from "../common/pill-button";
 import { ProjectPicker } from "../projects/components/project-picker";
@@ -41,15 +41,15 @@ import {
   PickerSection,
   PickerEmpty,
 } from "../issues/components/pickers/property-picker";
-import { useAuthStore } from "@multica/core/auth";
-import { memberListOptions } from "@multica/core/workspace/queries";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { memberListOptions } from "@rimedeck/core/workspace/queries";
 import {
   ContentEditor,
   type ContentEditorRef,
   useFileDropZone,
   FileDropOverlay,
 } from "../editor";
-import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
+import { FileUploadButton } from "@rimedeck/ui/components/common/file-upload-button";
 import { useT } from "../i18n";
 import { matchesPinyin } from "../editor/extensions/pinyin-match";
 

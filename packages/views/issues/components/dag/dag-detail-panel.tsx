@@ -2,10 +2,10 @@
 
 import { X, ExternalLink, Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@multica/core/api";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { Button } from "@multica/ui/components/ui/button";
-import type { Issue } from "@multica/core/types";
+import { api } from "@rimedeck/core/api";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import type { Issue } from "@rimedeck/core/types";
 import { StatusIcon } from "../status-icon";
 import { PriorityIcon } from "../priority-icon";
 import { useT } from "../../../i18n";

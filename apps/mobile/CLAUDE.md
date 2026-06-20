@@ -4,8 +4,8 @@ For cross-app sharing rules, see the root `CLAUDE.md` *Sharing Principles* secti
 
 ## What mobile may import from `packages/`
 
-- `import type` from `@multica/core/types/*` (zero runtime coupling)
-- Pure functions from `@multica/core/`
+- `import type` from `@rimedeck/core/types/*` (zero runtime coupling)
+- Pure functions from `@rimedeck/core/`
 
 Everything else, mobile writes its own.
 
@@ -153,7 +153,7 @@ Never copy the visual shape of an existing hand-written `components/ui/` compone
 
 ## Build & release
 
-- **Main CI** (`.github/workflows/ci.yml`) excludes mobile via `--filter='!@multica/mobile'`. Mobile failures do NOT block web/desktop PRs.
+- **Main CI** (`.github/workflows/ci.yml`) excludes mobile via `--filter='!@rimedeck/mobile'`. Mobile failures do NOT block web/desktop PRs.
 - **Mobile verify** (`.github/workflows/mobile-verify.yml`): triggered on `apps/mobile/**` or `packages/core/types/**` changes — runs typecheck/lint/test only, no IPA build.
 - **Mobile release** (`.github/workflows/mobile-release.yml`): triggered by `mobile-v*.*.*` tag → `eas build` + `eas submit`.
 - **OTA** — EAS Update for JS-only fixes that don't change the runtime version. Manual / on-demand push to preview/production channels.
@@ -260,7 +260,7 @@ patched feature and subscribe there.
 
 ### Adding new event coverage — recipe
 
-1. **Read the payload.** Find the event in `@multica/core/types/events.ts`. Note the fields; decide if patch is possible (full object) or invalidate is required (just an id).
+1. **Read the payload.** Find the event in `@rimedeck/core/types/events.ts`. Note the fields; decide if patch is possible (full object) or invalidate is required (just an id).
 2. **Mirror, don't import.** If web has an updater for this event in `packages/core/<feature>/ws-updaters.ts`, copy the design into `apps/mobile/data/realtime/<feature>-ws-updaters.ts`. Adapt to mobile's actual cache shapes — don't carry web's bucket/children/childProgress dead-code if mobile doesn't have those caches.
 3. **Subscribe in a hook.** Either extend an existing `use-<feature>-realtime.ts` or create a new one. Filter by id at the top of each handler so per-record hooks ignore unrelated events.
 4. **Mount it.** Listing-level → add to `<RealtimeSubscriptions />` in workspace `_layout.tsx`. Per-record → add to the owning screen's body, parameterized by the route id.

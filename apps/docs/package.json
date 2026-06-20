@@ -1,5 +1,5 @@
 {
-  "name": "@multica/docs",
+  "name": "@rimedeck/docs",
   "version": "0.4.5",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
-    "@multica/ui": "workspace:*",
+    "@rimedeck/ui": "workspace:*",
     "fumadocs-core": "^15.5.2",
     "fumadocs-mdx": "^12.0.3",
     "fumadocs-ui": "^15.5.2",

@@ -1,5 +1,5 @@
 import { Lock } from "lucide-react";
-import { cn } from "@multica/ui/lib/utils";
+import { cn } from "@rimedeck/ui/lib/utils";
 
 type Resource = "agent" | "skill" | "comment" | "runtime" | "workspace";
 

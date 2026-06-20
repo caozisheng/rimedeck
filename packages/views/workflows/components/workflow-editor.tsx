@@ -17,17 +17,17 @@ import {
 import '@xyflow/react/dist/style.css';
 import './workflow-canvas.css';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useWorkspaceId } from '@multica/core/hooks';
-import { agentListOptions, workflowRunKeys } from '@multica/core/workspace/queries';
-import { api } from '@multica/core/api';
-import type { Agent } from '@multica/core/types';
-import { Button } from '@multica/ui/components/ui/button';
+import { useWorkspaceId } from '@rimedeck/core/hooks';
+import { agentListOptions, workflowRunKeys } from '@rimedeck/core/workspace/queries';
+import { api } from '@rimedeck/core/api';
+import type { Agent } from '@rimedeck/core/types';
+import { Button } from '@rimedeck/ui/components/ui/button';
 import { useT } from '../../i18n';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@multica/ui/components/ui/collapsible';
+} from '@rimedeck/ui/components/ui/collapsible';
 import { ChevronDown, ChevronRight, Loader2, Play } from 'lucide-react';
 import { toast } from 'sonner';
 

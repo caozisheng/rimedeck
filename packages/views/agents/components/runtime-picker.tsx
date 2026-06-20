@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Cloud, Loader2, Lock } from "lucide-react";
 import { ProviderLogo } from "../../runtimes/components/provider-logo";
 import { ActorAvatar } from "../../common/actor-avatar";
-import type { MemberWithUser, RuntimeDevice } from "@multica/core/types";
+import type { MemberWithUser, RuntimeDevice } from "@rimedeck/core/types";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
-} from "@multica/ui/components/ui/popover";
-import { Label } from "@multica/ui/components/ui/label";
+} from "@rimedeck/ui/components/ui/popover";
+import { Label } from "@rimedeck/ui/components/ui/label";
 import { useT } from "../../i18n";
 import {
   isWslRuntime,

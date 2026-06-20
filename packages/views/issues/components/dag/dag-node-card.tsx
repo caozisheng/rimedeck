@@ -2,8 +2,8 @@
 
 import { memo } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
-import type { Issue, IssueStatus } from "@multica/core/types";
-import { useActorName } from "@multica/core/workspace/hooks";
+import type { Issue, IssueStatus } from "@rimedeck/core/types";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
 import { StatusIcon } from "../status-icon";
 import { PriorityIcon } from "../priority-icon";
 import type { DagNode } from "./use-dagre-layout";

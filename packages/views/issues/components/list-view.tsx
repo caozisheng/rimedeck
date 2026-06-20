@@ -15,14 +15,14 @@ import {
   type DragOverEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/ui/tooltip";
-import { Button } from "@multica/ui/components/ui/button";
-import type { Issue, IssueStatus } from "@multica/core/types";
-import { useLoadMoreByStatus } from "@multica/core/issues/mutations";
-import type { IssueSortParam, MyIssuesFilter } from "@multica/core/issues/queries";
-import { useModalStore } from "@multica/core/modals";
-import { useViewStore } from "@multica/core/issues/stores/view-store-context";
-import { useIssueSelectionStore } from "@multica/core/issues/stores/selection-store";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@rimedeck/ui/components/ui/tooltip";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import type { Issue, IssueStatus } from "@rimedeck/core/types";
+import { useLoadMoreByStatus } from "@rimedeck/core/issues/mutations";
+import type { IssueSortParam, MyIssuesFilter } from "@rimedeck/core/issues/queries";
+import { useModalStore } from "@rimedeck/core/modals";
+import { useViewStore } from "@rimedeck/core/issues/stores/view-store-context";
+import { useIssueSelectionStore } from "@rimedeck/core/issues/stores/selection-store";
 import { StatusHeading } from "./status-heading";
 import { ListRow, DraggableListRow, type ChildProgress } from "./list-row";
 import { InfiniteScrollSentinel } from "./infinite-scroll-sentinel";

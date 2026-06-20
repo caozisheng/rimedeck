@@ -5,13 +5,13 @@ import { Crown, Shield, User, Plus, MoreHorizontal, UserMinus, Users, Clock, X, 
 import { useEffect } from "react";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ServerAddressBar } from "../../common/server-address-bar";
-import type { MemberWithUser, MemberRole, Invitation } from "@multica/core/types";
-import { copyText } from "@multica/ui/lib/clipboard";
-import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
-import { cn } from "@multica/ui/lib/utils";
-import { Button } from "@multica/ui/components/ui/button";
-import { Card, CardContent } from "@multica/ui/components/ui/card";
-import { Badge } from "@multica/ui/components/ui/badge";
+import type { MemberWithUser, MemberRole, Invitation } from "@rimedeck/core/types";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
+import { CODE_LIGATURE_CLASS } from "@rimedeck/ui/lib/code-style";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Card, CardContent } from "@rimedeck/ui/components/ui/card";
+import { Badge } from "@rimedeck/ui/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -21,14 +21,14 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction,
-} from "@multica/ui/components/ui/alert-dialog";
+} from "@rimedeck/ui/components/ui/alert-dialog";
 import {
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-} from "@multica/ui/components/ui/select";
+} from "@rimedeck/ui/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -38,15 +38,15 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
-} from "@multica/ui/components/ui/dropdown-menu";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { memberListOptions, invitationListOptions, workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import { useWSEvent } from "@multica/core/realtime";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { memberListOptions, invitationListOptions, workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import { useWSEvent } from "@rimedeck/core/realtime";
 import { useT } from "../../i18n";
 
 const ROLE_ICONS: Record<MemberRole, typeof Crown> = {

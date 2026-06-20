@@ -35,7 +35,7 @@ vi.mock("../platform", () => ({
   DragStrip: () => null,
 }));
 
-vi.mock("@multica/core/auth", () => ({
+vi.mock("@rimedeck/core/auth", () => ({
   useAuthStore: Object.assign(
     (selector?: (s: unknown) => unknown) => {
       const state = { refreshMe };
@@ -47,7 +47,7 @@ vi.mock("@multica/core/auth", () => ({
   ),
 }));
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     acceptInvitation,
     markOnboardingComplete,
@@ -56,7 +56,7 @@ vi.mock("@multica/core/api", () => ({
   },
 }));
 
-import { I18nProvider } from "@multica/core/i18n/react";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
 import enCommon from "../locales/en/common.json";
 import enInvite from "../locales/en/invite.json";
 import { InvitationsPage } from "./invitations-page";

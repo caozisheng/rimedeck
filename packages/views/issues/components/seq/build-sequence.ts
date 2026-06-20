@@ -1,4 +1,4 @@
-import type { Issue, IssueStatus, TimelineEntry } from "@multica/core/types";
+import type { Issue, IssueStatus, TimelineEntry } from "@rimedeck/core/types";
 
 /** A status phase with its associated timeline entries. */
 export interface StatusPhase {

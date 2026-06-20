@@ -2,12 +2,12 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@multica/core/api";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
+import { api } from "@rimedeck/core/api";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import { useNavigation } from "../../../navigation";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import type { Issue, IssueDependency } from "@multica/core/types";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import type { Issue, IssueDependency } from "@rimedeck/core/types";
 import { DagGraph } from "./dag-graph";
 import { useT } from "../../../i18n";
 

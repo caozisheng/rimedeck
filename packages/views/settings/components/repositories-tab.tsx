@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { Save, Plus, Trash2, Pencil, X } from "lucide-react";
-import { Input } from "@multica/ui/components/ui/input";
-import { Button } from "@multica/ui/components/ui/button";
-import { Card, CardContent } from "@multica/ui/components/ui/card";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Card, CardContent } from "@rimedeck/ui/components/ui/card";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { memberListOptions, workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import type { Workspace, WorkspaceRepo } from "@multica/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { memberListOptions, workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import type { Workspace, WorkspaceRepo } from "@rimedeck/core/types";
 import { useT } from "../../i18n";
 
 function dropAndShiftIndex(set: Set<number>, removed: number): Set<number> {

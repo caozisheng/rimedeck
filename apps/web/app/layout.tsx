@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@multica/ui/components/ui/sonner";
-import { cn } from "@multica/ui/lib/utils";
+import { Toaster } from "@rimedeck/ui/components/ui/sonner";
+import { cn } from "@rimedeck/ui/lib/utils";
 import { WebProviders } from "@/components/web-providers";
-import type { SupportedLocale } from "@multica/core/i18n";
-import { RESOURCES } from "@multica/views/locales";
+import type { SupportedLocale } from "@rimedeck/core/i18n";
+import { RESOURCES } from "@rimedeck/views/locales";
 import { getRequestLocale } from "@/lib/request-locale";
 import "./globals.css";
 

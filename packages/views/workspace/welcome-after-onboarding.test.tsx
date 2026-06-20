@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { I18nProvider } from "@multica/core/i18n/react";
-import type { SupportedLocale } from "@multica/core/i18n";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
+import type { SupportedLocale } from "@rimedeck/core/i18n";
 import enOnboarding from "../locales/en/onboarding.json";
 import enCommon from "../locales/en/common.json";
 import koOnboarding from "../locales/ko/onboarding.json";
@@ -12,7 +12,7 @@ import jaOnboarding from "../locales/ja/onboarding.json";
 import jaCommon from "../locales/ja/common.json";
 import { NavigationProvider } from "../navigation";
 import type { NavigationAdapter } from "../navigation";
-import { useWelcomeStore } from "@multica/core/onboarding";
+import { useWelcomeStore } from "@rimedeck/core/onboarding";
 import { WelcomeAfterOnboarding } from "./welcome-after-onboarding";
 
 const TEST_RESOURCES = {
@@ -37,7 +37,7 @@ const mockUser = {
   created_at: "",
   updated_at: "",
 };
-vi.mock("@multica/core/auth", () => ({
+vi.mock("@rimedeck/core/auth", () => ({
   useAuthStore: Object.assign(
     (selector?: (s: { user: typeof mockUser }) => unknown) => {
       const state = { user: mockUser };
@@ -58,9 +58,9 @@ const mockGetWorkspace = vi.fn();
 // `useCurrentWorkspace` is gated by `WorkspaceSlugProvider`; in tests
 // we short-circuit to a fixture matching the welcome signal's workspace id
 // so the cross-workspace guard doesn't drop the component.
-vi.mock("@multica/core/paths", async () => {
-  const actual = await vi.importActual<typeof import("@multica/core/paths")>(
-    "@multica/core/paths",
+vi.mock("@rimedeck/core/paths", async () => {
+  const actual = await vi.importActual<typeof import("@rimedeck/core/paths")>(
+    "@rimedeck/core/paths",
   );
   return {
     ...actual,
@@ -72,7 +72,7 @@ vi.mock("@multica/core/paths", async () => {
   };
 });
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     getBaseUrl: () => "http://127.0.0.1:8080",
     listAgents: (...args: unknown[]) => mockListAgents(...args),

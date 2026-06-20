@@ -1,10 +1,10 @@
 "use client";
 
 import { Suspense, useMemo } from "react";
-import { CoreProvider } from "@multica/core/platform";
-import { createBrowserCookieLocaleAdapter } from "@multica/core/i18n/browser";
-import type { LocaleResources, SupportedLocale } from "@multica/core/i18n";
-import { useWelcomeStore } from "@multica/core/onboarding";
+import { CoreProvider } from "@rimedeck/core/platform";
+import { createBrowserCookieLocaleAdapter } from "@rimedeck/core/i18n/browser";
+import type { LocaleResources, SupportedLocale } from "@rimedeck/core/i18n";
+import { useWelcomeStore } from "@rimedeck/core/onboarding";
 import packageJson from "../package.json";
 import { WebNavigationProvider } from "@/platform/navigation";
 import {

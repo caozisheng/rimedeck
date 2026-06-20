@@ -1,8 +1,8 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { MemberDetailPage as SharedMemberDetailPage } from "@multica/views/members";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { memberListOptions } from "@multica/core/workspace/queries";
+import { MemberDetailPage as SharedMemberDetailPage } from "@rimedeck/views/members";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { memberListOptions } from "@rimedeck/core/workspace/queries";
 import { useDocumentTitle } from "@/hooks/use-document-title";
 
 export function MemberDetailPage() {

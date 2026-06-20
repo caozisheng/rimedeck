@@ -2,7 +2,7 @@ import {
   matchLocale,
   SUPPORTED_LOCALES,
   type SupportedLocale,
-} from "@multica/core/i18n";
+} from "@rimedeck/core/i18n";
 
 export const MULTICA_LOCALE_HEADER = "x-multica-locale";
 

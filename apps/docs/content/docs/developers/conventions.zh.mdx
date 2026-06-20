@@ -31,7 +31,7 @@ monorepo 的包边界是硬约束：
 | 包 | 可依赖 | 不能依赖 |
 | --- | --- | --- |
 | `packages/core` | 仅平台无关基础库 | `react-dom`、`localStorage`、`process.env`、`next/*`、UI 库 |
-| `packages/ui` | 无业务依赖 | `@multica/core`、业务逻辑 |
+| `packages/ui` | 无业务依赖 | `@rimedeck/core`、业务逻辑 |
 | `packages/views` | `core/`、`ui/` | `next/*`、`react-router-dom`、stores |
 | `apps/web/platform/` | `next/*` | 其他 app |
 | `apps/desktop/.../platform/` | `react-router-dom`、electron | 其他 app |

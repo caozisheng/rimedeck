@@ -9,19 +9,19 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
-} from "@multica/ui/components/ui/card";
-import { Input } from "@multica/ui/components/ui/input";
-import { Button } from "@multica/ui/components/ui/button";
-import { Label } from "@multica/ui/components/ui/label";
+} from "@rimedeck/ui/components/ui/card";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Label } from "@rimedeck/ui/components/ui/label";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
-} from "@multica/ui/components/ui/input-otp";
-import { useAuthStore } from "@multica/core/auth";
-import { workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import type { User } from "@multica/core/types";
+} from "@rimedeck/ui/components/ui/input-otp";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import type { User } from "@rimedeck/core/types";
 import { useT } from "../i18n";
 
 // ---------------------------------------------------------------------------

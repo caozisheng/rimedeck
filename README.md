@@ -246,13 +246,13 @@ make dev
 pnpm dev:desktop
 
 # Build
-pnpm --filter @multica/desktop build
+pnpm --filter @rimedeck/desktop build
 
 # Package for current platform
-pnpm --filter @multica/desktop package
+pnpm --filter @rimedeck/desktop package
 
 # Package for all platforms
-pnpm --filter @multica/desktop package:all
+pnpm --filter @rimedeck/desktop package:all
 ```
 
 The desktop build bundles the Go CLI (`multica`) and an embedded PostgreSQL, so the app runs fully offline with no external dependencies.

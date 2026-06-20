@@ -19,7 +19,7 @@ mac:
   target:
     - dmg
     - zip
-  # Hardcoded name avoids the `@multica/desktop-*` subdirectory that
+  # Hardcoded name avoids the `@rimedeck/desktop-*` subdirectory that
   # `${name}` produces for scoped package names.
   # Naming scheme: rimedeck-<version>-<platform>-<arch>.<ext>
   # so the filename alone surfaces kind, version, platform, and CPU arch.
@@ -33,13 +33,13 @@ dmg:
   artifactName: rimedeck-${version}-mac-${arch}.${ext}
 linux:
   # Override the Linux executable name to avoid leaking the scoped npm
-  # package name (`@multica/desktop`) into the installed binary, the
+  # package name (`@rimedeck/desktop`) into the installed binary, the
   # `.desktop` file, and the hicolor icon filename. Without this override
   # electron-builder defaults `executableName` to the package `name`,
-  # which after slash-stripping becomes `@multicadesktop` — producing
-  # `/usr/share/applications/@multicadesktop.desktop`,
-  # `Icon=@multicadesktop`, and
-  # `/usr/share/icons/hicolor/*/apps/@multicadesktop.png`. The leading `@`
+  # which after slash-stripping becomes `@rimedeckdesktop` — producing
+  # `/usr/share/applications/@rimedeckdesktop.desktop`,
+  # `Icon=@rimedeckdesktop`, and
+  # `/usr/share/icons/hicolor/*/apps/@rimedeckdesktop.png`. The leading `@`
   # violates the freedesktop desktop-entry naming guidance, so GNOME /
   # Ubuntu fail to associate the running window with the `.desktop` entry
   # and fall back to the theme's default app icon (the Settings gear on
@@ -51,8 +51,8 @@ linux:
   # ASAR's `package.json` — `productName` if present, otherwise `name`.
   # PR #2437 assumed electron-builder.yml's productName fed app.getName()
   # directly; it does not. With our source package.json carrying only
-  # `name: "@multica/desktop"`, packaged Electron emitted
-  # `WM_CLASS=@multica/desktop`, which broke association with this entry
+  # `name: "@rimedeck/desktop"`, packaged Electron emitted
+  # `WM_CLASS=@rimedeck/desktop`, which broke association with this entry
   # and reproduced #2515 on Ubuntu 0.2.31. The fix lives in two places
   # outside this file — `productName: "RimeDeck"` on the source
   # package.json (so the ASAR carries it) and `app.setName("RimeDeck")`

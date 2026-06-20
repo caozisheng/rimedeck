@@ -1,5 +1,5 @@
-import type { IssueStatus, IssuePriority, TimelineEntry } from "@multica/core/types";
-import { STATUS_CONFIG, PRIORITY_CONFIG } from "@multica/core/issues/config";
+import type { IssueStatus, IssuePriority, TimelineEntry } from "@rimedeck/core/types";
+import { STATUS_CONFIG, PRIORITY_CONFIG } from "@rimedeck/core/issues/config";
 import type { useT } from "../../i18n";
 
 export type ActivityT = ReturnType<typeof useT<"issues">>["t"];

@@ -2,15 +2,15 @@
 
 import { Workflow, Trash2, ChevronRight } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { Agent, WorkflowSummary } from "@multica/core/types";
+import type { Agent, WorkflowSummary } from "@rimedeck/core/types";
 import { useTimeAgo, useT } from "../../i18n";
-import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
+import { ActorAvatar } from "@rimedeck/ui/components/common/actor-avatar";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/ui/components/ui/tooltip";
 
 // ---------------------------------------------------------------------------
 // Row shape

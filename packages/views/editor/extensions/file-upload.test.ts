@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
-import type { UploadResult } from "@multica/core/hooks/use-file-upload";
+import type { UploadResult } from "@rimedeck/core/hooks/use-file-upload";
 import { ImageExtension } from "./index";
 import { uploadAndInsertFile } from "./file-upload";
 

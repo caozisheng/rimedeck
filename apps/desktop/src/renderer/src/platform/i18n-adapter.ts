@@ -1,4 +1,4 @@
-import type { LocaleAdapter, SupportedLocale } from "@multica/core/i18n";
+import type { LocaleAdapter, SupportedLocale } from "@rimedeck/core/i18n";
 
 const STORAGE_KEY = "multica-locale";
 

@@ -3,9 +3,9 @@
  * packages/core/api/client.ts that mobile actually uses, but lives in
  * apps/mobile/ so we control retry/timeout/error handling independently.
  *
- * Types are imported via `import type` from @multica/core/types — zero
+ * Types are imported via `import type` from @rimedeck/core/types — zero
  * runtime coupling. Zod schemas + fallbacks are imported from
- * @multica/core/api/schemas (pure data, on the mobile sharing whitelist).
+ * @rimedeck/core/api/schemas (pure data, on the mobile sharing whitelist).
  *
  * Design checklist (apps/mobile/CLAUDE.md "Lessons → ApiClient capability list"):
  *   1. Zod parseWithFallback for endpoints with schemas (drift defense)
@@ -56,14 +56,14 @@ import type {
   UpdateProjectRequest,
   User,
   Workspace,
-} from "@multica/core/types";
+} from "@rimedeck/core/types";
 import {
   EMPTY_LIST_ISSUES_RESPONSE,
   EMPTY_TIMELINE_ENTRIES,
   IssueSchema,
   ListIssuesResponseSchema,
   TimelineEntriesSchema,
-} from "@multica/core/api/schemas";
+} from "@rimedeck/core/api/schemas";
 import {
   ActiveTasksResponseSchema,
   AgentListSchema,

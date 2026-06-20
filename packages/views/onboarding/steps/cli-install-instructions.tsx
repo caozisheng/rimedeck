@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Check, Copy, Terminal } from "lucide-react";
-import { Card, CardContent } from "@multica/ui/components/ui/card";
-import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
-import { cn } from "@multica/ui/lib/utils";
-import { copyText } from "@multica/ui/lib/clipboard";
+import { Card, CardContent } from "@rimedeck/ui/components/ui/card";
+import { CODE_LIGATURE_CLASS } from "@rimedeck/ui/lib/code-style";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 import { useT } from "../../i18n";
 
 const INSTALL_CMD =

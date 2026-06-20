@@ -2,16 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@multica/core/api";
-import { useAuthStore } from "@multica/core/auth";
-import { useCurrentWorkspace, useWorkspacePaths } from "@multica/core/paths";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
-import { useFileUpload } from "@multica/core/hooks/use-file-upload";
-import { isImeComposing } from "@multica/core/utils";
+import { api } from "@rimedeck/core/api";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useCurrentWorkspace, useWorkspacePaths } from "@rimedeck/core/paths";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
+import { useFileUpload } from "@rimedeck/core/hooks/use-file-upload";
+import { isImeComposing } from "@rimedeck/core/utils";
 import { useTimeAgo } from "../../i18n";
-import { agentListOptions, memberListOptions, squadMemberStatusOptions, workspaceKeys } from "@multica/core/workspace/queries";
-import { runtimeListOptions } from "@multica/core/runtimes";
+import { agentListOptions, memberListOptions, squadMemberStatusOptions, workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { runtimeListOptions } from "@rimedeck/core/runtimes";
 import {
   hasRoutingTable,
   generateRoutingTable,
@@ -20,27 +20,27 @@ import {
   ROUTING_TEMPLATE_BY_TYPE,
   ROUTING_TEMPLATE_BY_PRIORITY,
   ROUTING_TEMPLATE_ESCALATION,
-} from "@multica/core/squads";
+} from "@rimedeck/core/squads";
 import { CreateAgentDialog } from "../../agents/components/create-agent-dialog";
 import { useNavigation } from "../../navigation";
 import { AppLink } from "../../navigation";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { PageHeader } from "../../layout/page-header";
 import { Users, Plus, Trash2, ArrowUpRight, Crown, Camera, Loader2, Pencil, FileText, Save, ChevronDown } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
-import { Input } from "@multica/ui/components/ui/input";
-import { Label } from "@multica/ui/components/ui/label";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Label } from "@rimedeck/ui/components/ui/label";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@multica/ui/components/ui/popover";
+} from "@rimedeck/ui/components/ui/popover";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/ui/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +48,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,14 +58,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@multica/ui/components/ui/alert-dialog";
+} from "@rimedeck/ui/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
-import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
+import { ActorAvatar as ActorAvatarBase } from "@rimedeck/ui/components/common/actor-avatar";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ContentEditor } from "../../editor/content-editor";
 import {
@@ -75,7 +75,7 @@ import {
 } from "../../issues/components/pickers/property-picker";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import type { Squad, SquadMember, SquadMemberStatus, SquadMemberStatusValue, Agent, CreateAgentRequest, MemberWithUser } from "@multica/core/types";
+import type { Squad, SquadMember, SquadMemberStatus, SquadMemberStatusValue, Agent, CreateAgentRequest, MemberWithUser } from "@rimedeck/core/types";
 import { useT } from "../../i18n";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 

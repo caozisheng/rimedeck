@@ -2,10 +2,10 @@
 
 import { type ReactNode, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
-import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
-import type { OnboardingStep } from "@multica/core/onboarding";
-import { DragStrip } from "@multica/views/platform";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { useScrollFade } from "@rimedeck/ui/hooks/use-scroll-fade";
+import type { OnboardingStep } from "@rimedeck/core/onboarding";
+import { DragStrip } from "@rimedeck/views/platform";
 import { StepHeader } from "../components/step-header";
 import {
   IconOptionCard,

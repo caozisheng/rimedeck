@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { arrayMove } from "@dnd-kit/sortable";
-import { createPersistStorage, defaultStorage } from "@multica/core/platform";
-import { createSafeId } from "@multica/core/utils";
-import { isReservedSlug } from "@multica/core/paths";
+import { createPersistStorage, defaultStorage } from "@rimedeck/core/platform";
+import { createSafeId } from "@rimedeck/core/utils";
+import { isReservedSlug } from "@rimedeck/core/paths";
 import type { DataRouter } from "react-router-dom";
 import { createTabRouter } from "../routes";
 

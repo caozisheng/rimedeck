@@ -1,4 +1,4 @@
-import { SettingsPage } from "@multica/views/settings";
+import { SettingsPage } from "@rimedeck/views/settings";
 
 export default function Page() {
   return <SettingsPage />;

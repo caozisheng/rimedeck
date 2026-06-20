@@ -2,18 +2,18 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Key, Trash2, Copy, Check } from "lucide-react";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/ui/tooltip";
-import type { PersonalAccessToken } from "@multica/core/types";
-import { Input } from "@multica/ui/components/ui/input";
-import { Button } from "@multica/ui/components/ui/button";
-import { Card, CardContent } from "@multica/ui/components/ui/card";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@rimedeck/ui/components/ui/tooltip";
+import type { PersonalAccessToken } from "@rimedeck/core/types";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Card, CardContent } from "@rimedeck/ui/components/ui/card";
 import {
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-} from "@multica/ui/components/ui/select";
+} from "@rimedeck/ui/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,11 +31,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@multica/ui/components/ui/alert-dialog";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { copyText } from "@multica/ui/lib/clipboard";
+} from "@rimedeck/ui/components/ui/alert-dialog";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 import { toast } from "sonner";
-import { api } from "@multica/core/api";
+import { api } from "@rimedeck/core/api";
 import { useT } from "../../i18n";
 
 const EXPIRY_KEYS = ["30", "90", "365", "never"] as const;

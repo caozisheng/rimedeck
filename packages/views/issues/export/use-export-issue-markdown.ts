@@ -3,10 +3,10 @@
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Issue, AgentTask } from "@multica/core/types";
-import { api } from "@multica/core/api";
-import { issueKeys, issueTimelineOptions } from "@multica/core/issues/queries";
-import { useActorName } from "@multica/core/workspace/hooks";
+import type { Issue, AgentTask } from "@rimedeck/core/types";
+import { api } from "@rimedeck/core/api";
+import { issueKeys, issueTimelineOptions } from "@rimedeck/core/issues/queries";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
 import { buildTimeline } from "../../common/task-transcript/build-timeline";
 import type { TimelineItem } from "../../common/task-transcript/build-timeline";
 import { formatActivity, type ActivityT } from "../utils/format-activity";

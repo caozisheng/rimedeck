@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { workflowRunListOptions } from "@multica/core/workspace/queries";
-import type { WorkflowRun, WorkflowRunStatus } from "@multica/core/types";
-import { Badge } from "@multica/ui/components/ui/badge";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { workflowRunListOptions } from "@rimedeck/core/workspace/queries";
+import type { WorkflowRun, WorkflowRunStatus } from "@rimedeck/core/types";
+import { Badge } from "@rimedeck/ui/components/ui/badge";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import { useTimeAgo, useT } from "../../i18n";
 import { RunMonitor } from "./run-monitor";
 import {

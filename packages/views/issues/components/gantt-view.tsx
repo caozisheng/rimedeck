@@ -2,19 +2,19 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { useViewStore, useViewStoreApi } from "@multica/core/issues/stores/view-store-context";
-import type { GanttZoom } from "@multica/core/issues/stores/view-store";
-import { projectListOptions } from "@multica/core/projects/queries";
-import type { Issue, IssueStatus } from "@multica/core/types";
-import { cn } from "@multica/ui/lib/utils";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { useViewStore, useViewStoreApi } from "@rimedeck/core/issues/stores/view-store-context";
+import type { GanttZoom } from "@rimedeck/core/issues/stores/view-store";
+import { projectListOptions } from "@rimedeck/core/projects/queries";
+import type { Issue, IssueStatus } from "@rimedeck/core/types";
+import { cn } from "@rimedeck/ui/lib/utils";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-} from "@multica/ui/components/ui/tooltip";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/ui/components/ui/tooltip";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ProjectIcon } from "../../projects/components/project-icon";

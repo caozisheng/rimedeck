@@ -11,19 +11,19 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import { captureEvent } from "@multica/core/analytics";
-import { useAuthStore } from "@multica/core/auth";
+import { captureEvent } from "@rimedeck/core/analytics";
+import { useAuthStore } from "@rimedeck/core/auth";
 import {
   needsSourceBackfill,
   saveQuestionnaire,
   type QuestionnaireAnswers,
   type Source,
-} from "@multica/core/onboarding";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/core/onboarding";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import {
   GitHubIcon,
   GoogleIcon,

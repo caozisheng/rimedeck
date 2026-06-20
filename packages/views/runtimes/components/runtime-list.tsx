@@ -8,16 +8,16 @@ import type {
   AgentRuntime,
   AgentTask,
   MemberWithUser,
-} from "@multica/core/types";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
+} from "@rimedeck/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
 import {
   agentListOptions,
   memberListOptions,
-} from "@multica/core/workspace/queries";
-import { agentTaskSnapshotOptions } from "@multica/core/agents";
-import { paths, useWorkspaceSlug } from "@multica/core/paths";
-import { DataTable } from "@multica/ui/components/ui/data-table";
+} from "@rimedeck/core/workspace/queries";
+import { agentTaskSnapshotOptions } from "@rimedeck/core/agents";
+import { paths, useWorkspaceSlug } from "@rimedeck/core/paths";
+import { DataTable } from "@rimedeck/ui/components/ui/data-table";
 import { useNavigation } from "../../navigation";
 import { type RuntimeRow, createRuntimeColumns } from "./runtime-columns";
 import { useT } from "../../i18n";

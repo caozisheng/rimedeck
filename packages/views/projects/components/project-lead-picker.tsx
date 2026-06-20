@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { UserMinus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { memberListOptions, agentListOptions } from "@multica/core/workspace/queries";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useActorName } from "@multica/core/workspace/hooks";
-import { Popover, PopoverContent, PopoverTrigger } from "@multica/ui/components/ui/popover";
-import type { Project, UpdateProjectRequest } from "@multica/core/types";
+import { memberListOptions, agentListOptions } from "@rimedeck/core/workspace/queries";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
+import { Popover, PopoverContent, PopoverTrigger } from "@rimedeck/ui/components/ui/popover";
+import type { Project, UpdateProjectRequest } from "@rimedeck/core/types";
 import { useT } from "../../i18n";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 import { ActorAvatar } from "../../common/actor-avatar";

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { I18nProvider } from "@multica/core/i18n/react";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
 import enCommon from "../locales/en/common.json";
 import enModals from "../locales/en/modals.json";
 
@@ -74,25 +74,25 @@ vi.mock("../navigation", () => ({
   useNavigation: () => ({ push: mockPush }),
 }));
 
-vi.mock("@multica/core/paths", () => ({
+vi.mock("@rimedeck/core/paths", () => ({
   useCurrentWorkspace: () => ({ name: "Test Workspace" }),
   useWorkspacePaths: () => ({
     issueDetail: (id: string) => `/ws-test/issues/${id}`,
   }),
 }));
 
-vi.mock("@multica/core/hooks", () => ({
+vi.mock("@rimedeck/core/hooks", () => ({
   useWorkspaceId: () => "ws-test",
 }));
 
-vi.mock("@multica/core/issues/queries", () => ({
+vi.mock("@rimedeck/core/issues/queries", () => ({
   issueDetailOptions: (wsId: string, id: string) => ({
     queryKey: ["issues", wsId, "detail", id],
     queryFn: () => Promise.resolve(null),
   }),
 }));
 
-vi.mock("@multica/core/issues/stores/draft-store", () => ({
+vi.mock("@rimedeck/core/issues/stores/draft-store", () => ({
   useIssueDraftStore: Object.assign(
     (selector?: (state: typeof mockDraftStore) => unknown) =>
       (selector ? selector(mockDraftStore) : mockDraftStore),
@@ -100,17 +100,17 @@ vi.mock("@multica/core/issues/stores/draft-store", () => ({
   ),
 }));
 
-vi.mock("@multica/core/issues/stores/quick-create-store", () => ({
+vi.mock("@rimedeck/core/issues/stores/quick-create-store", () => ({
   useQuickCreateStore: (selector?: (state: typeof mockQuickCreateStore) => unknown) =>
     (selector ? selector(mockQuickCreateStore) : mockQuickCreateStore),
 }));
 
-vi.mock("@multica/core/issues/mutations", () => ({
+vi.mock("@rimedeck/core/issues/mutations", () => ({
   useCreateIssue: () => ({ mutateAsync: mockCreateIssue }),
   useUpdateIssue: () => ({ mutate: vi.fn() }),
 }));
 
-vi.mock("@multica/core/hooks/use-file-upload", () => ({
+vi.mock("@rimedeck/core/hooks/use-file-upload", () => ({
   useFileUpload: () => ({ uploadWithToast: mockUploadWithToast }),
 }));
 
@@ -134,18 +134,18 @@ const { ApiError } = vi.hoisted(() => {
   return { ApiError: ApiErrorImpl };
 });
 
-vi.mock("@multica/core/api", async () => {
+vi.mock("@rimedeck/core/api", async () => {
   // Pull real `parseWithFallback` + `DuplicateIssueErrorBodySchema` from the
   // schema modules so the drift-fallback branch in create-issue.tsx runs the
   // actual validation logic (not a stub). Only `ApiError` is local — the
   // component imports it from this module and the cross-realm `instanceof`
   // check requires a single class identity.
-  const { parseWithFallback } = await vi.importActual<typeof import("@multica/core/api/schema")>(
-    "@multica/core/api/schema",
+  const { parseWithFallback } = await vi.importActual<typeof import("@rimedeck/core/api/schema")>(
+    "@rimedeck/core/api/schema",
   );
   const { DuplicateIssueErrorBodySchema } = await vi.importActual<
-    typeof import("@multica/core/api/schemas")
-  >("@multica/core/api/schemas");
+    typeof import("@rimedeck/core/api/schemas")
+  >("@rimedeck/core/api/schemas");
   return {
     api: {},
     ApiError,
@@ -227,7 +227,7 @@ vi.mock("../projects/components/project-picker", () => ({
   ProjectPicker: () => <div data-testid="project-picker" />,
 }));
 
-vi.mock("@multica/ui/components/ui/dialog", () => ({
+vi.mock("@rimedeck/ui/components/ui/dialog", () => ({
   Dialog: ({ children }: { children: React.ReactNode }) => <div data-testid="dialog-root">{children}</div>,
   DialogContent: ({ children, className }: { children: React.ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
@@ -237,7 +237,7 @@ vi.mock("@multica/ui/components/ui/dialog", () => ({
   ),
 }));
 
-vi.mock("@multica/ui/components/ui/dropdown-menu", () => ({
+vi.mock("@rimedeck/ui/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   DropdownMenuTrigger: ({ render }: { render: React.ReactNode }) => <>{render}</>,
   DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -251,14 +251,14 @@ vi.mock("./issue-picker-modal", () => ({
   IssuePickerModal: () => null,
 }));
 
-vi.mock("@multica/ui/components/ui/tooltip", () => ({
+vi.mock("@rimedeck/ui/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipTrigger: ({ render }: { render: React.ReactNode }) => <>{render}</>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@multica/ui/components/ui/button", () => ({
+vi.mock("@rimedeck/ui/components/ui/button", () => ({
   Button: ({
     children,
     disabled,
@@ -276,7 +276,7 @@ vi.mock("@multica/ui/components/ui/button", () => ({
   ),
 }));
 
-vi.mock("@multica/ui/components/ui/switch", () => ({
+vi.mock("@rimedeck/ui/components/ui/switch", () => ({
   Switch: ({
     checked,
     onCheckedChange,
@@ -293,7 +293,7 @@ vi.mock("@multica/ui/components/ui/switch", () => ({
   ),
 }));
 
-vi.mock("@multica/ui/components/common/file-upload-button", () => ({
+vi.mock("@rimedeck/ui/components/common/file-upload-button", () => ({
   FileUploadButton: ({ onSelect }: { onSelect: (file: File) => void }) => (
     <button type="button" onClick={() => onSelect(new File(["test"], "test.txt"))}>
       Upload file
@@ -301,7 +301,7 @@ vi.mock("@multica/ui/components/common/file-upload-button", () => ({
   ),
 }));
 
-vi.mock("@multica/ui/lib/utils", () => ({
+vi.mock("@rimedeck/ui/lib/utils", () => ({
   cn: (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(" "),
 }));
 

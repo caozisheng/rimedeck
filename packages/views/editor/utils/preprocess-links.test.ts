@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { preprocessLinks } from "@multica/ui/markdown/linkify";
+import { preprocessLinks } from "@rimedeck/ui/markdown/linkify";
 
 // The bug: linkify-it does not treat CJK full-width punctuation as a URL
 // boundary, so the href can swallow trailing punctuation and the Chinese

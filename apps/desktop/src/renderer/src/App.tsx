@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CoreProvider } from "@multica/core/platform";
-import { pickLocale, type SupportedLocale } from "@multica/core/i18n";
-import { useAuthStore } from "@multica/core/auth";
-import { useWelcomeStore } from "@multica/core/onboarding";
-import { workspaceKeys, workspaceListOptions } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import { useHasOnboarded } from "@multica/core/paths";
-import { setCurrentWorkspace } from "@multica/core/platform";
-import { ThemeProvider } from "@multica/ui/components/common/theme-provider";
-import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
-import { Toaster } from "@multica/ui/components/ui/sonner";
+import { CoreProvider } from "@rimedeck/core/platform";
+import { pickLocale, type SupportedLocale } from "@rimedeck/core/i18n";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWelcomeStore } from "@rimedeck/core/onboarding";
+import { workspaceKeys, workspaceListOptions } from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import { useHasOnboarded } from "@rimedeck/core/paths";
+import { setCurrentWorkspace } from "@rimedeck/core/platform";
+import { ThemeProvider } from "@rimedeck/ui/components/common/theme-provider";
+import { RimeDeckIcon } from "@rimedeck/ui/components/common/rimedeck-icon";
+import { Toaster } from "@rimedeck/ui/components/ui/sonner";
 import { toast } from "sonner";
-import { useT } from "@multica/views/i18n";
+import { useT } from "@rimedeck/views/i18n";
 import { DesktopLoginPage } from "./pages/login";
 import { RemoteReconnectPage } from "./pages/remote-reconnect";
 import { DesktopShell } from "./components/desktop-layout";
@@ -23,7 +23,7 @@ import { useWindowOverlayStore } from "./stores/window-overlay-store";
 import { useDaemonIPCBridge } from "./platform/daemon-ipc-bridge";
 import { useRemoteHealthCheck, type RemoteHealthCallbacks } from "./platform/use-remote-health-check";
 import { createDesktopLocaleAdapter } from "./platform/i18n-adapter";
-import { RESOURCES } from "@multica/views/locales";
+import { RESOURCES } from "@rimedeck/views/locales";
 
 // BCP-47 region tags for the <html lang> attribute, mirroring
 // apps/web/app/layout.tsx HTML_LANG. index.html ships a static lang="en";
@@ -322,7 +322,7 @@ function AppContent() {
   if (isLoading || bootstrapping) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <MulticaIcon className="size-6 animate-pulse" />
+        <RimeDeckIcon className="size-6 animate-pulse" />
       </div>
     );
   }

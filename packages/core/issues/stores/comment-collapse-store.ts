@@ -37,7 +37,7 @@ export const useCommentCollapseStore = create<CommentCollapseStore>()(
         }),
     }),
     {
-      name: "multica_comment_collapse",
+      name: "rimedeck_comment_collapse",
       storage: createJSONStorage(() => createWorkspaceAwareStorage(defaultStorage)),
     },
   ),

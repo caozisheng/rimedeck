@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Attachment as AttachmentRecord } from "@multica/core/types";
+import type { Attachment as AttachmentRecord } from "@rimedeck/core/types";
 
 const {
   getAttachmentTextContentMock,
@@ -22,7 +22,7 @@ const {
   openByUrlMock: vi.fn(),
 }));
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     getAttachmentTextContent: getAttachmentTextContentMock,
     getBaseUrl: getBaseUrlMock,
@@ -77,8 +77,8 @@ vi.mock("../navigation", () => ({
   }),
 }));
 
-vi.mock("@multica/core/paths", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@multica/core/paths")>();
+vi.mock("@rimedeck/core/paths", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@rimedeck/core/paths")>();
   return {
     ...actual,
     useWorkspaceSlug: () => "acme",
@@ -121,7 +121,7 @@ vi.mock("./attachment-download-context", () => ({
 }));
 
 import { Attachment } from "./attachment";
-import { configStore } from "@multica/core/config";
+import { configStore } from "@rimedeck/core/config";
 
 function makeRecord(overrides: Partial<AttachmentRecord> = {}): AttachmentRecord {
   return {

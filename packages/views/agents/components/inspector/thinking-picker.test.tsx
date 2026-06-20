@@ -2,8 +2,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { RuntimeModelThinkingLevel } from "@multica/core/types";
-import { I18nProvider } from "@multica/core/i18n/react";
+import type { RuntimeModelThinkingLevel } from "@rimedeck/core/types";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
 import enCommon from "../../../locales/en/common.json";
 import enAgents from "../../../locales/en/agents.json";
 import enIssues from "../../../locales/en/issues.json";

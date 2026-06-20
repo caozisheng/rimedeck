@@ -31,35 +31,35 @@ import type {
   MemberWithUser,
   SearchIssueResult,
   SearchProjectResult,
-} from "@multica/core/types";
-import { api } from "@multica/core/api";
+} from "@rimedeck/core/types";
+import { api } from "@rimedeck/core/api";
 import {
   openCreateIssueWithPreference,
   selectRecentIssues,
   useRecentIssuesStore,
-} from "@multica/core/issues/stores";
-import { issueDetailOptions } from "@multica/core/issues/queries";
-import { useWorkspaceId } from "@multica/core";
-import { useWorkspacePaths } from "@multica/core/paths";
-import type { WorkspacePaths } from "@multica/core/paths";
-import { useModalStore } from "@multica/core/modals";
-import { memberListOptions } from "@multica/core/workspace/queries";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
+} from "@rimedeck/core/issues/stores";
+import { issueDetailOptions } from "@rimedeck/core/issues/queries";
+import { useWorkspaceId } from "@rimedeck/core";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import type { WorkspacePaths } from "@rimedeck/core/paths";
+import { useModalStore } from "@rimedeck/core/modals";
+import { memberListOptions } from "@rimedeck/core/workspace/queries";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
 import { StatusIcon } from "../issues/components";
 import { ProjectIcon } from "../projects/components/project-icon";
-import { PROJECT_STATUS_CONFIG } from "@multica/core/projects/config";
-import type { ProjectStatus } from "@multica/core/types";
+import { PROJECT_STATUS_CONFIG } from "@rimedeck/core/projects/config";
+import type { ProjectStatus } from "@rimedeck/core/types";
 import { ActorAvatar } from "../common/actor-avatar";
-import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
+import { ActorAvatar as ActorAvatarBase } from "@rimedeck/ui/components/common/actor-avatar";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@multica/ui/components/ui/dialog";
-import { useTheme } from "@multica/ui/components/common/theme-provider";
-import { copyText } from "@multica/ui/lib/clipboard";
+} from "@rimedeck/ui/components/ui/dialog";
+import { useTheme } from "@rimedeck/ui/components/common/theme-provider";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 import { useNavigation } from "../navigation";
 import { useT } from "../i18n";
 import { matchesPinyin } from "../editor/extensions/pinyin-match";

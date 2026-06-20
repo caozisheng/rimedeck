@@ -2,16 +2,16 @@
 
 import { Check, FolderKanban, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { projectListOptions } from "@multica/core/projects/queries";
-import { useWorkspaceId } from "@multica/core/hooks";
-import type { UpdateIssueRequest } from "@multica/core/types";
+import { projectListOptions } from "@rimedeck/core/projects/queries";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import type { UpdateIssueRequest } from "@rimedeck/core/types";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@multica/ui/components/ui/dropdown-menu";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
 import { ProjectIcon } from "./project-icon";
 import { useT } from "../../i18n";
 

@@ -9,11 +9,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
-import { Button } from "@multica/ui/components/ui/button";
-import { Input } from "@multica/ui/components/ui/input";
-import { cn } from "@multica/ui/lib/utils";
-import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
+} from "@rimedeck/ui/components/ui/dialog";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { CODE_LIGATURE_CLASS } from "@rimedeck/ui/lib/code-style";
 import { useT } from "../../i18n";
 
 type Step = "form" | "connecting" | "success" | "error";

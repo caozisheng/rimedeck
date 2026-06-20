@@ -1,18 +1,18 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { agentListOptions } from "@multica/core/workspace/queries";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
+import { ActorAvatar as ActorAvatarBase } from "@rimedeck/ui/components/common/actor-avatar";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { agentListOptions } from "@rimedeck/core/workspace/queries";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
 import {
   agentTaskSnapshotOptions,
   useAgentPresenceDetail,
-} from "@multica/core/agents";
-import { issueDetailOptions } from "@multica/core/issues";
-import type { AgentTask } from "@multica/core/types";
+} from "@rimedeck/core/agents";
+import { issueDetailOptions } from "@rimedeck/core/issues";
+import type { AgentTask } from "@rimedeck/core/types";
 import { AlertTriangle } from "lucide-react";
 import { AppLink } from "../../navigation";
 import { useT, useTimeAgo } from "../../i18n";

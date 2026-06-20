@@ -1,8 +1,8 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { AutopilotDetailPage as AutopilotDetail } from "@multica/views/autopilots/components";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { autopilotDetailOptions } from "@multica/core/autopilots/queries";
+import { AutopilotDetailPage as AutopilotDetail } from "@rimedeck/views/autopilots/components";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { autopilotDetailOptions } from "@rimedeck/core/autopilots/queries";
 import { useDocumentTitle } from "@/hooks/use-document-title";
 
 export function AutopilotDetailPage() {

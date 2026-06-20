@@ -1,9 +1,9 @@
 "use client";
 
 import { ArrowLeft, LogOut } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
-import type { Workspace } from "@multica/core/types";
-import { useConfigStore } from "@multica/core/config";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import type { Workspace } from "@rimedeck/core/types";
+import { useConfigStore } from "@rimedeck/core/config";
 import { useLogout } from "../auth";
 import { DragStrip } from "../platform";
 import { useT } from "../i18n";

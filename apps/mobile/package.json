@@ -1,5 +1,5 @@
 {
-  "name": "@multica/mobile",
+  "name": "@rimedeck/mobile",
   "version": "0.4.5",
   "private": true,
   "main": "expo-router/entry",
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
-    "@multica/core": "workspace:*",
+    "@rimedeck/core": "workspace:*",
     "@react-native-community/datetimepicker": "8.6.0",
     "@react-native-community/netinfo": "11.5.2",
     "@react-native-segmented-control/segmented-control": "2.5.7",

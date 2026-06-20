@@ -1,5 +1,5 @@
 /**
- * Multica wordmark / sigil. 1:1 vector copy of docs/assets/logo-light.svg —
+ * RimeDeck wordmark / sigil. 1:1 vector copy of docs/assets/logo-light.svg —
  * keep this file and the SVG in sync.
  *
  * react-native-svg does not resolve CSS `currentColor`, so callers must pass
@@ -10,12 +10,12 @@ import Svg, { Polygon } from "react-native-svg";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
-interface MulticaLogoProps {
+interface RimeDeckLogoProps {
   size?: number;
   color?: string;
 }
 
-export function MulticaLogo({ size = 48, color }: MulticaLogoProps) {
+export function RimeDeckLogo({ size = 48, color }: RimeDeckLogoProps) {
   const { isDarkColorScheme } = useColorScheme();
   const resolvedColor =
     color ?? (isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground);

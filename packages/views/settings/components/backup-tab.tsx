@@ -2,17 +2,17 @@
 
 import { useRef, useState } from "react";
 import { Download, Upload, Loader2 } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
-import { Card, CardContent } from "@multica/ui/components/ui/card";
-import { Checkbox } from "@multica/ui/components/ui/checkbox";
-import { Label } from "@multica/ui/components/ui/label";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Card, CardContent } from "@rimedeck/ui/components/ui/card";
+import { Checkbox } from "@rimedeck/ui/components/ui/checkbox";
+import { Label } from "@rimedeck/ui/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@multica/ui/components/ui/select";
+} from "@rimedeck/ui/components/ui/select";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -22,15 +22,15 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
   AlertDialogAction,
-} from "@multica/ui/components/ui/alert-dialog";
+} from "@rimedeck/ui/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { memberListOptions, workspaceKeys } from "@multica/core/workspace/queries";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { api } from "@multica/core/api";
-import type { BackupData } from "@multica/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { memberListOptions, workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { api } from "@rimedeck/core/api";
+import type { BackupData } from "@rimedeck/core/types";
 import { useT } from "../../i18n";
 
 export function BackupTab() {

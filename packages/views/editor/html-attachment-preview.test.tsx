@@ -7,7 +7,7 @@ const { getAttachmentTextContentMock } = vi.hoisted(() => ({
   getAttachmentTextContentMock: vi.fn(),
 }));
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: { getAttachmentTextContent: getAttachmentTextContentMock },
   PreviewTooLargeError: class extends Error {},
   PreviewUnsupportedError: class extends Error {},
@@ -50,10 +50,10 @@ vi.mock("../navigation", () => ({
 }));
 
 // Slug is required for the new-tab path to be built. The component reads
-// it from useWorkspaceSlug() on @multica/core/paths — stub to return a
+// it from useWorkspaceSlug() on @rimedeck/core/paths — stub to return a
 // fixed slug so the tests do not need a WorkspaceSlugProvider tree.
-vi.mock("@multica/core/paths", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@multica/core/paths")>();
+vi.mock("@rimedeck/core/paths", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@rimedeck/core/paths")>();
   return {
     ...actual,
     useWorkspaceSlug: () => "acme",

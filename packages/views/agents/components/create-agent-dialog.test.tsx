@@ -3,9 +3,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { Agent, MemberWithUser, RuntimeDevice } from "@multica/core/types";
-import { I18nProvider } from "@multica/core/i18n/react";
-import { WorkspaceSlugProvider } from "@multica/core/paths";
+import type { Agent, MemberWithUser, RuntimeDevice } from "@rimedeck/core/types";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
+import { WorkspaceSlugProvider } from "@rimedeck/core/paths";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import enCommon from "../../locales/en/common.json";
 import enAgents from "../../locales/en/agents.json";
@@ -21,7 +21,7 @@ const navigationStub: NavigationAdapter = {
 
 const TEST_RESOURCES = { en: { common: enCommon, agents: enAgents } };
 
-vi.mock("@multica/core/hooks", () => ({
+vi.mock("@rimedeck/core/hooks", () => ({
   useWorkspaceId: () => "ws-1",
 }));
 

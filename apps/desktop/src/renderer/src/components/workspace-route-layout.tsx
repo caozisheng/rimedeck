@@ -1,17 +1,17 @@
 import { useEffect } from "react";
 import { Outlet, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { WorkspaceSlugProvider, paths } from "@multica/core/paths";
+import { WorkspaceSlugProvider, paths } from "@rimedeck/core/paths";
 import {
   workspaceBySlugOptions,
   workspaceListOptions,
-} from "@multica/core/workspace";
-import { setCurrentWorkspace } from "@multica/core/platform";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceSeen } from "@multica/views/workspace/use-workspace-seen";
-import { WelcomeAfterOnboarding } from "@multica/views/workspace/welcome-after-onboarding";
-import { WorkspacePresencePrefetch } from "@multica/views/layout";
-import { SourceBackfillModal } from "@multica/views/onboarding";
+} from "@rimedeck/core/workspace";
+import { setCurrentWorkspace } from "@rimedeck/core/platform";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceSeen } from "@rimedeck/views/workspace/use-workspace-seen";
+import { WelcomeAfterOnboarding } from "@rimedeck/views/workspace/welcome-after-onboarding";
+import { WorkspacePresencePrefetch } from "@rimedeck/views/layout";
+import { SourceBackfillModal } from "@rimedeck/views/onboarding";
 import { useTabStore } from "@/stores/tab-store";
 import { useWindowOverlayStore } from "@/stores/window-overlay-store";
 

@@ -3,14 +3,14 @@
 import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Issue, UpdateIssueRequest } from "@multica/core/types";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { useModalStore } from "@multica/core/modals";
-import { useUpdateIssue } from "@multica/core/issues/mutations";
-import { pinListOptions, useCreatePin, useDeletePin } from "@multica/core/pins";
-import { copyText } from "@multica/ui/lib/clipboard";
+import type { Issue, UpdateIssueRequest } from "@rimedeck/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { useModalStore } from "@rimedeck/core/modals";
+import { useUpdateIssue } from "@rimedeck/core/issues/mutations";
+import { pinListOptions, useCreatePin, useDeletePin } from "@rimedeck/core/pins";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 import { useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
 

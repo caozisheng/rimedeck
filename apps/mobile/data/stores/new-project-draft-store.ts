@@ -21,7 +21,7 @@
  */
 import { useEffect, useRef } from "react";
 import { create } from "zustand";
-import type { ProjectPriority, ProjectStatus } from "@multica/core/types";
+import type { ProjectPriority, ProjectStatus } from "@rimedeck/core/types";
 
 interface NewProjectDraftState {
   status: ProjectStatus;

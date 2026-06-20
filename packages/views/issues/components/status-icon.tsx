@@ -1,5 +1,5 @@
-import type { IssueStatus } from "@multica/core/types";
-import { STATUS_CONFIG } from "@multica/core/issues/config";
+import type { IssueStatus } from "@rimedeck/core/types";
+import { STATUS_CONFIG } from "@rimedeck/core/issues/config";
 
 // ---------------------------------------------------------------------------
 // Geometry constants (viewBox 0 0 14 14, center 7,7)

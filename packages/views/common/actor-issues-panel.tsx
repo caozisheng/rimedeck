@@ -4,24 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 import { ListTodo, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { BOARD_STATUSES } from "@multica/core/issues/config";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { BOARD_STATUSES } from "@rimedeck/core/issues/config";
 import {
   childIssueProgressOptions,
   myIssueListOptions,
   type MyIssuesFilter,
-} from "@multica/core/issues/queries";
+} from "@rimedeck/core/issues/queries";
 import {
   actorIssuesViewStore,
   type ActorIssuesScope,
-} from "@multica/core/issues/stores/actor-issues-view-store";
-import { useIssueSelectionStore } from "@multica/core/issues/stores/selection-store";
-import { useClearFiltersOnWorkspaceChange } from "@multica/core/issues/stores/view-store";
-import { ViewStoreProvider } from "@multica/core/issues/stores/view-store-context";
-import { Button } from "@multica/ui/components/ui/button";
-import { Input } from "@multica/ui/components/ui/input";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/core/issues/stores/actor-issues-view-store";
+import { useIssueSelectionStore } from "@rimedeck/core/issues/stores/selection-store";
+import { useClearFiltersOnWorkspaceChange } from "@rimedeck/core/issues/stores/view-store";
+import { ViewStoreProvider } from "@rimedeck/core/issues/stores/view-store-context";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@rimedeck/ui/components/ui/tooltip";
 import { ListView } from "../issues/components/list-view";
 import { BatchActionToolbar } from "../issues/components/batch-action-toolbar";
 import { IssueDisplayControls } from "../issues/components/issues-header";

@@ -3,18 +3,18 @@
 import { useState } from "react";
 import { Plus, Zap, Play, Pause, AlertCircle, Newspaper, GitPullRequest, Bug, BarChart3, Shield, FileSearch } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { autopilotListOptions } from "@multica/core/autopilots/queries";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { useActorName } from "@multica/core/workspace/hooks";
+import { autopilotListOptions } from "@rimedeck/core/autopilots/queries";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
 import { AppLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { PageHeader } from "../../layout/page-header";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { Button } from "@multica/ui/components/ui/button";
-import { cn } from "@multica/ui/lib/utils";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { cn } from "@rimedeck/ui/lib/utils";
 import { AutopilotDialog } from "./autopilot-dialog";
-import type { Autopilot, AutopilotStatus, AutopilotExecutionMode } from "@multica/core/types";
+import type { Autopilot, AutopilotStatus, AutopilotExecutionMode } from "@rimedeck/core/types";
 import type { TriggerFrequency } from "./trigger-config";
 import { useT } from "../../i18n";
 

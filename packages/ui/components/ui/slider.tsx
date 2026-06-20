@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Slider as SliderPrimitive } from "@base-ui/react/slider"
 
-import { cn } from "@multica/ui/lib/utils"
+import { cn } from "@rimedeck/ui/lib/utils"
 
 function Slider({
   className,

@@ -2,7 +2,7 @@
 
 import { cleanup, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentTask } from "@multica/core/types";
+import type { AgentTask } from "@rimedeck/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
 const mockState = vi.hoisted(() => ({
@@ -10,11 +10,11 @@ const mockState = vi.hoisted(() => ({
   taskMessagesOptions: vi.fn(),
 }));
 
-vi.mock("@multica/core/hooks", () => ({
+vi.mock("@rimedeck/core/hooks", () => ({
   useWorkspaceId: () => "ws-1",
 }));
 
-vi.mock("@multica/core/workspace/hooks", () => ({
+vi.mock("@rimedeck/core/workspace/hooks", () => ({
   useActorName: () => ({
     getActorName: (_type: string, id: string) =>
       ({
@@ -30,11 +30,11 @@ vi.mock("@multica/core/workspace/hooks", () => ({
   }),
 }));
 
-vi.mock("@multica/core/chat/queries", () => ({
+vi.mock("@rimedeck/core/chat/queries", () => ({
   taskMessagesOptions: mockState.taskMessagesOptions,
 }));
 
-vi.mock("@multica/ui/components/ui/popover", async () => {
+vi.mock("@rimedeck/ui/components/ui/popover", async () => {
   const React = await vi.importActual<typeof import("react")>("react");
   return {
     Popover: ({ children }: { children: React.ReactNode }) => (

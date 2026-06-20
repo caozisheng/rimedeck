@@ -1,7 +1,7 @@
 "use client";
 
 import { AppLink } from "../../navigation";
-import { useWorkspacePaths } from "@multica/core/paths";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import { IssueChip } from "./issue-chip";
 
 interface IssueMentionCardProps {

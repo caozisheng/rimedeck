@@ -13,7 +13,7 @@ import {
   type DetectResult,
 } from "@/features/landing/utils/os-detect";
 import type { LatestRelease } from "@/features/landing/utils/github-release";
-import { captureDownloadPageViewed } from "@multica/core/analytics";
+import { captureDownloadPageViewed } from "@rimedeck/core/analytics";
 
 const ALL_RELEASES_URL =
   "https://github.com/multica-ai/multica/releases";

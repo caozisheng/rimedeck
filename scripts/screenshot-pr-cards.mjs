@@ -54,7 +54,7 @@ async function main() {
 
   // Set token before navigation so the renderer hits an authenticated state.
   await page.goto(`${FRONTEND}/login`);
-  await page.evaluate((t) => localStorage.setItem("multica_token", t), token);
+  await page.evaluate((t) => localStorage.setItem("rimedeck_token", t), token);
 
   for (const n of ISSUES) {
     const url = `${FRONTEND}/${SLUG}/issues/DEV-${n}`;

@@ -11,12 +11,12 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Agent, Squad } from "@multica/core/types";
-import type { AgentPresenceDetail } from "@multica/core/agents";
-import { api } from "@multica/core/api";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { workspaceKeys } from "@multica/core/workspace/queries";
+import type { Agent, Squad } from "@rimedeck/core/types";
+import type { AgentPresenceDetail } from "@rimedeck/core/agents";
+import { api } from "@rimedeck/core/api";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { workspaceKeys } from "@rimedeck/core/workspace/queries";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,15 +26,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@multica/ui/components/ui/alert-dialog";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/ui/components/ui/alert-dialog";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
 

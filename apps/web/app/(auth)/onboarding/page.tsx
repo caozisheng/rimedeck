@@ -3,14 +3,14 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useAuthStore } from "@multica/core/auth";
+import { useAuthStore } from "@rimedeck/core/auth";
 import {
   paths,
   resolvePostAuthDestination,
   useHasOnboarded,
-} from "@multica/core/paths";
-import { workspaceListOptions } from "@multica/core/workspace/queries";
-import { CliInstallInstructions, OnboardingFlow } from "@multica/views/onboarding";
+} from "@rimedeck/core/paths";
+import { workspaceListOptions } from "@rimedeck/core/workspace/queries";
+import { CliInstallInstructions, OnboardingFlow } from "@rimedeck/views/onboarding";
 
 /**
  * Web shell for the onboarding flow. The route is the platform chrome on

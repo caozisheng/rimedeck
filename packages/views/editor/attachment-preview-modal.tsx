@@ -41,11 +41,11 @@ import { createPortal } from "react-dom";
 import {
   PreviewTooLargeError,
   PreviewUnsupportedError,
-} from "@multica/core/api";
+} from "@rimedeck/core/api";
 import { Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
-import type { Attachment } from "@multica/core/types";
-import { paths, useWorkspaceSlug } from "@multica/core/paths";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
+import type { Attachment } from "@rimedeck/core/types";
+import { paths, useWorkspaceSlug } from "@rimedeck/core/paths";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
 import { useT } from "../i18n";
 import { useNavigation } from "../navigation";
 import { openExternal } from "../platform";

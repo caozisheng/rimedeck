@@ -1,5 +1,5 @@
 {
-  "name": "@multica/core",
+  "name": "@rimedeck/core",
   "version": "0.4.5",
   "private": true,
   "type": "module",
@@ -118,8 +118,8 @@
     "react": "catalog:"
   },
   "devDependencies": {
-    "@multica/eslint-config": "workspace:*",
-    "@multica/tsconfig": "workspace:*",
+    "@rimedeck/eslint-config": "workspace:*",
+    "@rimedeck/tsconfig": "workspace:*",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "jsdom": "catalog:",

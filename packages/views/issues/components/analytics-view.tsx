@@ -1,6 +1,6 @@
 "use client";
 
-import type { Issue } from "@multica/core/types";
+import type { Issue } from "@rimedeck/core/types";
 import { StatusDonut } from "./analytics/status-donut";
 import { PriorityBars } from "./analytics/priority-bars";
 import { WorkloadBars } from "./analytics/workload-bars";

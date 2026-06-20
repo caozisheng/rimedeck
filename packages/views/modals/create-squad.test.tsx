@@ -3,8 +3,8 @@
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
-import { I18nProvider } from "@multica/core/i18n/react";
-import type { Agent, MemberWithUser, Squad } from "@multica/core/types";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
+import type { Agent, MemberWithUser, Squad } from "@rimedeck/core/types";
 import enCommon from "../locales/en/common.json";
 import enModals from "../locales/en/modals.json";
 import enAgents from "../locales/en/agents.json";
@@ -48,35 +48,35 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
   };
 });
 
-vi.mock("@multica/core/workspace/queries", () => ({
+vi.mock("@rimedeck/core/workspace/queries", () => ({
   agentListOptions: () => ({ queryKey: ["agents"] }),
   memberListOptions: () => ({ queryKey: ["members"] }),
   workspaceKeys: { squads: (id: string) => ["squads", id] },
 }));
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     createSquad: (...args: unknown[]) => mocks.createSquad(...args),
     addSquadMember: (...args: unknown[]) => mocks.addSquadMember(...args),
   },
 }));
 
-vi.mock("@multica/core/auth", () => ({
+vi.mock("@rimedeck/core/auth", () => ({
   useAuthStore: (selector: (s: { user: { id: string } | null }) => unknown) =>
     selector({ user: { id: ME } }),
 }));
 
-vi.mock("@multica/core/hooks", () => ({
+vi.mock("@rimedeck/core/hooks", () => ({
   useWorkspaceId: () => "ws-1",
 }));
 
-vi.mock("@multica/core/paths", () => ({
+vi.mock("@rimedeck/core/paths", () => ({
   useWorkspacePaths: () => ({
     squadDetail: (id: string) => `/test-ws/squads/${id}`,
   }),
 }));
 
-vi.mock("@multica/core/utils", () => ({
+vi.mock("@rimedeck/core/utils", () => ({
   isImeComposing: () => false,
 }));
 
@@ -109,11 +109,11 @@ vi.mock("../agents/components/avatar-picker", () => ({
   ),
 }));
 
-vi.mock("@multica/core/runtimes/queries", () => ({
+vi.mock("@rimedeck/core/runtimes/queries", () => ({
   runtimeListOptions: () => ({ queryKey: ["runtimes"] }),
 }));
 
-vi.mock("@multica/core/squads", () => ({
+vi.mock("@rimedeck/core/squads", () => ({
   generateRoutingTable: () => "mock-routing-table",
 }));
 
@@ -136,7 +136,7 @@ vi.mock("../agents/components/char-counter", () => ({
 // Render Popover/PopoverContent inline so the picker rows are queryable
 // without simulating a Base UI portal — we still drive the open prop via
 // PopoverTrigger clicks but the content is always in the DOM.
-vi.mock("@multica/ui/components/ui/popover", () => ({
+vi.mock("@rimedeck/ui/components/ui/popover", () => ({
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({
     children,
@@ -161,7 +161,7 @@ vi.mock("@multica/ui/components/ui/popover", () => ({
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@multica/ui/components/ui/dialog", () => ({
+vi.mock("@rimedeck/ui/components/ui/dialog", () => ({
   Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -169,7 +169,7 @@ vi.mock("@multica/ui/components/ui/dialog", () => ({
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }));
 
-vi.mock("@multica/ui/components/ui/button", () => ({
+vi.mock("@rimedeck/ui/components/ui/button", () => ({
   Button: ({
     children,
     disabled,
@@ -187,13 +187,13 @@ vi.mock("@multica/ui/components/ui/button", () => ({
   ),
 }));
 
-vi.mock("@multica/ui/components/ui/input", () => ({
+vi.mock("@rimedeck/ui/components/ui/input", () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input {...props} />
   ),
 }));
 
-vi.mock("@multica/ui/components/ui/label", () => ({
+vi.mock("@rimedeck/ui/components/ui/label", () => ({
   Label: ({ children, className }: { children: ReactNode; className?: string }) => (
     <label className={className}>{children}</label>
   ),

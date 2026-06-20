@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
-import { Markdown } from "@multica/ui/markdown";
+import { Markdown } from "@rimedeck/ui/markdown";
 import { ReadonlyContent } from "./readonly-content";
 
 // Prose with two dollar amounts and `~` (approximately) markers. With

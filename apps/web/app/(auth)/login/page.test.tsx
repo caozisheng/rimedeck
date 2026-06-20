@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { I18nProvider } from "@multica/core/i18n/react";
-import enCommon from "@multica/views/locales/en/common.json";
-import enAuth from "@multica/views/locales/en/auth.json";
-import enSettings from "@multica/views/locales/en/settings.json";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
+import enCommon from "@rimedeck/views/locales/en/common.json";
+import enAuth from "@rimedeck/views/locales/en/auth.json";
+import enSettings from "@rimedeck/views/locales/en/settings.json";
 import type { ReactNode } from "react";
 
 const TEST_RESOURCES = {
@@ -53,10 +53,10 @@ vi.mock("next/navigation", () => ({
 // web wrapper uses useAuthStore((s) => s.user/isLoading). Keep the real
 // sanitizeNextUrl so the redirect-sanitization rules are exercised rather
 // than silently drifting behind a mock reimplementation.
-vi.mock("@multica/core/auth", async () => {
+vi.mock("@rimedeck/core/auth", async () => {
   const actual =
-    await vi.importActual<typeof import("@multica/core/auth")>(
-      "@multica/core/auth",
+    await vi.importActual<typeof import("@rimedeck/core/auth")>(
+      "@rimedeck/core/auth",
     );
   authStateRef.state.sendCode = mockSendCode;
   authStateRef.state.verifyCode = mockVerifyCode;
@@ -74,7 +74,7 @@ vi.mock("@/features/auth/auth-cookie", () => ({
 }));
 
 // Mock api
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     listWorkspaces: vi.fn().mockResolvedValue([]),
     verifyCode: vi.fn(),

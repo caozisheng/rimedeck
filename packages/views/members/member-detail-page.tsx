@@ -2,13 +2,13 @@
 
 import { ChevronRight, UserRound } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import type { MemberRole } from "@multica/core/types";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { memberListOptions } from "@multica/core/workspace/queries";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
-import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import type { MemberRole } from "@rimedeck/core/types";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { memberListOptions } from "@rimedeck/core/workspace/queries";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
+import { ActorAvatar as ActorAvatarBase } from "@rimedeck/ui/components/common/actor-avatar";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import { PageHeader } from "../layout/page-header";
 import { WorkspaceAvatar } from "../workspace/workspace-avatar";
 import { ActorIssuesPanel } from "../common/actor-issues-panel";

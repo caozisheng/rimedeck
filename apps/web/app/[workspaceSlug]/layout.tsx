@@ -3,14 +3,14 @@
 import { use, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { WorkspaceSlugProvider, paths } from "@multica/core/paths";
-import { workspaceBySlugOptions } from "@multica/core/workspace";
-import { setCurrentWorkspace } from "@multica/core/platform";
-import { useAuthStore } from "@multica/core/auth";
-import { NoAccessPage } from "@multica/views/workspace/no-access-page";
-import { WelcomeAfterOnboarding } from "@multica/views/workspace/welcome-after-onboarding";
-import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
-import { useWorkspaceSeen } from "@multica/views/workspace/use-workspace-seen";
+import { WorkspaceSlugProvider, paths } from "@rimedeck/core/paths";
+import { workspaceBySlugOptions } from "@rimedeck/core/workspace";
+import { setCurrentWorkspace } from "@rimedeck/core/platform";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { NoAccessPage } from "@rimedeck/views/workspace/no-access-page";
+import { WelcomeAfterOnboarding } from "@rimedeck/views/workspace/welcome-after-onboarding";
+import { RimeDeckIcon } from "@rimedeck/ui/components/common/rimedeck-icon";
+import { useWorkspaceSeen } from "@rimedeck/views/workspace/use-workspace-seen";
 
 export default function WorkspaceLayout({
   children,
@@ -76,7 +76,7 @@ export default function WorkspaceLayout({
 
   const loadingIndicator = (
     <div className="flex h-svh items-center justify-center">
-      <MulticaIcon className="size-6 animate-pulse" />
+      <RimeDeckIcon className="size-6 animate-pulse" />
     </div>
   );
 

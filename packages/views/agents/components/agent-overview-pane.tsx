@@ -12,8 +12,8 @@ import {
   Terminal,
   Workflow,
 } from "lucide-react";
-import type { Agent, AgentRuntime } from "@multica/core/types";
-import { providerSupportsMcpConfig } from "@multica/core/agents";
+import type { Agent, AgentRuntime } from "@rimedeck/core/types";
+import { providerSupportsMcpConfig } from "@rimedeck/core/agents";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +23,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@multica/ui/components/ui/alert-dialog";
+} from "@rimedeck/ui/components/ui/alert-dialog";
 import { ActivityTab } from "./tabs/activity-tab";
 import { InstructionsTab } from "./tabs/instructions-tab";
 import { SkillsTab } from "./tabs/skills-tab";

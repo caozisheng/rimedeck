@@ -1,4 +1,4 @@
-import { cn } from "@multica/ui/lib/utils";
+import { cn } from "@rimedeck/ui/lib/utils";
 
 export const githubUrl = "https://github.com/multica-ai/multica";
 export const twitterUrl = "https://x.com/MulticaAI";

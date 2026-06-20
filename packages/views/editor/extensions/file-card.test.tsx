@@ -18,7 +18,7 @@ const { getAttachmentTextContentMock, resolveAttachmentMock, openByUrlMock, tryO
     tryOpenMock: vi.fn(),
   }));
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: { getAttachmentTextContent: getAttachmentTextContentMock },
   PreviewTooLargeError: class extends Error {},
   PreviewUnsupportedError: class extends Error {},
@@ -50,8 +50,8 @@ vi.mock("../../navigation", () => ({
   }),
 }));
 
-vi.mock("@multica/core/paths", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@multica/core/paths")>();
+vi.mock("@rimedeck/core/paths", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@rimedeck/core/paths")>();
   return {
     ...actual,
     useWorkspaceSlug: () => "acme",

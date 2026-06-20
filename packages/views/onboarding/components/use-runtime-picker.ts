@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWSEvent } from "@multica/core/realtime";
+import { useWSEvent } from "@rimedeck/core/realtime";
 import {
   runtimeKeys,
   runtimeListOptions,
-} from "@multica/core/runtimes/queries";
-import type { AgentRuntime } from "@multica/core/types";
+} from "@rimedeck/core/runtimes/queries";
+import type { AgentRuntime } from "@rimedeck/core/types";
 
 /**
  * Step 3's runtime data layer, shared by Desktop (`StepRuntimeConnect`)

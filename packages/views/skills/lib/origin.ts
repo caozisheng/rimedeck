@@ -1,4 +1,4 @@
-import type { Skill, SkillSummary } from "@multica/core/types";
+import type { Skill, SkillSummary } from "@rimedeck/core/types";
 
 /**
  * Discriminated view over `Skill.config.origin` — the JSONB blob the backend

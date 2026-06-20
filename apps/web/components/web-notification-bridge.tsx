@@ -4,9 +4,9 @@ import { useEffect, useRef } from "react";
 import {
   registerSystemNotificationClickHandler,
   type SystemNotificationPayload,
-} from "@multica/core/platform";
-import { paths } from "@multica/core/paths";
-import { useNavigation } from "@multica/views/navigation";
+} from "@rimedeck/core/platform";
+import { paths } from "@rimedeck/core/paths";
+import { useNavigation } from "@rimedeck/views/navigation";
 
 /**
  * Routes browser notification clicks to the source workspace's inbox, focused

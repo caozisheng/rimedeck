@@ -7,7 +7,7 @@
  * workspace flips wsId and the cache moves automatically (root CLAUDE.md
  * "Workspace-scoped queries must key on wsId").
  */
-import type { ListIssuesParams } from "@multica/core/types";
+import type { ListIssuesParams } from "@rimedeck/core/types";
 
 export type MyIssuesScope = "assigned" | "created" | "agents";
 

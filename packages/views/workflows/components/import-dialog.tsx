@@ -2,26 +2,26 @@
 
 import { useState, useMemo, type DragEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import type { ImportWarning } from "@multica/core/types";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import type { ImportWarning } from "@rimedeck/core/types";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
-import { Button } from "@multica/ui/components/ui/button";
-import { Input } from "@multica/ui/components/ui/input";
-import { Textarea } from "@multica/ui/components/ui/textarea";
+} from "@rimedeck/ui/components/ui/dialog";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Textarea } from "@rimedeck/ui/components/ui/textarea";
 import {
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
-} from "@multica/ui/components/ui/tabs";
+} from "@rimedeck/ui/components/ui/tabs";
 import {
   Upload,
   ClipboardPaste,

@@ -11,36 +11,36 @@ import {
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import type { Agent, AgentRuntime, CreateAgentRequest } from "@multica/core/types";
+import type { Agent, AgentRuntime, CreateAgentRequest } from "@rimedeck/core/types";
 import {
   type AgentAvailability,
   agentRunCounts30dOptions,
   summarizeActivityWindow,
   useWorkspaceActivityMap,
   useWorkspacePresenceMap,
-} from "@multica/core/agents";
-import { useAgentsViewStore } from "@multica/core/agents/stores";
-import { api } from "@multica/core/api";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { canAssignAgentToIssue } from "@multica/core/permissions";
-import { useWorkspacePaths } from "@multica/core/paths";
+} from "@rimedeck/core/agents";
+import { useAgentsViewStore } from "@rimedeck/core/agents/stores";
+import { api } from "@rimedeck/core/api";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { canAssignAgentToIssue } from "@rimedeck/core/permissions";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import {
   agentListOptions,
   memberListOptions,
   workspaceKeys,
-} from "@multica/core/workspace/queries";
-import { runtimeListOptions } from "@multica/core/runtimes";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/core/workspace/queries";
+import { runtimeListOptions } from "@rimedeck/core/runtimes";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
-import { Input } from "@multica/ui/components/ui/input";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { DataTable } from "@multica/ui/components/ui/data-table";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import { DataTable } from "@rimedeck/ui/components/ui/data-table";
 import { useNavigation } from "../../navigation";
 import { PageHeader } from "../../layout/page-header";
 import { availabilityConfig, availabilityOrder } from "../presence";

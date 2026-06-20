@@ -1,10 +1,10 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 import { ArrowUpRight } from "lucide-react";
 
-// Docs-local stateless RimeDeck mark — matches @multica/ui's MulticaIcon
+// Docs-local stateless RimeDeck mark — matches @rimedeck/ui's RimeDeckIcon
 // visually, but without useState/useEffect so it's safe to render from
 // Server Components. Keep in sync with
-// packages/ui/components/common/multica-icon.tsx if the mark changes.
+// packages/ui/components/common/rimedeck-icon.tsx if the mark changes.
 function RimedeckMark() {
   return (
     <svg viewBox="0 0 100 100" fill="none" className="inline-block size-[1em]" aria-hidden="true">

@@ -1,4 +1,4 @@
-import type { Issue } from "@multica/core/types";
+import type { Issue } from "@rimedeck/core/types";
 
 export function computeRelatedIds(
   issue: Issue,

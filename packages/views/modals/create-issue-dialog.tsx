@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@multica/ui/lib/utils";
-import { Dialog, DialogContent } from "@multica/ui/components/ui/dialog";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { Dialog, DialogContent } from "@rimedeck/ui/components/ui/dialog";
 import {
   useCreateModeStore,
   type CreateMode,
-} from "@multica/core/issues/stores/create-mode-store";
+} from "@rimedeck/core/issues/stores/create-mode-store";
 import { AgentCreatePanel } from "./quick-create-issue";
 import { ManualCreatePanel, manualDialogContentClass } from "./create-issue";
 

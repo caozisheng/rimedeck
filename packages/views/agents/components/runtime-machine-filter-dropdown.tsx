@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { ChevronDown, Server } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
 import type { RuntimeMachine, RuntimeMachineSection } from "../../runtimes/components/runtime-machines";
 import { useT } from "../../i18n";
 

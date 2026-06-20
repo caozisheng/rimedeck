@@ -6,9 +6,9 @@ import {
   isWebNotificationSupported,
   requestWebNotificationPermission,
   type WebNotificationPermission,
-} from "@multica/core/platform";
-import { Button } from "@multica/ui/components/ui/button";
-import { Card, CardContent } from "@multica/ui/components/ui/card";
+} from "@rimedeck/core/platform";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Card, CardContent } from "@rimedeck/ui/components/ui/card";
 import { isDesktopShell } from "../../platform";
 import { useT } from "../../i18n";
 

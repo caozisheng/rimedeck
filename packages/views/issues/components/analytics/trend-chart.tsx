@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useMemo, useState, useCallback, useSyncExternalStore } from "react";
-import type { Issue, IssueStatus } from "@multica/core/types";
+import type { Issue, IssueStatus } from "@rimedeck/core/types";
 import { useT } from "../../../i18n";
 
 type TimeRange = "14d" | "30d" | "90d";

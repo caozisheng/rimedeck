@@ -2,18 +2,18 @@ import { forwardRef, useImperativeHandle, useRef, type ReactNode, type Ref } fro
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import type { UploadResult } from "@multica/core/hooks/use-file-upload";
+import type { UploadResult } from "@rimedeck/core/hooks/use-file-upload";
 import { renderWithI18n } from "../../test/i18n";
 import { CommentInput } from "./comment-input";
 import { ReplyInput } from "./reply-input";
 
 const uploadWithToast = vi.hoisted(() => vi.fn());
 
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {},
 }));
 
-vi.mock("@multica/core/hooks/use-file-upload", () => ({
+vi.mock("@rimedeck/core/hooks/use-file-upload", () => ({
   useFileUpload: () => ({ uploadWithToast }),
 }));
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { Input } from "@multica/ui/components/ui/input";
-import { cn } from "@multica/ui/lib/utils";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { cn } from "@rimedeck/ui/lib/utils";
 import { useT } from "../../i18n";
 
 const OTHER_INPUT_MAX_LENGTH = 80;

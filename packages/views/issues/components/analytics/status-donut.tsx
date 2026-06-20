@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Issue, IssueStatus } from "@multica/core/types";
-import { ALL_STATUSES } from "@multica/core/issues/config";
+import type { Issue, IssueStatus } from "@rimedeck/core/types";
+import { ALL_STATUSES } from "@rimedeck/core/issues/config";
 import { useT } from "../../../i18n";
 
 const SIZE = 180;

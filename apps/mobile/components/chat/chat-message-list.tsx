@@ -46,8 +46,8 @@ import type {
   ChatMessage,
   ChatPendingTask,
   TaskMessagePayload,
-} from "@multica/core/types";
-import type { AgentAvailability } from "@multica/core/agents";
+} from "@rimedeck/core/types";
+import type { AgentAvailability } from "@rimedeck/core/agents";
 import { taskMessagesOptions } from "@/data/queries/chat";
 import { Text } from "@/components/ui/text";
 import { Markdown } from "@/lib/markdown";

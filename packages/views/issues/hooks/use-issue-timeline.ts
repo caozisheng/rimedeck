@@ -10,7 +10,7 @@ import type {
   Comment,
   TimelineEntry,
   Reaction,
-} from "@multica/core/types";
+} from "@rimedeck/core/types";
 import type {
   CommentCreatedPayload,
   CommentUpdatedPayload,
@@ -20,11 +20,11 @@ import type {
   ActivityCreatedPayload,
   ReactionAddedPayload,
   ReactionRemovedPayload,
-} from "@multica/core/types";
+} from "@rimedeck/core/types";
 import {
   issueTimelineOptions,
   issueKeys,
-} from "@multica/core/issues/queries";
+} from "@rimedeck/core/issues/queries";
 import {
   useCreateComment,
   useUpdateComment,
@@ -32,9 +32,9 @@ import {
   useResolveComment,
   useToggleCommentReaction,
   type ToggleCommentReactionVars,
-} from "@multica/core/issues/mutations";
-import { sortTimelineEntriesAsc } from "@multica/core/issues/timeline-sort";
-import { useWSEvent, useWSReconnect } from "@multica/core/realtime";
+} from "@rimedeck/core/issues/mutations";
+import { sortTimelineEntriesAsc } from "@rimedeck/core/issues/timeline-sort";
+import { useWSEvent, useWSReconnect } from "@rimedeck/core/realtime";
 import { toast } from "sonner";
 import { useT } from "../../i18n";
 

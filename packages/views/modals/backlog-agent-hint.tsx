@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 import { BacklogAgentHintDialog } from "../issues/components/backlog-agent-hint-dialog";
-import { useUpdateIssue } from "@multica/core/issues/mutations";
+import { useUpdateIssue } from "@rimedeck/core/issues/mutations";
 import { useT } from "../i18n";
 
 export function BacklogAgentHintModal({

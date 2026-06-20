@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
-import { useActorName } from "@multica/core/workspace/hooks";
-import type { Issue, TimelineEntry } from "@multica/core/types";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
+import type { Issue, TimelineEntry } from "@rimedeck/core/types";
 import { StatusIcon } from "../status-icon";
 import { buildPhases, formatDuration, STATUS_LABEL, type StatusPhase } from "./build-sequence";
 import { useT } from "../../../i18n";

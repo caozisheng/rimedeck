@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { childIssuesOptions } from "@multica/core/issues/queries";
-import { useUpdateIssue } from "@multica/core/issues/mutations";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { childIssuesOptions } from "@rimedeck/core/issues/queries";
+import { useUpdateIssue } from "@rimedeck/core/issues/mutations";
 import { IssuePickerModal } from "./issue-picker-modal";
 import { useT } from "../i18n";
 

@@ -4,7 +4,7 @@ import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
-import { cn } from "@multica/ui/lib/utils";
+import { cn } from "@rimedeck/ui/lib/utils";
 import { baseOptions } from "@/app/layout.config";
 import { source } from "@/lib/source";
 import { i18n, type Lang } from "@/lib/i18n";

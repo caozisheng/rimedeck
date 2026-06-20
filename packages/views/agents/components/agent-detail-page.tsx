@@ -10,24 +10,24 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Agent, Squad, UpdateAgentRequest } from "@multica/core/types";
+import type { Agent, Squad, UpdateAgentRequest } from "@rimedeck/core/types";
 import {
   type AgentPresenceDetail,
   useWorkspacePresenceMap,
-} from "@multica/core/agents";
-import { api, ApiError } from "@multica/core/api";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
+} from "@rimedeck/core/agents";
+import { api, ApiError } from "@rimedeck/core/api";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import {
   agentListOptions,
   memberListOptions,
   workspaceKeys,
-} from "@multica/core/workspace/queries";
-import { runtimeListOptions } from "@multica/core/runtimes";
-import { useAgentPermissions } from "@multica/core/permissions";
-import { Button } from "@multica/ui/components/ui/button";
-import { CapabilityBanner } from "@multica/ui/components/common/capability-banner";
+} from "@rimedeck/core/workspace/queries";
+import { runtimeListOptions } from "@rimedeck/core/runtimes";
+import { useAgentPermissions } from "@rimedeck/core/permissions";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { CapabilityBanner } from "@rimedeck/ui/components/common/capability-banner";
 import {
   Dialog,
   DialogContent,
@@ -35,14 +35,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import { AppLink, useNavigation } from "../../navigation";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { PageHeader } from "../../layout/page-header";

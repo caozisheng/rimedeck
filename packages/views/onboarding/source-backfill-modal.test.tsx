@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { I18nProvider } from "@multica/core/i18n/react";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
 import enCommon from "../locales/en/common.json";
 import enOnboarding from "../locales/en/onboarding.json";
 
@@ -13,10 +13,10 @@ const { mockUser, mockSaveQuestionnaire, mockCaptureEvent } = vi.hoisted(() => (
   mockCaptureEvent: vi.fn(),
 }));
 
-vi.mock("@multica/core/auth", async () => {
+vi.mock("@rimedeck/core/auth", async () => {
   const actual =
-    await vi.importActual<typeof import("@multica/core/auth")>(
-      "@multica/core/auth",
+    await vi.importActual<typeof import("@rimedeck/core/auth")>(
+      "@rimedeck/core/auth",
     );
   const useAuthStore = Object.assign(
     (selector: (s: { user: unknown }) => unknown) =>
@@ -26,15 +26,15 @@ vi.mock("@multica/core/auth", async () => {
   return { ...actual, useAuthStore };
 });
 
-vi.mock("@multica/core/onboarding", async () => {
+vi.mock("@rimedeck/core/onboarding", async () => {
   const actual =
-    await vi.importActual<typeof import("@multica/core/onboarding")>(
-      "@multica/core/onboarding",
+    await vi.importActual<typeof import("@rimedeck/core/onboarding")>(
+      "@rimedeck/core/onboarding",
     );
   return { ...actual, saveQuestionnaire: mockSaveQuestionnaire };
 });
 
-vi.mock("@multica/core/analytics", () => ({
+vi.mock("@rimedeck/core/analytics", () => ({
   captureEvent: mockCaptureEvent,
   setPersonProperties: vi.fn(),
 }));

@@ -10,22 +10,22 @@ import {
   Search,
   AlertCircle,
 } from "lucide-react";
-import type { WorkflowSummary } from "@multica/core/types";
+import type { WorkflowSummary } from "@rimedeck/core/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import {
   agentListOptions,
   workflowListOptions,
   workspaceKeys,
   selectWorkflowAssignments,
-} from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import { Button } from "@multica/ui/components/ui/button";
-import { DataTable } from "@multica/ui/components/ui/data-table";
-import { Input } from "@multica/ui/components/ui/input";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+} from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { DataTable } from "@rimedeck/ui/components/ui/data-table";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import { toast } from "sonner";
 import { useNavigation } from "../../navigation";
 import { PageHeader } from "../../layout/page-header";

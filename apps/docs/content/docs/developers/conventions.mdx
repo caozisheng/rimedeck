@@ -31,7 +31,7 @@ The monorepo enforces strict package boundaries:
 | Package | May depend on | Must NOT depend on |
 | --- | --- | --- |
 | `packages/core` | nothing app-specific | `react-dom`, `localStorage`, `process.env`, `next/*`, UI libraries |
-| `packages/ui` | nothing | `@multica/core`, business logic |
+| `packages/ui` | nothing | `@rimedeck/core`, business logic |
 | `packages/views` | `core/`, `ui/` | `next/*`, `react-router-dom`, stores |
 | `apps/web/platform/` | `next/*` | other apps |
 | `apps/desktop/.../platform/` | `react-router-dom`, electron | other apps |

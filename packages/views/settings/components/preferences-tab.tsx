@@ -8,17 +8,17 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@multica/ui/components/ui/select";
-import { useTheme, usePalette, type Palette } from "@multica/ui/components/common/theme-provider";
-import { cn } from "@multica/ui/lib/utils";
+} from "@rimedeck/ui/components/ui/select";
+import { useTheme, usePalette, type Palette } from "@rimedeck/ui/components/common/theme-provider";
+import { cn } from "@rimedeck/ui/lib/utils";
 import {
   DEFAULT_LOCALE,
   SUPPORTED_LOCALES,
   type SupportedLocale,
-} from "@multica/core/i18n";
-import { useLocaleAdapter } from "@multica/core/i18n/react";
-import { useAuthStore } from "@multica/core/auth";
-import { api } from "@multica/core/api";
+} from "@rimedeck/core/i18n";
+import { useLocaleAdapter } from "@rimedeck/core/i18n/react";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { api } from "@rimedeck/core/api";
 import { browserTimezone, timezoneOptions } from "../../common/timezone-select";
 import { useT } from "../../i18n";
 

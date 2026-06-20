@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronRight, Copy, Terminal } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { runtimeKeys } from "@multica/core/runtimes/queries";
-import { useWSEvent } from "@multica/core/realtime";
-import { api } from "@multica/core/api";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { runtimeKeys } from "@rimedeck/core/runtimes/queries";
+import { useWSEvent } from "@rimedeck/core/realtime";
+import { api } from "@rimedeck/core/api";
 import {
   Dialog,
   DialogContent,
@@ -14,11 +14,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
-import { Button } from "@multica/ui/components/ui/button";
-import { CODE_LIGATURE_CLASS } from "@multica/ui/lib/code-style";
-import { copyText } from "@multica/ui/lib/clipboard";
-import { cn } from "@multica/ui/lib/utils";
+} from "@rimedeck/ui/components/ui/dialog";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { CODE_LIGATURE_CLASS } from "@rimedeck/ui/lib/code-style";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
+import { cn } from "@rimedeck/ui/lib/utils";
 import { useT } from "../../i18n";
 import { ServerAddressBar } from "../../common/server-address-bar";
 

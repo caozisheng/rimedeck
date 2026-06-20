@@ -3,12 +3,12 @@
 import { useMemo, useState, useCallback, useRef, type WheelEvent, type PointerEvent } from "react";
 import dagre from "@dagrejs/dagre";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@multica/core/api";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
+import { api } from "@rimedeck/core/api";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import { useNavigation } from "../../../navigation";
-import { useActorName } from "@multica/core/workspace/hooks";
-import type { Issue, IssueDependency, IssueStatus } from "@multica/core/types";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
+import type { Issue, IssueDependency, IssueStatus } from "@rimedeck/core/types";
 import { StatusIcon } from "../status-icon";
 import { useT } from "../../../i18n";
 

@@ -2,16 +2,16 @@
 
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigationStore } from "@multica/core/navigation";
-import { useAuthStore } from "@multica/core/auth";
+import { useNavigationStore } from "@rimedeck/core/navigation";
+import { useAuthStore } from "@rimedeck/core/auth";
 import {
   paths,
   resolvePostAuthDestination,
   useCurrentWorkspace,
   useHasOnboarded,
-} from "@multica/core/paths";
-import { workspaceListOptions } from "@multica/core/workspace";
-import { useRecentIssuesStore } from "@multica/core/issues/stores";
+} from "@rimedeck/core/paths";
+import { workspaceListOptions } from "@rimedeck/core/workspace";
+import { useRecentIssuesStore } from "@rimedeck/core/issues/stores";
 import { useNavigation } from "../navigation";
 
 /**

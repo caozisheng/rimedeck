@@ -1,19 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { Agent, AgentRuntime } from "@multica/core/types";
-import { useAgentPresenceDetail } from "@multica/core/agents";
-import { useWorkspaceId } from "@multica/core/hooks";
+import type { Agent, AgentRuntime } from "@rimedeck/core/types";
+import { useAgentPresenceDetail } from "@rimedeck/core/agents";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
 import {
   deriveRuntimeHealth,
   type RuntimeHealth,
-} from "@multica/core/runtimes";
-import { agentListOptions, memberListOptions } from "@multica/core/workspace/queries";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
-import { runtimeListOptions } from "@multica/core/runtimes/queries";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/actor-avatar";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+} from "@rimedeck/core/runtimes";
+import { agentListOptions, memberListOptions } from "@rimedeck/core/workspace/queries";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
+import { runtimeListOptions } from "@rimedeck/core/runtimes/queries";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { ActorAvatar as ActorAvatarBase } from "@rimedeck/ui/components/common/actor-avatar";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import { AppLink } from "../../navigation";
 import { HealthIcon } from "../../runtimes/components/shared";
 import { availabilityConfig } from "../presence";

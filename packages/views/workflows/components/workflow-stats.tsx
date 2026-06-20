@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { workflowStatsOptions } from "@multica/core/workspace/queries";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { workflowStatsOptions } from "@rimedeck/core/workspace/queries";
 import { useState } from "react";
 import { ChevronDown, ChevronRight, BarChart3 } from "lucide-react";
 import { useT } from "../../i18n";

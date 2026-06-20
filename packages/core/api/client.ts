@@ -256,7 +256,7 @@ export class ApiClient {
     if (typeof document === "undefined") return null;
     const match = document.cookie
       .split("; ")
-      .find((c) => c.startsWith("multica_csrf="));
+      .find((c) => c.startsWith("rimedeck_csrf="));
     return match ? match.split("=")[1] ?? null : null;
   }
 

@@ -11,28 +11,28 @@ import {
   type ReactNode,
 } from "react";
 import type { QueryClient } from "@tanstack/react-query";
-import { getCurrentWsId } from "@multica/core/platform";
-import { flattenIssueBuckets, issueKeys } from "@multica/core/issues/queries";
-import { workspaceKeys } from "@multica/core/workspace/queries";
-import { useAuthStore } from "@multica/core/auth";
-import { canAssignAgentToIssue } from "@multica/core/permissions";
-import { api } from "@multica/core/api";
-import { isImeComposing } from "@multica/core/utils";
+import { getCurrentWsId } from "@rimedeck/core/platform";
+import { flattenIssueBuckets, issueKeys } from "@rimedeck/core/issues/queries";
+import { workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { canAssignAgentToIssue } from "@rimedeck/core/permissions";
+import { api } from "@rimedeck/core/api";
+import { isImeComposing } from "@rimedeck/core/utils";
 import type {
   Issue,
   ListIssuesCache,
   MemberWithUser,
   Agent,
   Squad,
-} from "@multica/core/types";
+} from "@rimedeck/core/types";
 import { ListTodo } from "lucide-react";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { StatusIcon } from "../../issues/components/status-icon";
 import { ProjectIcon } from "../../projects/components/project-icon";
 import { useT } from "../../i18n";
-import { Badge } from "@multica/ui/components/ui/badge";
-import type { IssueStatus, ProjectStatus } from "@multica/core/types";
-import { PROJECT_STATUS_CONFIG } from "@multica/core/projects/config";
+import { Badge } from "@rimedeck/ui/components/ui/badge";
+import type { IssueStatus, ProjectStatus } from "@rimedeck/core/types";
+import { PROJECT_STATUS_CONFIG } from "@rimedeck/core/projects/config";
 import type { SuggestionOptions } from "@tiptap/suggestion";
 import { PluginKey } from "@tiptap/pm/state";
 import {

@@ -1,5 +1,5 @@
-import type { Project } from "@multica/core/types";
-import { cn } from "@multica/ui/lib/utils";
+import type { Project } from "@rimedeck/core/types";
+import { cn } from "@rimedeck/ui/lib/utils";
 
 export type ProjectIconSize = "sm" | "md" | "lg";
 

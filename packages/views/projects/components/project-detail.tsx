@@ -4,15 +4,15 @@ import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { Check, ChevronRight, Link2, ListTodo, MoreHorizontal, PanelRight, Pin, PinOff, Plus, Trash2, UserMinus } from "lucide-react";
 import { useQuery, type QueryKey } from "@tanstack/react-query";
-import { cn } from "@multica/ui/lib/utils";
-import { copyText } from "@multica/ui/lib/clipboard";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 import { toast } from "sonner";
-import type { Issue, IssueAssigneeGroup, ProjectStatus, ProjectPriority, UpdateIssueRequest } from "@multica/core/types";
-import { useAuthStore } from "@multica/core/auth";
-import { projectDetailOptions } from "@multica/core/projects/queries";
-import { useUpdateProject, useDeleteProject } from "@multica/core/projects/mutations";
-import { pinListOptions } from "@multica/core/pins";
-import { useCreatePin, useDeletePin } from "@multica/core/pins";
+import type { Issue, IssueAssigneeGroup, ProjectStatus, ProjectPriority, UpdateIssueRequest } from "@rimedeck/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { projectDetailOptions } from "@rimedeck/core/projects/queries";
+import { useUpdateProject, useDeleteProject } from "@rimedeck/core/projects/mutations";
+import { pinListOptions } from "@rimedeck/core/pins";
+import { useCreatePin, useDeletePin } from "@rimedeck/core/pins";
 import {
   myIssueAssigneeGroupsOptions,
   myIssueListOptions,
@@ -21,18 +21,18 @@ import {
   type AssigneeGroupedIssuesFilter,
   type IssueSortParam,
   type MyIssuesFilter,
-} from "@multica/core/issues/queries";
-import { useUpdateIssue } from "@multica/core/issues/mutations";
-import { useModalStore } from "@multica/core/modals";
-import { memberListOptions, agentListOptions } from "@multica/core/workspace/queries";
-import { agentTaskSnapshotOptions } from "@multica/core/agents";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { useActorName } from "@multica/core/workspace/hooks";
-import { PROJECT_STATUS_ORDER, PROJECT_STATUS_CONFIG, PROJECT_PRIORITY_ORDER } from "@multica/core/projects/config";
-import { BOARD_STATUSES } from "@multica/core/issues/config";
-import { createIssueViewStore } from "@multica/core/issues/stores/view-store";
-import { ViewStoreProvider, useViewStore } from "@multica/core/issues/stores/view-store-context";
+} from "@rimedeck/core/issues/queries";
+import { useUpdateIssue } from "@rimedeck/core/issues/mutations";
+import { useModalStore } from "@rimedeck/core/modals";
+import { memberListOptions, agentListOptions } from "@rimedeck/core/workspace/queries";
+import { agentTaskSnapshotOptions } from "@rimedeck/core/agents";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
+import { PROJECT_STATUS_ORDER, PROJECT_STATUS_CONFIG, PROJECT_PRIORITY_ORDER } from "@rimedeck/core/projects/config";
+import { BOARD_STATUSES } from "@rimedeck/core/issues/config";
+import { createIssueViewStore } from "@rimedeck/core/issues/stores/view-store";
+import { ViewStoreProvider, useViewStore } from "@rimedeck/core/issues/stores/view-store-context";
 import { filterIssues } from "../../issues/utils/filter";
 import { getProjectIssueMetrics } from "./project-issue-metrics";
 import { filterRunningAssigneeGroups } from "./project-issue-filters";
@@ -50,29 +50,29 @@ import { AnalyticsView } from "../../issues/components/analytics-view";
 import { CalendarView } from "../../issues/components/calendar-view";
 import { DagView } from "../../issues/components/dag/dag-view";
 import { BatchActionToolbar } from "../../issues/components/batch-action-toolbar";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { Button } from "@multica/ui/components/ui/button";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@multica/ui/components/ui/resizable";
-import { Sheet, SheetContent } from "@multica/ui/components/ui/sheet";
-import { useIsMobile } from "@multica/ui/hooks/use-mobile";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@rimedeck/ui/components/ui/resizable";
+import { Sheet, SheetContent } from "@rimedeck/ui/components/ui/sheet";
+import { useIsMobile } from "@rimedeck/ui/hooks/use-mobile";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
-} from "@multica/ui/components/ui/popover";
+} from "@rimedeck/ui/components/ui/popover";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
-} from "@multica/ui/components/ui/tooltip";
-import { EmojiPicker } from "@multica/ui/components/common/emoji-picker";
+} from "@rimedeck/ui/components/ui/tooltip";
+import { EmojiPicker } from "@rimedeck/ui/components/common/emoji-picker";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import {
   AlertDialog,
@@ -83,7 +83,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@multica/ui/components/ui/alert-dialog";
+} from "@rimedeck/ui/components/ui/alert-dialog";
 import { useT } from "../../i18n";
 import { useProjectStatusLabels, useProjectPriorityLabels } from "./labels";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";

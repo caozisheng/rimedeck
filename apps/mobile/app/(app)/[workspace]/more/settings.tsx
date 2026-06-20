@@ -16,7 +16,7 @@ import { Alert, ActivityIndicator, Pressable, ScrollView, View } from "react-nat
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import type { Workspace } from "@multica/core/types";
+import type { Workspace } from "@rimedeck/core/types";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";

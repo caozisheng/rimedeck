@@ -12,10 +12,10 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@multica/ui/components",
-    "ui": "@multica/ui/components/ui",
-    "hooks": "@multica/ui/hooks",
-    "lib": "@multica/ui/lib",
-    "utils": "@multica/ui/lib/utils"
+    "components": "@rimedeck/ui/components",
+    "ui": "@rimedeck/ui/components/ui",
+    "hooks": "@rimedeck/ui/hooks",
+    "lib": "@rimedeck/ui/lib",
+    "utils": "@rimedeck/ui/lib/utils"
   }
 }

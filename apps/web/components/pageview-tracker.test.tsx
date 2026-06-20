@@ -3,7 +3,7 @@ import { render } from "@testing-library/react";
 
 // Mutable pathname + a spy for the shared capture helper. The tracker reads
 // usePathname() and forwards it to capturePageview; section-normalization and
-// dedup live in @multica/core/analytics and are unit-tested there, so here we
+// dedup live in @rimedeck/core/analytics and are unit-tested there, so here we
 // only assert the wiring (which path is forwarded, and that the query string
 // never re-triggers the effect).
 const { state, capturePageview } = vi.hoisted(() => ({
@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => state.pathname,
 }));
 
-vi.mock("@multica/core/analytics", () => ({
+vi.mock("@rimedeck/core/analytics", () => ({
   capturePageview,
 }));
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { LOCALE_COOKIE } from "@multica/core/i18n";
+import { LOCALE_COOKIE } from "@rimedeck/core/i18n";
 import {
   MULTICA_LOCALE_HEADER,
   resolveLocaleFromSignals,

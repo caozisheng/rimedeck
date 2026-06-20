@@ -12,8 +12,8 @@
  * (`useIssuesRealtime`) don't have to know about scope.
  *
  * `IssuesScope` is defined locally rather than imported from
- * `@multica/core/issues/stores/issues-scope-store` — mobile only
- * `import type` from `@multica/core/types/*` per Sharing Principles, and
+ * `@rimedeck/core/issues/stores/issues-scope-store` — mobile only
+ * `import type` from `@rimedeck/core/types/*` per Sharing Principles, and
  * the union is small enough that a duplicated literal is preferable to a
  * cross-package type import hop.
  *
@@ -26,7 +26,7 @@
  * to its routing model, not an invariant mobile should mirror).
  */
 import { create } from "zustand";
-import type { IssuePriority, IssueStatus } from "@multica/core/types";
+import type { IssuePriority, IssueStatus } from "@rimedeck/core/types";
 
 export type IssuesScope = "all" | "members" | "agents";
 

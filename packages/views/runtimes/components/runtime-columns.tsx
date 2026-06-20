@@ -5,25 +5,25 @@ import { Globe, MoreHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
-import type { AgentRuntime, MemberWithUser } from "@multica/core/types";
-import { useAuthStore } from "@multica/core/auth";
-import { deriveWorkload } from "@multica/core/agents";
+import type { AgentRuntime, MemberWithUser } from "@rimedeck/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { deriveWorkload } from "@rimedeck/core/agents";
 import {
   deriveRuntimeHealth,
   runtimeUsageOptions,
-} from "@multica/core/runtimes";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/core/runtimes";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/ui/components/ui/tooltip";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { workloadConfig } from "../../agents/presence";

@@ -3,37 +3,37 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Crown, UserPlus, X } from "lucide-react";
-import { api } from "@multica/core/api";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
+import { api } from "@rimedeck/core/api";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
 import {
   agentListOptions,
   memberListOptions,
   workspaceKeys,
-} from "@multica/core/workspace/queries";
-import { runtimeListOptions } from "@multica/core/runtimes/queries";
-import { AGENT_DESCRIPTION_MAX_LENGTH } from "@multica/core/agents";
-import { isImeComposing } from "@multica/core/utils";
-import type { Agent, MemberWithUser, RuntimeDevice } from "@multica/core/types";
+} from "@rimedeck/core/workspace/queries";
+import { runtimeListOptions } from "@rimedeck/core/runtimes/queries";
+import { AGENT_DESCRIPTION_MAX_LENGTH } from "@rimedeck/core/agents";
+import { isImeComposing } from "@rimedeck/core/utils";
+import type { Agent, MemberWithUser, RuntimeDevice } from "@rimedeck/core/types";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@multica/ui/components/ui/popover";
-import { Button } from "@multica/ui/components/ui/button";
-import { Input } from "@multica/ui/components/ui/input";
-import { Label } from "@multica/ui/components/ui/label";
+} from "@rimedeck/ui/components/ui/popover";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Label } from "@rimedeck/ui/components/ui/label";
 import { toast } from "sonner";
 
-import { generateRoutingTable, type RoutingTableMember } from "@multica/core/squads";
+import { generateRoutingTable, type RoutingTableMember } from "@rimedeck/core/squads";
 import { useNavigation } from "../navigation";
 import { ActorAvatar } from "../common/actor-avatar";
 import { AvatarPicker } from "../agents/components/avatar-picker";

@@ -2,19 +2,19 @@
 
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "@multica/ui/lib/utils";
+import { cn } from "@rimedeck/ui/lib/utils";
 import {
   ContentEditor,
   type ContentEditorRef,
   useFileDropZone,
   FileDropOverlay,
 } from "../../editor";
-import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
-import { SubmitButton } from "@multica/ui/components/common/submit-button";
-import { useChatStore, DRAFT_NEW_SESSION } from "@multica/core/chat";
-import { createLogger } from "@multica/core/logger";
-import { enterKey, formatShortcut, modKey } from "@multica/core/platform";
-import type { UploadResult } from "@multica/core/hooks/use-file-upload";
+import { FileUploadButton } from "@rimedeck/ui/components/common/file-upload-button";
+import { SubmitButton } from "@rimedeck/ui/components/common/submit-button";
+import { useChatStore, DRAFT_NEW_SESSION } from "@rimedeck/core/chat";
+import { createLogger } from "@rimedeck/core/logger";
+import { enterKey, formatShortcut, modKey } from "@rimedeck/core/platform";
+import type { UploadResult } from "@rimedeck/core/hooks/use-file-upload";
 import { useT } from "../../i18n";
 
 const logger = createLogger("chat.ui");

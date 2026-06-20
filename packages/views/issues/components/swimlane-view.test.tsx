@@ -2,15 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SwimLaneView } from "./swimlane-view";
-import type { Issue } from "@multica/core/types";
-import { I18nProvider } from "@multica/core/i18n/react";
+import type { Issue } from "@rimedeck/core/types";
+import { I18nProvider } from "@rimedeck/core/i18n/react";
 import enCommon from "../../locales/en/common.json";
 import enIssues from "../../locales/en/issues.json";
 
 const TEST_RESOURCES = { en: { common: enCommon, issues: enIssues } };
 
 // Mock hooks
-vi.mock("@multica/core/hooks", () => ({
+vi.mock("@rimedeck/core/hooks", () => ({
   useWorkspaceId: () => "ws-1",
 }));
 
@@ -22,7 +22,7 @@ const mockListChildrenByParents = vi.hoisted(() =>
 const mockGetAgentTaskSnapshot = vi.hoisted(() =>
   vi.fn().mockResolvedValue([]),
 );
-vi.mock("@multica/core/api", () => ({
+vi.mock("@rimedeck/core/api", () => ({
   api: {
     listChildrenByParents: mockListChildrenByParents,
     getAgentTaskSnapshot: mockGetAgentTaskSnapshot,
@@ -35,9 +35,9 @@ vi.mock("@multica/core/api", () => ({
 }));
 
 // Mock paths
-vi.mock("@multica/core/paths", async () => {
-  const actual = await vi.importActual<typeof import("@multica/core/paths")>(
-    "@multica/core/paths",
+vi.mock("@rimedeck/core/paths", async () => {
+  const actual = await vi.importActual<typeof import("@rimedeck/core/paths")>(
+    "@rimedeck/core/paths",
   );
   return {
     ...actual,
@@ -53,7 +53,7 @@ vi.mock("@multica/core/paths", async () => {
 // swimlane feeds the result into a `useMemo(..., [getActorName, ...])`
 // that then drives a `useEffect(setLocalCells, [cells])` chain. A fresh
 // object per render therefore loops the effect indefinitely.
-vi.mock("@multica/core/projects/queries", () => ({
+vi.mock("@rimedeck/core/projects/queries", () => ({
   projectListOptions: (_wsId: string) => ({
     queryKey: ["projects", _wsId, "list"],
     queryFn: () => Promise.resolve([]),
@@ -69,13 +69,13 @@ const { mockActorNameResult } = vi.hoisted(() => ({
     getSquadName: () => "Mock Squad",
   },
 }));
-vi.mock("@multica/core/workspace/hooks", () => ({
+vi.mock("@rimedeck/core/workspace/hooks", () => ({
   useActorName: () => mockActorNameResult,
 }));
 
-// Mock @multica/core/auth
+// Mock @rimedeck/core/auth
 const mockAuthUser = { id: "user-1", email: "test@test.com", name: "Test User" };
-vi.mock("@multica/core/auth", () => ({
+vi.mock("@rimedeck/core/auth", () => ({
   useAuthStore: Object.assign(
     (selector?: any) => {
       const state = { user: mockAuthUser, isAuthenticated: true };
@@ -99,7 +99,7 @@ vi.mock("../../navigation", () => ({
 }));
 
 // Mock issue config
-vi.mock("@multica/core/issues/config", () => ({
+vi.mock("@rimedeck/core/issues/config", () => ({
   ALL_STATUSES: ["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"],
   BOARD_STATUSES: ["backlog", "todo", "in_progress", "in_review", "done", "blocked"],
   STATUS_ORDER: ["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"],
@@ -134,8 +134,8 @@ const useLoadMoreByStatusMock = vi.fn(
     loadMore: mockLoadMore,
   }),
 );
-vi.mock("@multica/core/issues/mutations", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@multica/core/issues/mutations")>();
+vi.mock("@rimedeck/core/issues/mutations", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@rimedeck/core/issues/mutations")>();
   return {
     ...actual,
     useLoadMoreByStatus: (status: string, opts?: unknown, sort?: unknown) =>
@@ -195,7 +195,7 @@ const mockViewState: {
 const mockSetSwimlaneOrder = mockViewState.setSwimlaneOrder as ReturnType<typeof vi.fn>;
 const mockToggleSwimlaneCollapsed = mockViewState.toggleSwimlaneCollapsed as ReturnType<typeof vi.fn>;
 
-vi.mock("@multica/core/issues/stores/view-store-context", () => ({
+vi.mock("@rimedeck/core/issues/stores/view-store-context", () => ({
   ViewStoreProvider: ({ children }: { children: React.ReactNode }) => children,
   useViewStore: (selector?: any) => (selector ? selector(mockViewState) : mockViewState),
   useViewStoreApi: () => ({ getState: () => mockViewState, setState: vi.fn(), subscribe: vi.fn() }),
@@ -203,7 +203,7 @@ vi.mock("@multica/core/issues/stores/view-store-context", () => ({
 
 // Mock modal store
 const mockOpenModal = vi.fn();
-vi.mock("@multica/core/modals", () => ({
+vi.mock("@rimedeck/core/modals", () => ({
   useModalStore: Object.assign(
     () => ({ open: mockOpenModal }),
     { getState: () => ({ open: mockOpenModal }) },

@@ -6,9 +6,9 @@ import {
   ArrowUpCircle,
   Check,
 } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
-import { api } from "@multica/core/api";
-import type { RuntimeUpdateStatus } from "@multica/core/types";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { api } from "@rimedeck/core/api";
+import type { RuntimeUpdateStatus } from "@rimedeck/core/types";
 import { useT } from "../../i18n";
 
 const GITHUB_RELEASES_URL =

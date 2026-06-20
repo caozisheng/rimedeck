@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { capturePageview } from "@multica/core/analytics";
-import { useAuthStore } from "@multica/core/auth";
+import { capturePageview } from "@rimedeck/core/analytics";
+import { useAuthStore } from "@rimedeck/core/auth";
 import {
   getActiveTab,
   useActiveTabIdentity,

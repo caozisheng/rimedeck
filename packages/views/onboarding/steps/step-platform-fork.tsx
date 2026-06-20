@@ -6,8 +6,8 @@ import {
   captureDownloadIntent,
   captureEvent,
   setPersonProperties,
-} from "@multica/core/analytics";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/core/analytics";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -15,11 +15,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
-import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
-import { cn } from "@multica/ui/lib/utils";
-import type { AgentRuntime } from "@multica/core/types";
-import { DragStrip } from "@multica/views/platform";
+} from "@rimedeck/ui/components/ui/dialog";
+import { useScrollFade } from "@rimedeck/ui/hooks/use-scroll-fade";
+import { cn } from "@rimedeck/ui/lib/utils";
+import type { AgentRuntime } from "@rimedeck/core/types";
+import { DragStrip } from "@rimedeck/views/platform";
 import { StepHeader } from "../components/step-header";
 import { RuntimeAsidePanel } from "../components/runtime-aside-panel";
 import { CompactRuntimeRow } from "../components/compact-runtime-row";

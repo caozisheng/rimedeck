@@ -40,11 +40,11 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { cn } from "@multica/ui/lib/utils";
-import type { UploadResult } from "@multica/core/hooks/use-file-upload";
-import { useWorkspaceSlug } from "@multica/core/paths";
+import { cn } from "@rimedeck/ui/lib/utils";
+import type { UploadResult } from "@rimedeck/core/hooks/use-file-upload";
+import { useWorkspaceSlug } from "@rimedeck/core/paths";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Attachment } from "@multica/core/types";
+import type { Attachment } from "@rimedeck/core/types";
 import {
   parseMarkdownChunked,
   MARKDOWN_CHUNK_THRESHOLD,

@@ -14,16 +14,16 @@ import type {
   AgentRuntime,
   MemberWithUser,
   SkillSummary,
-} from "@multica/core/types";
+} from "@rimedeck/core/types";
 import { useTimeAgo } from "../../i18n";
-import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
+import { ActorAvatar } from "@rimedeck/ui/components/common/actor-avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@multica/ui/components/ui/tooltip";
+} from "@rimedeck/ui/components/ui/tooltip";
 import { readOrigin, totalFileCount } from "../lib/origin";
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
 import { useT } from "../../i18n";
 
 // Per-row data assembled at the page level. The columns reach into

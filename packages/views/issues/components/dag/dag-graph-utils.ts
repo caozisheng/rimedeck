@@ -1,4 +1,4 @@
-import type { Issue, IssueDependency } from "@multica/core/types";
+import type { Issue, IssueDependency } from "@rimedeck/core/types";
 
 /**
  * Compute the critical path (longest chain of `blocks` edges) through the DAG.

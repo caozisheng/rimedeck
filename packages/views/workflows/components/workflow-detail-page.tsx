@@ -2,18 +2,18 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useWorkspacePaths } from "@multica/core/paths";
-import { workflowDetailOptions, workspaceKeys } from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import { Button } from "@multica/ui/components/ui/button";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useWorkspacePaths } from "@rimedeck/core/paths";
+import { workflowDetailOptions, workspaceKeys } from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
 import { ArrowLeft, Workflow as WorkflowIcon, Upload, MoreHorizontal, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigation } from "../../navigation";

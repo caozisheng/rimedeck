@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Issue, IssuePriority } from "@multica/core/types";
-import { PRIORITY_ORDER } from "@multica/core/issues/config";
+import type { Issue, IssuePriority } from "@rimedeck/core/types";
+import { PRIORITY_ORDER } from "@rimedeck/core/issues/config";
 import { useT } from "../../../i18n";
 
 const PRIORITY_HEX: Record<IssuePriority, string> = {

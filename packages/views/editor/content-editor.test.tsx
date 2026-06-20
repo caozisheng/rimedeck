@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import type { Attachment } from "@multica/core/types";
-import type { UploadResult } from "@multica/core/hooks/use-file-upload";
+import type { Attachment } from "@rimedeck/core/types";
+import type { UploadResult } from "@rimedeck/core/hooks/use-file-upload";
 
 const mockFocus = vi.hoisted(() => vi.fn());
 const mockSetContent = vi.hoisted(() => vi.fn());

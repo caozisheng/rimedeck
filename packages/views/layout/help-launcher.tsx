@@ -6,8 +6,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@multica/ui/components/ui/dropdown-menu";
-import { useModalStore } from "@multica/core/modals";
+} from "@rimedeck/ui/components/ui/dropdown-menu";
+import { useModalStore } from "@rimedeck/core/modals";
 import { useT } from "../i18n";
 
 const DOCS_URL = "https://github.com/caozisheng/rimedeck";

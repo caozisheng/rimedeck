@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AgentTask } from "@multica/core/types";
+import type { AgentTask } from "@rimedeck/core/types";
 import {
   deriveAvgDurationLast30d,
   formatDurationMs,

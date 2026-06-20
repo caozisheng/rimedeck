@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { AlertCircle, Info, LogIn } from "lucide-react";
-import { Button } from "@multica/ui/components/ui/button";
-import { Switch } from "@multica/ui/components/ui/switch";
-import { cn } from "@multica/ui/lib/utils";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Switch } from "@rimedeck/ui/components/ui/switch";
+import { cn } from "@rimedeck/ui/lib/utils";
 import type { DaemonPrefs, DaemonStatus } from "../../../shared/daemon-types";
 import {
   DAEMON_STATE_COLORS,

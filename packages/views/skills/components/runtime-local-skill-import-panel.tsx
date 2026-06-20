@@ -18,36 +18,36 @@ import type {
   RuntimeLocalSkillImportConflict,
   RuntimeLocalSkillSummary,
   Skill,
-} from "@multica/core/types";
-import { useAuthStore } from "@multica/core/auth";
-import { useWorkspaceId } from "@multica/core/hooks";
+} from "@rimedeck/core/types";
+import { useAuthStore } from "@rimedeck/core/auth";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
 import {
   runtimeListOptions,
   runtimeLocalSkillsKeys,
   runtimeLocalSkillsOptions,
   resolveRuntimeLocalSkillImport,
-} from "@multica/core/runtimes";
+} from "@rimedeck/core/runtimes";
 import {
   memberListOptions,
   skillDetailOptions,
   workspaceKeys,
-} from "@multica/core/workspace/queries";
-import { Button } from "@multica/ui/components/ui/button";
-import { Badge } from "@multica/ui/components/ui/badge";
-import { Checkbox } from "@multica/ui/components/ui/checkbox";
-import { Input } from "@multica/ui/components/ui/input";
-import { Label } from "@multica/ui/components/ui/label";
-import { Progress } from "@multica/ui/components/ui/progress";
-import { Textarea } from "@multica/ui/components/ui/textarea";
+} from "@rimedeck/core/workspace/queries";
+import { Button } from "@rimedeck/ui/components/ui/button";
+import { Badge } from "@rimedeck/ui/components/ui/badge";
+import { Checkbox } from "@rimedeck/ui/components/ui/checkbox";
+import { Input } from "@rimedeck/ui/components/ui/input";
+import { Label } from "@rimedeck/ui/components/ui/label";
+import { Progress } from "@rimedeck/ui/components/ui/progress";
+import { Textarea } from "@rimedeck/ui/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@multica/ui/components/ui/select";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
-import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
+} from "@rimedeck/ui/components/ui/select";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
+import { useScrollFade } from "@rimedeck/ui/hooks/use-scroll-fade";
 import { useT } from "../../i18n";
 import { isNameConflictError } from "../lib/utils";
 

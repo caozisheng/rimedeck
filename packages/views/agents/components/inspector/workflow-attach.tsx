@@ -4,19 +4,19 @@ import { useState } from "react";
 import { Plus, Workflow } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Agent } from "@multica/core/types";
-import { useWorkspaceId } from "@multica/core/hooks";
+import type { Agent } from "@rimedeck/core/types";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
 import {
   workflowListOptions,
   workspaceKeys,
-} from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
+} from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
+} from "@rimedeck/ui/components/ui/dialog";
 import { useT } from "../../../i18n";
 
 /**

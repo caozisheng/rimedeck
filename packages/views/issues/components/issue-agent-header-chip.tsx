@@ -6,12 +6,12 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@multica/ui/components/ui/popover";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { useActorName } from "@multica/core/workspace/hooks";
-import { cn } from "@multica/ui/lib/utils";
-import { agentTaskSnapshotOptions } from "@multica/core/agents";
-import type { AgentTask } from "@multica/core/types";
+} from "@rimedeck/ui/components/ui/popover";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { useActorName } from "@rimedeck/core/workspace/hooks";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { agentTaskSnapshotOptions } from "@rimedeck/core/agents";
+import type { AgentTask } from "@rimedeck/core/types";
 import { AgentAvatarStack } from "../../agents/components/agent-avatar-stack";
 import { ActiveTaskRow } from "./execution-log-section";
 import { useT } from "../../i18n";

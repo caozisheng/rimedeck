@@ -19,41 +19,41 @@ import {
   X as XIcon,
   Zap,
 } from "lucide-react";
-import { cn } from "@multica/ui/lib/utils";
-import { copyText } from "@multica/ui/lib/clipboard";
+import { cn } from "@rimedeck/ui/lib/utils";
+import { copyText } from "@rimedeck/ui/lib/clipboard";
 import {
   Dialog,
   DialogContent,
   DialogTitle,
-} from "@multica/ui/components/ui/dialog";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@multica/ui/components/ui/tooltip";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/ui/components/ui/dialog";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@rimedeck/ui/components/ui/tooltip";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectItem,
-} from "@multica/ui/components/ui/select";
-import { TimeInput } from "@multica/ui/components/ui/time-input";
+} from "@rimedeck/ui/components/ui/select";
+import { TimeInput } from "@rimedeck/ui/components/ui/time-input";
 import { TimezonePicker } from "./pickers/timezone-picker";
-import { useCurrentWorkspace } from "@multica/core/paths";
-import { useWorkspaceId } from "@multica/core/hooks";
-import { agentListOptions, squadListOptions } from "@multica/core/workspace/queries";
-import { projectListOptions } from "@multica/core/projects/queries";
+import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
+import { agentListOptions, squadListOptions } from "@rimedeck/core/workspace/queries";
+import { projectListOptions } from "@rimedeck/core/projects/queries";
 import {
   useCreateAutopilot,
   useCreateAutopilotTrigger,
   useUpdateAutopilot,
   useUpdateAutopilotTrigger,
-} from "@multica/core/autopilots/mutations";
-import { buildAutopilotWebhookUrl } from "@multica/core/autopilots";
-import { api } from "@multica/core/api";
+} from "@rimedeck/core/autopilots/mutations";
+import { buildAutopilotWebhookUrl } from "@rimedeck/core/autopilots";
+import { api } from "@rimedeck/core/api";
 import type {
   AutopilotAssigneeType,
   AutopilotExecutionMode,
   AutopilotTrigger,
-} from "@multica/core/types";
+} from "@rimedeck/core/types";
 import { TitleEditor, ContentEditor } from "../../editor";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ProjectPicker } from "../../projects/components/project-picker";
@@ -70,7 +70,7 @@ import {
 import { WebhookEventFilterSection } from "./webhook-event-filter-section";
 import { useT } from "../../i18n";
 import { formatSchedulePartialFailureToast } from "./autopilot-dialog-toast";
-import type { WebhookEventFilter } from "@multica/core/types";
+import type { WebhookEventFilter } from "@rimedeck/core/types";
 
 // ---------------------------------------------------------------------------
 // Types

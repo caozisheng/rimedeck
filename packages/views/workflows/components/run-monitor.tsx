@@ -2,20 +2,20 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkspaceId } from "@multica/core/hooks";
+import { useWorkspaceId } from "@rimedeck/core/hooks";
 import {
   workflowRunDetailOptions,
   workflowRunKeys,
-} from "@multica/core/workspace/queries";
-import { api } from "@multica/core/api";
-import type { WorkflowNodeExecution, WorkflowRunStatus } from "@multica/core/types";
-import { Button } from "@multica/ui/components/ui/button";
+} from "@rimedeck/core/workspace/queries";
+import { api } from "@rimedeck/core/api";
+import type { WorkflowNodeExecution, WorkflowRunStatus } from "@rimedeck/core/types";
+import { Button } from "@rimedeck/ui/components/ui/button";
 import {
   Progress,
   ProgressLabel,
   ProgressValue,
-} from "@multica/ui/components/ui/progress";
-import { Skeleton } from "@multica/ui/components/ui/skeleton";
+} from "@rimedeck/ui/components/ui/progress";
+import { Skeleton } from "@rimedeck/ui/components/ui/skeleton";
 import { AlertCircle, Ban, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { useT } from "../../i18n";
 

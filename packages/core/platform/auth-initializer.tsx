@@ -78,7 +78,7 @@ export function AuthInitializer({
     }
 
     // Token mode: read from localStorage (Electron / legacy).
-    const token = storage.getItem("multica_token");
+    const token = storage.getItem("rimedeck_token");
     if (!token) {
       onLogout?.();
       useAuthStore.setState({ isLoading: false });
@@ -101,7 +101,7 @@ export function AuthInitializer({
         if (err instanceof ApiError && err.status === 401) {
           api.setToken(null);
           setCurrentWorkspace(null, null);
-          storage.removeItem("multica_token");
+          storage.removeItem("rimedeck_token");
         }
         onAuthFailure();
       });

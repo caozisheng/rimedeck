@@ -30,7 +30,7 @@ jobs:
         run: pnpm install
 
       - name: Build shared packages
-        run: pnpm exec turbo build --filter='!@multica/docs' --filter='!@multica/mobile' --filter='!@multica/web' --filter='!@multica/desktop'
+        run: pnpm exec turbo build --filter='!@rimedeck/docs' --filter='!@rimedeck/mobile' --filter='!@rimedeck/web' --filter='!@rimedeck/desktop'
 
       - name: Type check, lint, and test
-        run: pnpm exec turbo typecheck lint test --filter='!@multica/docs' --filter='!@multica/mobile' --filter='!@multica/web'
+        run: pnpm exec turbo typecheck lint test --filter='!@rimedeck/docs' --filter='!@rimedeck/mobile' --filter='!@rimedeck/web'

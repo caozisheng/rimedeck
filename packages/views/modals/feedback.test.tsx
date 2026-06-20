@@ -30,19 +30,19 @@ vi.mock("../i18n", () => ({
   }),
 }));
 
-vi.mock("@multica/core/paths", () => ({ useCurrentWorkspace: () => ({ id: "ws1" }) }));
-vi.mock("@multica/core/hooks/use-file-upload", () => ({
+vi.mock("@rimedeck/core/paths", () => ({ useCurrentWorkspace: () => ({ id: "ws1" }) }));
+vi.mock("@rimedeck/core/hooks/use-file-upload", () => ({
   useFileUpload: () => ({ uploadWithToast: vi.fn() }),
 }));
-vi.mock("@multica/core/api", () => ({ api: {} }));
-vi.mock("@multica/core/analytics", () => ({ captureFeedbackOpened: vi.fn() }));
+vi.mock("@rimedeck/core/api", () => ({ api: {} }));
+vi.mock("@rimedeck/core/analytics", () => ({ captureFeedbackOpened: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() } }));
-vi.mock("@multica/core/platform", () => ({
+vi.mock("@rimedeck/core/platform", () => ({
   formatShortcut: () => "⌘↵",
   modKey: "mod",
   enterKey: "enter",
 }));
-vi.mock("@multica/core/feedback", () => ({
+vi.mock("@rimedeck/core/feedback", () => ({
   useCreateFeedback: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useFeedbackDraftStore: (selector: any) =>
     selector({ draft: { message: storedDraftMessage }, setDraft: vi.fn(), clearDraft: vi.fn() }),

@@ -1,5 +1,5 @@
-import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
-import { cn } from "@multica/ui/lib/utils";
+import { resolvePublicFileUrl } from "@rimedeck/core/workspace/avatar-url";
+import { cn } from "@rimedeck/ui/lib/utils";
 
 const sizeMap = {
   sm: "h-5 w-5 text-xs rounded",
