@@ -27,6 +27,7 @@ type BackupData struct {
 	Skills     []BackupSkill `json:"skills"`
 	Agents     []BackupAgent `json:"agents"`
 	Squads     []BackupSquad `json:"squads"`
+	Workflows  []BackupWorkflow `json:"workflows"`
 }
 
 type BackupSkill struct {
@@ -55,6 +56,7 @@ type BackupAgent struct {
 	Visibility         string          `json:"visibility"`
 	MaxConcurrentTasks int32           `json:"max_concurrent_tasks"`
 	SkillNames         []string        `json:"skill_names"`
+	WorkflowNames      []string        `json:"workflow_names"`
 }
 
 type BackupSquad struct {
@@ -72,6 +74,16 @@ type BackupSquadMember struct {
 	Role       string `json:"role"`
 }
 
+type BackupWorkflow struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Icon        string          `json:"icon"`
+	Category    string          `json:"category"`
+	Graph       json.RawMessage `json:"graph"`
+	Status      string          `json:"status"`
+	Version     int32           `json:"version"`
+}
+
 type ImportRequest struct {
 	BackupData
 	RuntimeID string `json:"runtime_id"`
@@ -79,9 +91,10 @@ type ImportRequest struct {
 }
 
 type ImportResultCounts struct {
-	Skills int `json:"skills"`
-	Agents int `json:"agents"`
-	Squads int `json:"squads"`
+	Skills    int `json:"skills"`
+	Workflows int `json:"workflows"`
+	Agents    int `json:"agents"`
+	Squads    int `json:"squads"`
 }
 
 type ImportResult struct {
@@ -106,6 +119,7 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 	filterAgents := parseCSVParam(r, "agents")
 	filterSkills := parseCSVParam(r, "skills")
 	filterSquads := parseCSVParam(r, "squads")
+	filterWorkflows := parseCSVParam(r, "workflows")
 
 	// 1. Load all un-archived skills (with content)
 	skills, err := h.Queries.ListSkillsByWorkspace(ctx, wsUUID)
@@ -143,6 +157,25 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 	for _, as := range agentSkills {
 		key := uuidToString(as.AgentID)
 		skillsByAgent[key] = append(skillsByAgent[key], as.Name)
+	}
+
+	// 4b. Load workflows (summary) and fetch graph per workflow
+	workflowSummaries, err := h.Queries.ListWorkflowsByWorkspace(ctx, wsUUID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list workflows")
+		return
+	}
+
+	// 4c. Load agent-workflow associations
+	agentWorkflows, err := h.Queries.ListAgentWorkflowsByWorkspace(ctx, wsUUID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list agent workflows")
+		return
+	}
+	workflowsByAgent := make(map[string][]string)
+	for _, aw := range agentWorkflows {
+		key := uuidToString(aw.AgentID)
+		workflowsByAgent[key] = append(workflowsByAgent[key], aw.Name)
 	}
 
 	// 5. Load un-archived squads
@@ -207,6 +240,30 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 		data.Skills = append(data.Skills, bs)
 	}
 
+	// Workflows
+	for _, ws := range workflowSummaries {
+		if ws.Status == "archived" {
+			continue
+		}
+		if len(filterWorkflows) > 0 && !containsStr(filterWorkflows, ws.Name) {
+			continue
+		}
+		// Fetch full workflow with graph
+		fullWF, err := h.Queries.GetWorkflow(ctx, ws.ID)
+		if err != nil {
+			continue // skip workflows whose graph can't be loaded
+		}
+		data.Workflows = append(data.Workflows, BackupWorkflow{
+			Name:        fullWF.Name,
+			Description: fullWF.Description,
+			Icon:        fullWF.Icon,
+			Category:    fullWF.Category,
+			Graph:       normalizeJSON(fullWF.Graph),
+			Status:      fullWF.Status,
+			Version:     fullWF.Version,
+		})
+	}
+
 	// Agents
 	for _, a := range agents {
 		if len(filterAgents) > 0 && !containsStr(filterAgents, a.Name) {
@@ -225,9 +282,13 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 			Visibility:         a.Visibility,
 			MaxConcurrentTasks: a.MaxConcurrentTasks,
 			SkillNames:         skillsByAgent[uuidToString(a.ID)],
+			WorkflowNames:      workflowsByAgent[uuidToString(a.ID)],
 		}
 		if ba.SkillNames == nil {
 			ba.SkillNames = []string{}
+		}
+		if ba.WorkflowNames == nil {
+			ba.WorkflowNames = []string{}
 		}
 		data.Agents = append(data.Agents, ba)
 	}
@@ -270,6 +331,9 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	if data.Squads == nil {
 		data.Squads = []BackupSquad{}
+	}
+	if data.Workflows == nil {
+		data.Workflows = []BackupWorkflow{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -409,7 +473,70 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 		result.Created.Skills++
 	}
 
-	// Phase 2: Agents
+	// Phase 2: Workflows
+	workflowIDByName := make(map[string]pgtype.UUID)
+	existingWorkflows, err := qtx.ListWorkflowsByWorkspace(ctx, wsUUID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list existing workflows")
+		return
+	}
+	for _, wf := range existingWorkflows {
+		workflowIDByName[wf.Name] = wf.ID
+	}
+
+	for _, bw := range req.Workflows {
+		if existingID, exists := workflowIDByName[bw.Name]; exists {
+			if !req.Overwrite {
+				result.Skipped.Workflows++
+				continue
+			}
+			// Overwrite: update existing workflow
+			graph := []byte(bw.Graph)
+			if len(graph) == 0 {
+				graph = []byte("{}")
+			}
+			_, err := qtx.UpdateWorkflow(ctx, db.UpdateWorkflowParams{
+				ID:          existingID,
+				Name:        pgtype.Text{String: bw.Name, Valid: true},
+				Description: pgtype.Text{String: bw.Description, Valid: true},
+				Icon:        pgtype.Text{String: bw.Icon, Valid: true},
+				Category:    pgtype.Text{String: bw.Category, Valid: true},
+				Graph:       graph,
+			})
+			if err != nil {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("Workflow %q: update failed: %v", bw.Name, err))
+			} else {
+				result.Created.Workflows++
+			}
+			continue
+		}
+		graph := []byte(bw.Graph)
+		if len(graph) == 0 {
+			graph = []byte("{}")
+		}
+		status := bw.Status
+		if status == "" {
+			status = "draft"
+		}
+		wf, err := qtx.CreateWorkflow(ctx, db.CreateWorkflowParams{
+			WorkspaceID: wsUUID,
+			Name:        bw.Name,
+			Description: bw.Description,
+			Icon:        bw.Icon,
+			Category:    bw.Category,
+			Graph:       graph,
+			Status:      status,
+			CreatedBy:   userUUID,
+		})
+		if err != nil {
+			result.Warnings = append(result.Warnings, fmt.Sprintf("Workflow %q: create failed: %v", bw.Name, err))
+			continue
+		}
+		workflowIDByName[bw.Name] = wf.ID
+		result.Created.Workflows++
+	}
+
+	// Phase 3: Agents
 	agentIDByName := make(map[string]pgtype.UUID)
 	existingAgents, err := qtx.ListAllAgents(ctx, wsUUID)
 	if err != nil {
@@ -437,10 +564,19 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 					result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: skill %q not found, binding skipped", ba.Name, skillName))
 					continue
 				}
-				_ = qtx.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agentID, SkillID: skillID})
+			_ = qtx.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agentID, SkillID: skillID})
+			}
+			// Re-bind workflows
+			for _, wfName := range ba.WorkflowNames {
+				wfID, found := workflowIDByName[wfName]
+				if !found {
+					result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: workflow %q not found, binding skipped", ba.Name, wfName))
+					continue
+				}
+				_ = qtx.AddAgentWorkflow(ctx, db.AddAgentWorkflowParams{AgentID: agentID, WorkflowID: wfID})
 			}
 			result.Skipped.Agents++
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: already exists, re-bound %d skills", ba.Name, len(ba.SkillNames)))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: already exists, re-bound %d skills and %d workflows", ba.Name, len(ba.SkillNames), len(ba.WorkflowNames)))
 			continue
 		}
 
@@ -496,10 +632,22 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		// Bind workflows
+		for _, wfName := range ba.WorkflowNames {
+			wfID, found := workflowIDByName[wfName]
+			if !found {
+				result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: workflow %q not found, binding skipped", ba.Name, wfName))
+				continue
+			}
+			if err := qtx.AddAgentWorkflow(ctx, db.AddAgentWorkflowParams{AgentID: agent.ID, WorkflowID: wfID}); err != nil {
+				writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to bind workflow %q to agent %q: %v", wfName, ba.Name, err))
+				return
+			}
+		}
 		result.Created.Agents++
 	}
 
-	// Phase 3: Squads
+	// Phase 4: Squads
 	for _, bsq := range req.Squads {
 		// Check if squad already exists
 		existingSquad, err := qtx.GetSquadByWorkspaceAndName(ctx, db.GetSquadByWorkspaceAndNameParams{
