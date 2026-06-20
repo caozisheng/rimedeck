@@ -248,7 +248,10 @@ func (n *DocGenerateNode) Init(_ types.Config, c types.Configuration) error {
 func (n *DocGenerateNode) Destroy() {}
 
 func (n *DocGenerateNode) OnMsg(ctx types.RuleContext, msg types.RuleMsg) {
-	content := strings.ReplaceAll(n.Config.ContentTemplate, "{{.data}}", msg.Data.Get())
+	content := msg.Data.Get()
+	if n.Config.ContentTemplate != "" {
+		content = strings.ReplaceAll(n.Config.ContentTemplate, "{{.data}}", content)
+	}
 	result := map[string]any{
 		"format": n.Config.Format, "content": content, "length": len(content),
 	}
