@@ -41,6 +41,7 @@ The agent **decides autonomously** whether to trigger an SOP — no server-side 
 ### Squad-Based Multi-Agent Orchestration
 
 A **Squad** is a team with one leader agent and member agents/users. The leader claims issues, breaks work down, and delegates sub-tasks via `@mention` — no centralized orchestrator, just agent-to-agent communication on the issue thread.
+
 ---
 
 ## Architecture
