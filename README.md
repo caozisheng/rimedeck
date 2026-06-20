@@ -87,6 +87,50 @@ A **Squad** is a team with one leader agent and member agents/users. The leader 
   └─────────────────────────────────────────────────────┘
 ```
 
+### Compute Sharing
+
+Add a remote machine as a headless compute node. It runs agent tasks but has no workspace UI access.
+
+```
+Machine A (Server)                    Machine C (Compute Node)
+┌──────────────────────┐              ┌──────────────────────┐
+│  RimeDeck Desktop    │              │  RimeDeck Desktop    │
+│  ┌────────────────┐  │              │                      │
+│  │ UI (Electron)  │  │              │  (UI stays on local  │
+│  │ issues, agents │  │              │   workspace — unused │
+│  └────────────────┘  │              │   for this server)   │
+│  ┌────────────────┐  │   daemon     │  ┌────────────────┐  │
+│  │ Server + PG    │◄─┼── token ────┼──│ Daemon          │  │
+│  │ workspace data │  │  (mdt_)      │  │ claims & runs   │  │
+│  └────────────────┘  │              │  │ tasks only      │  │
+│  ┌────────────────┐  │              │  └────────────────┘  │
+│  │ Local Daemon   │  │              └──────────────────────┘
+│  └────────────────┘  │
+└──────────────────────┘
+```
+
+### Remote Collaboration
+
+Invite a person as a workspace member. Their Desktop UI switches to your server's API — full access to issues, agents, and settings.
+
+```
+Machine A (Server)                    Machine B (Collaborator)
+┌──────────────────────┐              ┌──────────────────────┐
+│  RimeDeck Desktop    │              │  RimeDeck Desktop    │
+│  ┌────────────────┐  │              │  ┌────────────────┐  │
+│  │ UI (Electron)  │  │   JWT /      │  │ UI (Electron)  │  │
+│  │ issues, agents │  │   session    │  │ issues, agents │  │
+│  └────────────────┘  │◄────────────►│  │ (same data!)   │  │
+│  ┌────────────────┐  │              │  └────────────────┘  │
+│  │ Server + PG    │◄─┼── all API ──┼──    /api/*           │
+│  │ workspace data │  │              │                      │
+│  └────────────────┘  │              │  Local server idles  │
+│  ┌────────────────┐  │              │  (data preserved)    │
+│  │ Local Daemon   │  │              └──────────────────────┘
+│  └────────────────┘  │
+└──────────────────────┘
+```
+
 ---
 
 ## Quick Start
