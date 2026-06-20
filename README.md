@@ -131,8 +131,35 @@ Machine A (Server)                    Machine B (Collaborator)
 └──────────────────────┘
 ```
 
+
 ---
 
+## Supported Runtimes
+
+RimeDeck supports 16 AI coding tools as agent runtimes. The daemon auto-detects installed CLIs on your machine.
+
+| Runtime | CLI | Provider |
+|---------|-----|----------|
+| Antigravity | `agy` | Google |
+| Claude Code | `claude` | Anthropic |
+| CodeBuddy | `codebuddy` | Tencent |
+| Codex | `codex` | OpenAI |
+| Copilot | `copilot` | GitHub / Microsoft |
+| Cursor | `cursor-agent` | Cursor |
+| Gemini CLI | `gemini` | Google |
+| Hermes | `hermes` | NousResearch |
+| Kimi | `kimi` | Moonshot AI |
+| Kiro CLI | `kiro-cli` | Amazon |
+| OMP | `omp` | Community |
+| OpenCode | `opencode` | Community |
+| OpenClaw | `openclaw` | Community |
+| Pi | `pi` | Community |
+| Qoder | `qoder` | Qodo |
+| Qwen Code | `qwen-code` | Alibaba |
+
+All runtimes share one `Backend` interface — skills, SOPs, MCP config, and system prompts are injected uniformly.
+
+---
 ## Quick Start
 
 **Prerequisites**: Node.js 22+, pnpm 10+, Go 1.24+, PostgreSQL 17
