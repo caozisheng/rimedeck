@@ -1111,34 +1111,6 @@ func (h *Handler) enqueueCommentAgentTriggers(ctx context.Context, issue db.Issu
 					"error", err)
 			}
 		case commentTriggerSourceMentionAgent:
-			// Check if the agent has workflows mounted — if so, try triggering
-			// the first one instead of a coding task.
-			if h.WorkflowService != nil {
-				workflows, wfErr := h.Queries.ListAgentWorkflows(ctx, trigger.Agent.ID)
-				if wfErr == nil && len(workflows) > 0 {
-					// Trigger the first mounted workflow.
-					wf := workflows[0]
-					_, runErr := h.WorkflowService.TriggerRun(ctx, service.TriggerRunParams{
-						WorkflowID:  wf.ID,
-						WorkspaceID: issue.WorkspaceID,
-						AgentID:     trigger.Agent.ID,
-						Source:      "mention",
-						Input:       nil,
-						IssueID:     issue.ID,
-						// TriggeredBy left zero — delegateToAgent falls back to agent.OwnerID
-					})
-					if runErr == nil {
-						slog.Info("workflow triggered via @mention",
-							"issue_id", uuidToString(issue.ID),
-							"agent_id", uuidToString(trigger.Agent.ID),
-							"workflow_id", uuidToString(wf.ID))
-						continue // skip coding task
-					}
-					slog.Warn("workflow trigger via @mention failed, falling back to coding task",
-						"error", runErr)
-				}
-			}
-			// Fallback: enqueue normal coding task.
 			if _, err := h.TaskService.EnqueueTaskForMention(ctx, issue, trigger.Agent.ID, triggerCommentID); err != nil {
 				slog.Warn("enqueue mention agent task failed",
 					"issue_id", uuidToString(issue.ID),

@@ -62,7 +62,7 @@ type AgentResponse struct {
 	ThinkingLevel string              `json:"thinking_level"`
 	OwnerID       *string             `json:"owner_id"`
 	Skills        []AgentSkillSummary `json:"skills"`
-	Workflows     []AgentWorkflowSummary `json:"workflows"`
+	Sops          []AgentWorkflowSummary `json:"sops"`
 	CreatedAt     string              `json:"created_at"`
 	UpdatedAt     string              `json:"updated_at"`
 	ArchivedAt    *string             `json:"archived_at"`
@@ -345,7 +345,8 @@ type TaskAgentData struct {
 	ID            string                   `json:"id"`
 	Name          string                   `json:"name"`
 	Instructions  string                   `json:"instructions"`
-	Skills        []service.AgentSkillData `json:"skills,omitempty"`
+	Skills        []service.AgentSkillData  `json:"skills,omitempty"`
+	Workflows     []AgentWorkflowSummary    `json:"workflows,omitempty"`
 	CustomEnv     map[string]string        `json:"custom_env,omitempty"`
 	CustomArgs    []string                 `json:"custom_args,omitempty"`
 	McpConfig     json.RawMessage          `json:"mcp_config,omitempty"`
@@ -619,7 +620,7 @@ func (h *Handler) ListAgents(w http.ResponseWriter, r *http.Request) {
 			resp.Skills = skills
 		}
 		if workflows, ok := workflowMap[resp.ID]; ok {
-			resp.Workflows = workflows
+			resp.Sops = workflows
 		}
 		// Agent actors NEVER see mcp_config secrets, even when their host's
 		// PAT would normally satisfy the owner/admin role gate. Otherwise an
@@ -1261,7 +1262,7 @@ func (h *Handler) attachAgentSkills(ctx context.Context, resp *AgentResponse, ag
 	return nil
 }
 
-// attachAgentWorkflows populates resp.Workflows from the agent_workflow
+// attachAgentWorkflows populates resp.Sops from the agent_sop
 // junction table for the given agent. Mirrors attachAgentSkills.
 func (h *Handler) attachAgentWorkflows(ctx context.Context, resp *AgentResponse, agentID pgtype.UUID) error {
 	rows, err := h.Queries.ListAgentWorkflows(ctx, agentID)
@@ -1282,7 +1283,7 @@ func (h *Handler) attachAgentWorkflows(ctx context.Context, resp *AgentResponse,
 			Status:      w.Status,
 		}
 	}
-	resp.Workflows = out
+	resp.Sops = out
 	return nil
 }
 

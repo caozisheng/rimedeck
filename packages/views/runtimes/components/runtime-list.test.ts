@@ -20,7 +20,7 @@ function makeAgent(overrides: Partial<Agent> = {}): Agent {
     model: "gpt-5.4",
     owner_id: "user-1",
     skills: [],
-    workflows: [],
+    sops: [],
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     archived_at: null,

@@ -11,6 +11,16 @@ export interface BackupSkill {
   files: BackupSkillFile[];
 }
 
+export interface BackupSOP {
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  graph: Record<string, unknown>;
+  status: string;
+  version: number;
+}
+
 export interface BackupAgent {
   name: string;
   description: string;
@@ -24,6 +34,7 @@ export interface BackupAgent {
   visibility: string;
   max_concurrent_tasks: number;
   skill_names: string[];
+  sop_names: string[];
 }
 
 export interface BackupSquadMember {
@@ -46,12 +57,14 @@ export interface BackupData {
   exported_at: string;
   app_version: string;
   skills: BackupSkill[];
+  sops: BackupSOP[];
   agents: BackupAgent[];
   squads: BackupSquad[];
 }
 
 export interface ImportResultCounts {
   skills: number;
+  sops: number;
   agents: number;
   squads: number;
 }

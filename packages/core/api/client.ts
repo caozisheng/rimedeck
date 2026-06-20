@@ -111,12 +111,12 @@ import type {
   IssueDependency,
   DependencyGraphResponse,
   IssueDependenciesResponse,
-  WorkflowSummary,
-  Workflow,
-  WorkflowRun,
-  WorkflowTemplate,
+  SOPSummary,
+  SOP,
+  SOPRun,
+  SOPTemplate,
   ImportWarning,
-  WorkflowStats,
+  SOPStats,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import { type Logger, noopLogger } from "../logger";
@@ -1338,97 +1338,97 @@ export class ApiClient {
     });
   }
 
-  async setAgentWorkflows(agentId: string, workflowIds: string[]): Promise<void> {
-    await this.fetch(`/api/agents/${agentId}/workflows`, {
+  async setAgentSOPs(agentId: string, sopIds: string[]): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/sops`, {
       method: "PUT",
-      body: JSON.stringify({ workflow_ids: workflowIds }),
+      body: JSON.stringify({ sop_ids: sopIds }),
     });
   }
 
-  async addAgentWorkflows(agentId: string, workflowIds: string[]): Promise<void> {
-    await this.fetch(`/api/agents/${agentId}/workflows/add`, {
+  async addAgentSOPs(agentId: string, sopIds: string[]): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/sops/add`, {
       method: "POST",
-      body: JSON.stringify({ workflow_ids: workflowIds }),
+      body: JSON.stringify({ sop_ids: sopIds }),
     });
   }
 
-  // Workflows
-  async listWorkflows(): Promise<WorkflowSummary[]> {
-    return this.fetch("/api/workflows");
+  // SOPs
+  async listSOPs(): Promise<SOPSummary[]> {
+    return this.fetch("/api/sops");
   }
 
-  async createWorkflow(data: { name: string; description?: string; icon?: string; category?: string }): Promise<Workflow> {
-    return this.fetch("/api/workflows", {
+  async createSOP(data: { name: string; description?: string; icon?: string; category?: string }): Promise<SOP> {
+    return this.fetch("/api/sops", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async getWorkflow(workflowId: string): Promise<Workflow> {
-    return this.fetch(`/api/workflows/${workflowId}`);
+  async getSOP(sopId: string): Promise<SOP> {
+    return this.fetch(`/api/sops/${sopId}`);
   }
 
-  async updateWorkflow(workflowId: string, data: { name?: string; description?: string; icon?: string; category?: string; graph?: Record<string, unknown> }): Promise<Workflow> {
-    return this.fetch(`/api/workflows/${workflowId}`, {
+  async updateSOP(sopId: string, data: { name?: string; description?: string; icon?: string; category?: string; graph?: Record<string, unknown> }): Promise<SOP> {
+    return this.fetch(`/api/sops/${sopId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
-  async deleteWorkflow(workflowId: string): Promise<void> {
-    await this.fetch(`/api/workflows/${workflowId}`, { method: "DELETE" });
+  async deleteSOP(sopId: string): Promise<void> {
+    await this.fetch(`/api/sops/${sopId}`, { method: "DELETE" });
   }
 
-  async publishWorkflow(workflowId: string): Promise<Workflow> {
-    return this.fetch(`/api/workflows/${workflowId}/publish`, { method: "POST" });
+  async publishSOP(sopId: string): Promise<SOP> {
+    return this.fetch(`/api/sops/${sopId}/publish`, { method: "POST" });
   }
 
-  async listWorkflowRuns(workflowId: string): Promise<WorkflowRun[]> {
-    return this.fetch(`/api/workflows/${workflowId}/runs`);
+  async listSOPRuns(sopId: string): Promise<SOPRun[]> {
+    return this.fetch(`/api/sops/${sopId}/runs`);
   }
 
-  async getWorkflowRun(workflowId: string, runId: string): Promise<WorkflowRun> {
-    return this.fetch(`/api/workflows/${workflowId}/runs/${runId}`);
+  async getSOPRun(sopId: string, runId: string): Promise<SOPRun> {
+    return this.fetch(`/api/sops/${sopId}/runs/${runId}`);
   }
 
-  async triggerWorkflowRun(workflowId: string, agentId?: string, input?: Record<string, unknown>): Promise<WorkflowRun> {
-    return this.fetch(`/api/workflows/${workflowId}/runs`, {
+  async triggerSOPRun(sopId: string, agentId?: string, input?: Record<string, unknown>): Promise<SOPRun> {
+    return this.fetch(`/api/sops/${sopId}/runs`, {
       method: "POST",
       body: JSON.stringify({ agent_id: agentId, input: input ?? {} }),
     });
   }
 
-  async cancelWorkflowRun(workflowId: string, runId: string): Promise<void> {
-    await this.fetch(`/api/workflows/${workflowId}/runs/${runId}/cancel`, {
+  async cancelSOPRun(sopId: string, runId: string): Promise<void> {
+    await this.fetch(`/api/sops/${sopId}/runs/${runId}/cancel`, {
       method: "POST",
     });
   }
 
-  async listWorkflowTemplates(): Promise<WorkflowTemplate[]> {
-    return this.fetch("/api/workflows/templates");
+  async listSOPTemplates(): Promise<SOPTemplate[]> {
+    return this.fetch("/api/sops/templates");
   }
 
-  async cloneWorkflowTemplate(templateId: string, name?: string): Promise<Workflow> {
-    return this.fetch("/api/workflows/templates/clone", {
+  async cloneSOPTemplate(templateId: string, name?: string): Promise<SOP> {
+    return this.fetch("/api/sops/templates/clone", {
       method: "POST",
       body: JSON.stringify({ template_id: templateId, name }),
     });
   }
 
-  async importWorkflow(raw: string): Promise<{ workflow: WorkflowSummary; warnings: ImportWarning[] }> {
-    return this.fetch("/api/workflows/import", {
+  async importSOP(raw: string): Promise<{ sop: SOPSummary; warnings: ImportWarning[] }> {
+    return this.fetch("/api/sops/import", {
       method: "POST",
       body: JSON.stringify({ raw }),
     });
   }
 
-  async exportWorkflow(workflowId: string, format: "json" | "n8n" | "dify" = "json"): Promise<Blob> {
-    const res = await this.fetchRaw(`/api/workflows/${workflowId}/export?format=${format}`);
+  async exportSOP(sopId: string, format: "json" | "n8n" | "dify" = "json"): Promise<Blob> {
+    const res = await this.fetchRaw(`/api/sops/${sopId}/export?format=${format}`);
     return res.blob();
   }
 
-  async getWorkflowStats(workflowId: string): Promise<WorkflowStats> {
-    return this.fetch(`/api/workflows/${workflowId}/stats`);
+  async getSOPStats(sopId: string): Promise<SOPStats> {
+    return this.fetch(`/api/sops/${sopId}/stats`);
   }
 
   // Personal Access Tokens

@@ -2651,6 +2651,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		AgentName:                        agentName,
 		AgentInstructions:                instructions,
 		AgentSkills:                      convertSkillsForEnv(skills),
+		AgentSOPs:                        convertSOPsForEnv(task.Agent),
 		Repos:                            convertReposForEnv(task.Repos),
 		ProjectID:                        task.ProjectID,
 		ProjectTitle:                     task.ProjectTitle,
@@ -2706,6 +2707,14 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	var agentMcpConfig json.RawMessage
 	if task.Agent != nil {
 		agentMcpConfig = task.Agent.McpConfig
+	}
+	// Inject SOP MCP server if agent has mounted workflows.
+	if task.Agent != nil && len(task.Agent.Workflows) > 0 {
+		sopToken := task.AuthToken
+		if sopToken == "" {
+			sopToken = d.client.Token()
+		}
+		agentMcpConfig = injectSOPMcpServer(agentMcpConfig, d.cfg.ServerBaseURL, task.AgentID, sopToken)
 	}
 	// Decode openclaw-specific runtime_config knobs once so reuse / prepare /
 	// ExecOptions all see the same mode + gateway pin (issue #3260). Parse
@@ -2939,6 +2948,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		customArgs = task.Agent.CustomArgs
 		mcpConfig = task.Agent.McpConfig
 	}
+	// Inject SOP MCP server if agent has mounted workflows.
+	if task.Agent != nil && len(task.Agent.Workflows) > 0 {
+		mcpConfig = injectSOPMcpServer(mcpConfig, d.cfg.ServerBaseURL, task.AgentID, agentToken)
+	}
 	// Two-tier model resolution: an explicit agent.model wins,
 	// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var. If
 	// both are empty we deliberately pass "" through — each
@@ -3010,10 +3023,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	//     workdir bootstrap reliably end-to-end.
 	//   - kiro and kimi are wrapped through their own CLIs whose cwd handling
 	//     is opaque enough that we can't trust the file-based path either.
-	// Pass the full runtime brief inline (CLI catalog + workflow steps + agent
+	// Pass the full runtime brief inline (CLI catalog + procedure steps + agent
 	// identity/persona + skills + project context) so the backend prepends the
 	// same payload that file-based runtimes pick up from disk. Without this,
-	// these providers silently miss the workflow section and never call
+	// these providers silently miss the procedure section and never call
 	// `multica issue status` / `multica issue comment add`, leaving issues
 	// stuck in `todo`.
 	//
@@ -3712,6 +3725,20 @@ func convertSkillsForEnv(skills []SkillData) []execenv.SkillContextForEnv {
 				Path:    f.Path,
 				Content: f.Content,
 			})
+		}
+	}
+	return result
+}
+
+func convertSOPsForEnv(agent *AgentData) []execenv.SOPContextForEnv {
+	if agent == nil || len(agent.Workflows) == 0 {
+		return nil
+	}
+	result := make([]execenv.SOPContextForEnv, len(agent.Workflows))
+	for i, w := range agent.Workflows {
+		result[i] = execenv.SOPContextForEnv{
+			Name:        w.Name,
+			Description: w.Description,
 		}
 	}
 	return result

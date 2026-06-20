@@ -576,12 +576,12 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 	isAssignmentTriggered := ctx.ChatSessionID == "" && ctx.QuickCreatePrompt == "" && ctx.AutopilotRunID == "" && ctx.TriggerCommentID == ""
 	if isAssignmentTriggered {
 		b.WriteString("## Instruction Precedence\n\n")
-		b.WriteString("Agent Identity instructions have priority over the assignment workflow below. ")
-		b.WriteString("If a workflow step conflicts with Agent Identity, skip the conflicting action and continue with the remaining compatible steps. ")
-		b.WriteString("Never treat this runtime workflow as permission to change issue status, investigate, implement, or otherwise act beyond your Agent Identity.\n\n")
+		b.WriteString("Agent Identity instructions have priority over the assignment procedure below. ")
+		b.WriteString("If a procedure step conflicts with Agent Identity, skip the conflicting action and continue with the remaining compatible steps. ")
+		b.WriteString("Never treat this runtime procedure as permission to change issue status, investigate, implement, or otherwise act beyond your Agent Identity.\n\n")
 	}
 
-	b.WriteString("### Workflow\n\n")
+	b.WriteString("### Procedure\n\n")
 
 	if ctx.ChatSessionID != "" {
 		// Chat task: interactive assistant mode
@@ -600,9 +600,9 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 		// per-turn message is always present and the agent reads the rules
 		// from there. We only keep the hard guardrails here so a provider
 		// that doesn't propagate the user message into its working context
-		// (or a resumed session) still avoids the assignment-task workflow
+		// (or a resumed session) still avoids the assignment-task procedure
 		// pointing at an empty issue id.
-		b.WriteString("**This task was triggered by quick-create.** An issue has already been created by the server with a placeholder title. Follow the field and output rules in the user message you just received; ignore the default assignment-task workflow.\n\n")
+		b.WriteString("**This task was triggered by quick-create.** An issue has already been created by the server with a placeholder title. Follow the field and output rules in the user message you just received; ignore the default assignment-task procedure.\n\n")
 		b.WriteString("Hard guardrails (apply even if the user message is missing):\n")
 		b.WriteString("- Run exactly one `multica issue update` invocation to refine the issue, then exit.\n")
 		b.WriteString("- Do NOT call `multica issue create` — the issue already exists; creating a new one would produce a duplicate.\n")
@@ -610,7 +610,7 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 		b.WriteString("- If the CLI returns an error, exit with that error as the only output. Do not retry.\n\n")
 	} else if ctx.AutopilotRunID != "" {
 		// Autopilot run_only task: no issue exists, so the agent must not
-		// follow the assignment/comment workflow.
+		// follow the assignment/comment procedure.
 		b.WriteString("**This task was triggered by an Autopilot in run-only mode.** There is no assigned Multica issue for this run.\n\n")
 		fmt.Fprintf(&b, "- Autopilot run ID: `%s`\n", ctx.AutopilotRunID)
 		if ctx.AutopilotID != "" {
@@ -662,7 +662,7 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 		b.WriteString("8. Before exiting: only if this run produced a fact that clears the high bar (important AND likely to be re-read by future runs on this same issue, e.g. a new PR URL or deploy URL), or you noticed a metadata key from entry that is now stale, pin or clear it via `multica issue metadata set`/`delete`. Most runs write nothing here — that is the expected outcome, not a gap. When in doubt, do not write. See the `## Issue Metadata` section above for the full bar.\n")
 		b.WriteString("9. Do NOT change the issue status unless the comment explicitly asks for it\n\n")
 	} else {
-		// Assignment-triggered: defer to agent Skills for workflow specifics.
+		// Assignment-triggered: defer to agent Skills for procedure specifics.
 		b.WriteString("You are responsible for managing the issue status throughout your work, unless your Agent Identity forbids issue status changes.\n\n")
 		fmt.Fprintf(&b, "1. Run `multica issue get %s --output json` to understand your task\n", ctx.IssueID)
 		fmt.Fprintf(&b, "2. Run `multica issue metadata list %s --output json` to see what prior agents pinned — best-effort, empty `{}` and CLI failures are normal. See the `## Issue Metadata` section above for what to look for.\n", ctx.IssueID)
@@ -716,6 +716,24 @@ func buildMetaSkillContent(provider string, ctx TaskContextForEnv) string {
 		}
 		for _, skill := range ctx.AgentSkills {
 			fmt.Fprintf(&b, "- **%s**\n", skill.Name)
+		}
+		b.WriteString("\n")
+	}
+
+	if len(ctx.AgentSOPs) > 0 {
+		b.WriteString("## SOPs (Standard Operating Procedures)\n\n")
+		b.WriteString("You have the following SOPs available. Each SOP is a pre-built deterministic pipeline (DAG) ")
+		b.WriteString("that executes server-side — HTTP calls, data transforms, document generation, etc. run at zero token cost; ")
+		b.WriteString("only LLM nodes consume tokens.\n\n")
+		b.WriteString("**To trigger an SOP**, use the `trigger_sop` MCP tool if available, or call the server API directly:\n")
+		b.WriteString("```\ncurl -X POST $SERVER_URL/mcp/sops/$AGENT_ID -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"trigger_sop\",\"arguments\":{\"sop_name\":\"NAME\"}}}'\n```\n\n")
+		b.WriteString("Available SOPs:\n\n")
+		for _, sop := range ctx.AgentSOPs {
+			fmt.Fprintf(&b, "- **%s**", sop.Name)
+			if sop.Description != "" {
+				fmt.Fprintf(&b, " — %s", sop.Description)
+			}
+			b.WriteString("\n")
 		}
 		b.WriteString("\n")
 	}

@@ -12,28 +12,28 @@ import (
 )
 
 const createWorkflowVersion = `-- name: CreateWorkflowVersion :one
-INSERT INTO workflow_version (workflow_id, version, graph, published_by)
-VALUES ($1, $2, $3, $4) RETURNING id, workflow_id, version, graph, published_by, published_at
+INSERT INTO sop_version (sop_id, version, graph, published_by)
+VALUES ($1, $2, $3, $4) RETURNING id, sop_id, version, graph, published_by, published_at
 `
 
 type CreateWorkflowVersionParams struct {
-	WorkflowID  pgtype.UUID `json:"workflow_id"`
+	SopID       pgtype.UUID `json:"sop_id"`
 	Version     int32       `json:"version"`
 	Graph       []byte      `json:"graph"`
 	PublishedBy pgtype.UUID `json:"published_by"`
 }
 
-func (q *Queries) CreateWorkflowVersion(ctx context.Context, arg CreateWorkflowVersionParams) (WorkflowVersion, error) {
+func (q *Queries) CreateWorkflowVersion(ctx context.Context, arg CreateWorkflowVersionParams) (SopVersion, error) {
 	row := q.db.QueryRow(ctx, createWorkflowVersion,
-		arg.WorkflowID,
+		arg.SopID,
 		arg.Version,
 		arg.Graph,
 		arg.PublishedBy,
 	)
-	var i WorkflowVersion
+	var i SopVersion
 	err := row.Scan(
 		&i.ID,
-		&i.WorkflowID,
+		&i.SopID,
 		&i.Version,
 		&i.Graph,
 		&i.PublishedBy,
@@ -43,20 +43,20 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, arg CreateWorkflowV
 }
 
 const getWorkflowVersion = `-- name: GetWorkflowVersion :one
-SELECT id, workflow_id, version, graph, published_by, published_at FROM workflow_version WHERE workflow_id = $1 AND version = $2
+SELECT id, sop_id, version, graph, published_by, published_at FROM sop_version WHERE sop_id = $1 AND version = $2
 `
 
 type GetWorkflowVersionParams struct {
-	WorkflowID pgtype.UUID `json:"workflow_id"`
-	Version    int32       `json:"version"`
+	SopID   pgtype.UUID `json:"sop_id"`
+	Version int32       `json:"version"`
 }
 
-func (q *Queries) GetWorkflowVersion(ctx context.Context, arg GetWorkflowVersionParams) (WorkflowVersion, error) {
-	row := q.db.QueryRow(ctx, getWorkflowVersion, arg.WorkflowID, arg.Version)
-	var i WorkflowVersion
+func (q *Queries) GetWorkflowVersion(ctx context.Context, arg GetWorkflowVersionParams) (SopVersion, error) {
+	row := q.db.QueryRow(ctx, getWorkflowVersion, arg.SopID, arg.Version)
+	var i SopVersion
 	err := row.Scan(
 		&i.ID,
-		&i.WorkflowID,
+		&i.SopID,
 		&i.Version,
 		&i.Graph,
 		&i.PublishedBy,
@@ -66,21 +66,21 @@ func (q *Queries) GetWorkflowVersion(ctx context.Context, arg GetWorkflowVersion
 }
 
 const listWorkflowVersions = `-- name: ListWorkflowVersions :many
-SELECT id, workflow_id, version, graph, published_by, published_at FROM workflow_version WHERE workflow_id = $1 ORDER BY version DESC
+SELECT id, sop_id, version, graph, published_by, published_at FROM sop_version WHERE sop_id = $1 ORDER BY version DESC
 `
 
-func (q *Queries) ListWorkflowVersions(ctx context.Context, workflowID pgtype.UUID) ([]WorkflowVersion, error) {
-	rows, err := q.db.Query(ctx, listWorkflowVersions, workflowID)
+func (q *Queries) ListWorkflowVersions(ctx context.Context, sopID pgtype.UUID) ([]SopVersion, error) {
+	rows, err := q.db.Query(ctx, listWorkflowVersions, sopID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []WorkflowVersion{}
+	items := []SopVersion{}
 	for rows.Next() {
-		var i WorkflowVersion
+		var i SopVersion
 		if err := rows.Scan(
 			&i.ID,
-			&i.WorkflowID,
+			&i.SopID,
 			&i.Version,
 			&i.Graph,
 			&i.PublishedBy,

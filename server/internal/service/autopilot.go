@@ -85,11 +85,11 @@ func (s *AutopilotService) DispatchAutopilot(
 		return nil, fmt.Errorf("create run: %w", err)
 	}
 	s.captureAutopilotRunStarted(autopilot, run, source)
-	// Workflow dispatch: if the autopilot specifies a workflow_id,
-	// execute via the workflow engine instead of coding agent.
-	if autopilot.WorkflowID.Valid && s.WorkflowSvc != nil {
+	// SOP dispatch: if the autopilot specifies a sop_id,
+	// execute via the SOP engine instead of coding agent.
+	if autopilot.SopID.Valid && s.WorkflowSvc != nil {
 		wfRun, err := s.WorkflowSvc.TriggerRun(ctx, TriggerRunParams{
-			WorkflowID:     autopilot.WorkflowID,
+			WorkflowID:     autopilot.SopID,
 			WorkspaceID:    autopilot.WorkspaceID,
 			AgentID:        autopilot.AssigneeID,
 			Source:         "autopilot",

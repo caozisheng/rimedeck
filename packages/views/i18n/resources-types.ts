@@ -20,7 +20,7 @@ import type workspace from "../locales/en/workspace.json";
 import type projects from "../locales/en/projects.json";
 import type autopilots from "../locales/en/autopilots.json";
 import type skills from "../locales/en/skills.json";
-import type workflows from "../locales/en/workflows.json";
+import type sops from "../locales/en/sops.json";
 import type chat from "../locales/en/chat.json";
 import type modals from "../locales/en/modals.json";
 import type runtimes from "../locales/en/runtimes.json";
@@ -67,7 +67,7 @@ declare global {
     layout: typeof layout;
     usage: typeof usage;
     squads: typeof squads;
-    workflows: typeof workflows;
+    sops: typeof sops;
   }
 }
 

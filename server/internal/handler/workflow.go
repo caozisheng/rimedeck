@@ -65,7 +65,7 @@ type AgentWorkflowSummary struct {
 
 type WorkflowRunResponse struct {
 	ID             string          `json:"id"`
-	WorkflowID     string          `json:"workflow_id"`
+	SopID          string          `json:"sop_id"`
 	WorkspaceID    string          `json:"workspace_id"`
 	AgentID        string          `json:"agent_id"`
 	Source         string          `json:"source"`
@@ -128,11 +128,11 @@ type TriggerWorkflowRunRequest struct {
 }
 
 type SetAgentWorkflowsRequest struct {
-	WorkflowIDs []string `json:"workflow_ids"`
+	SopIDs []string `json:"sop_ids"`
 }
 
 type AddAgentWorkflowsRequest struct {
-	WorkflowIDs []string `json:"workflow_ids"`
+	SopIDs []string `json:"sop_ids"`
 }
 
 // --- Helpers ---
@@ -140,7 +140,7 @@ type AddAgentWorkflowsRequest struct {
 // defaultWorkflowGraph is the empty RuleGo DSL used when no graph is provided.
 var defaultWorkflowGraph = json.RawMessage(`{"ruleChain":{},"metadata":{"firstNodeIndex":0,"nodes":[],"connections":[]}}`)
 
-func toWorkflowResponse(w db.Workflow) WorkflowResponse {
+func toWorkflowResponse(w db.Sop) WorkflowResponse {
 	graph := json.RawMessage(w.Graph)
 	if len(graph) == 0 {
 		graph = defaultWorkflowGraph
@@ -225,10 +225,10 @@ func numericToPtr(n pgtype.Numeric) *string {
 	return &s
 }
 
-func toWorkflowRunResponse(r db.WorkflowRun) WorkflowRunResponse {
+func toWorkflowRunResponse(r db.SopRun) WorkflowRunResponse {
 	return WorkflowRunResponse{
 		ID:             uuidToString(r.ID),
-		WorkflowID:     uuidToString(r.WorkflowID),
+		SopID:          uuidToString(r.SopID),
 		WorkspaceID:    uuidToString(r.WorkspaceID),
 		AgentID:        uuidToString(r.AgentID),
 		Source:         r.Source,
@@ -250,7 +250,7 @@ func toWorkflowRunResponse(r db.WorkflowRun) WorkflowRunResponse {
 	}
 }
 
-func toNodeExecutionResponse(e db.WorkflowNodeExecution) WorkflowNodeExecutionResponse {
+func toNodeExecutionResponse(e db.SopNodeExecution) WorkflowNodeExecutionResponse {
 	return WorkflowNodeExecutionResponse{
 		ID:          uuidToString(e.ID),
 		RunID:       uuidToString(e.RunID),
@@ -267,16 +267,16 @@ func toNodeExecutionResponse(e db.WorkflowNodeExecution) WorkflowNodeExecutionRe
 	}
 }
 
-func (h *Handler) loadWorkflowForUser(w http.ResponseWriter, r *http.Request, id string) (db.Workflow, bool) {
+func (h *Handler) loadWorkflowForUser(w http.ResponseWriter, r *http.Request, id string) (db.Sop, bool) {
 	workspaceID := h.resolveWorkspaceID(r)
 	if workspaceID == "" {
 		writeError(w, http.StatusBadRequest, "workspace_id is required")
-		return db.Workflow{}, false
+		return db.Sop{}, false
 	}
 
 	workflowUUID, ok := parseUUIDOrBadRequest(w, id, "workflow id")
 	if !ok {
-		return db.Workflow{}, false
+		return db.Sop{}, false
 	}
 
 	workflow, err := h.Queries.GetWorkflowInWorkspace(r.Context(), db.GetWorkflowInWorkspaceParams{
@@ -292,7 +292,7 @@ func (h *Handler) loadWorkflowForUser(w http.ResponseWriter, r *http.Request, id
 
 // canManageWorkflow checks whether the current user can update or delete a workflow.
 // The workflow creator or workspace owner/admin can manage any workflow.
-func (h *Handler) canManageWorkflow(w http.ResponseWriter, r *http.Request, workflow db.Workflow) bool {
+func (h *Handler) canManageWorkflow(w http.ResponseWriter, r *http.Request, workflow db.Sop) bool {
 	wsID := uuidToString(workflow.WorkspaceID)
 	member, ok := h.requireWorkspaceRole(w, r, wsID, "workflow not found", "owner", "admin", "member")
 	if !ok {
@@ -520,7 +520,7 @@ func (h *Handler) PublishWorkflow(w http.ResponseWriter, r *http.Request) {
 	userID := requestUserID(r)
 	publisherUUID := parseUUID(userID)
 	_, _ = h.Queries.CreateWorkflowVersion(r.Context(), db.CreateWorkflowVersionParams{
-		WorkflowID:  published.ID,
+		SopID:       published.ID,
 		Version:     published.Version,
 		Graph:       published.Graph,
 		PublishedBy: publisherUUID,
@@ -619,7 +619,7 @@ func (h *Handler) TriggerWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	os.WriteFile("C:/Users/zisheng/workflow_debug.log", []byte("FALLBACK: WorkflowService is nil!\n"), 0644)
 	totalNodes := countGraphNodes(workflow.Graph)
 	run, err := h.Queries.CreateWorkflowRun(r.Context(), db.CreateWorkflowRunParams{
-		WorkflowID:   workflow.ID,
+		SopID:       workflow.ID,
 		WorkspaceID:  workflow.WorkspaceID,
 		AgentID:      agentUUID,
 		Source:       "api",
@@ -651,7 +651,7 @@ func (h *Handler) ListWorkflowRuns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	runs, err := h.Queries.ListWorkflowRuns(r.Context(), db.ListWorkflowRunsParams{
-		WorkflowID: workflow.ID,
+		SopID:      workflow.ID,
 		Limit:      50,
 		Offset:     offset,
 	})
@@ -764,7 +764,7 @@ func (h *Handler) SetAgentWorkflows(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	workflowUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.WorkflowIDs, "workflow_ids")
+	workflowUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.SopIDs, "sop_ids")
 	if !ok {
 		return
 	}
@@ -789,7 +789,7 @@ func (h *Handler) SetAgentWorkflows(w http.ResponseWriter, r *http.Request) {
 	for _, wfID := range workflowUUIDs {
 		if err := qtx.AddAgentWorkflow(r.Context(), db.AddAgentWorkflowParams{
 			AgentID:    agent.ID,
-			WorkflowID: wfID,
+			SopID:      wfID,
 		}); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to add agent workflow: "+err.Error())
 			return
@@ -819,7 +819,7 @@ func (h *Handler) AddAgentWorkflows(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	workflowUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.WorkflowIDs, "workflow_ids")
+	workflowUUIDs, ok := parseUUIDSliceOrBadRequest(w, req.SopIDs, "sop_ids")
 	if !ok {
 		return
 	}
@@ -838,7 +838,7 @@ func (h *Handler) AddAgentWorkflows(w http.ResponseWriter, r *http.Request) {
 	for _, wfID := range workflowUUIDs {
 		if err := qtx.AddAgentWorkflow(r.Context(), db.AddAgentWorkflowParams{
 			AgentID:    agent.ID,
-			WorkflowID: wfID,
+			SopID:      wfID,
 		}); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to add agent workflow: "+err.Error())
 			return
@@ -1164,7 +1164,7 @@ type UpdateWorkflowCredentialRequest struct {
 	Value       json.RawMessage `json:"value,omitempty"`
 }
 
-func toCredentialResponse(c db.WorkflowCredential, includeValue bool) WorkflowCredentialResponse {
+func toCredentialResponse(c db.SopCredential, includeValue bool) WorkflowCredentialResponse {
 	resp := WorkflowCredentialResponse{
 		ID:             uuidToString(c.ID),
 		WorkspaceID:    uuidToString(c.WorkspaceID),
@@ -1354,17 +1354,17 @@ func (h *Handler) DeleteWorkflowCredential(w http.ResponseWriter, r *http.Reques
 
 type WorkflowVersionResponse struct {
 	ID          string          `json:"id"`
-	WorkflowID  string          `json:"workflow_id"`
+	SopID       string          `json:"sop_id"`
 	Version     int32           `json:"version"`
 	Graph       json.RawMessage `json:"graph"`
 	PublishedBy *string         `json:"published_by"`
 	PublishedAt string          `json:"published_at"`
 }
 
-func toVersionResponse(v db.WorkflowVersion) WorkflowVersionResponse {
+func toVersionResponse(v db.SopVersion) WorkflowVersionResponse {
 	return WorkflowVersionResponse{
 		ID:          uuidToString(v.ID),
-		WorkflowID:  uuidToString(v.WorkflowID),
+		SopID:       uuidToString(v.SopID),
 		Version:     v.Version,
 		Graph:       v.Graph,
 		PublishedBy: uuidToPtr(v.PublishedBy),
@@ -1410,7 +1410,7 @@ func (h *Handler) RollbackWorkflowVersion(w http.ResponseWriter, r *http.Request
 	}
 
 	ver, err := h.Queries.GetWorkflowVersion(r.Context(), db.GetWorkflowVersionParams{
-		WorkflowID: workflow.ID,
+		SopID:      workflow.ID,
 		Version:    int32(versionNum),
 	})
 	if err != nil {

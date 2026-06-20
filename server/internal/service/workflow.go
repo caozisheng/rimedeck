@@ -86,17 +86,17 @@ type TriggerRunParams struct {
 }
 
 // TriggerRun creates a workflow_run record and starts asynchronous DAG execution.
-func (s *WorkflowService) TriggerRun(ctx context.Context, p TriggerRunParams) (db.WorkflowRun, error) {
+func (s *WorkflowService) TriggerRun(ctx context.Context, p TriggerRunParams) (db.SopRun, error) {
 
 	wf, err := s.Queries.GetWorkflow(ctx, p.WorkflowID)
 	if err != nil {
-		return db.WorkflowRun{}, fmt.Errorf("load workflow: %w", err)
+		return db.SopRun{}, fmt.Errorf("load workflow: %w", err)
 	}
 
 	totalNodes := countGraphNodes(wf.Graph)
 
 	run, err := s.Queries.CreateWorkflowRun(ctx, db.CreateWorkflowRunParams{
-		WorkflowID:   p.WorkflowID,
+		SopID:        p.WorkflowID,
 		WorkspaceID:  p.WorkspaceID,
 		AgentID:      p.AgentID,
 		Source:       p.Source,
@@ -106,7 +106,7 @@ func (s *WorkflowService) TriggerRun(ctx context.Context, p TriggerRunParams) (d
 		TriggeredBy:  p.TriggeredBy,
 	})
 	if err != nil {
-		return db.WorkflowRun{}, fmt.Errorf("create run: %w", err)
+		return db.SopRun{}, fmt.Errorf("create run: %w", err)
 	}
 
 	go s.executeRun(run, wf, p.AgentID)
@@ -114,8 +114,44 @@ func (s *WorkflowService) TriggerRun(ctx context.Context, p TriggerRunParams) (d
 	return run, nil
 }
 
+// TriggerRunSync is a synchronous variant of TriggerRun. It blocks until the
+// DAG execution completes (or times out) and returns the final WorkflowRun
+// with Output populated.
+func (s *WorkflowService) TriggerRunSync(ctx context.Context, p TriggerRunParams) (db.SopRun, error) {
+	wf, err := s.Queries.GetWorkflow(ctx, p.WorkflowID)
+	if err != nil {
+		return db.SopRun{}, fmt.Errorf("load workflow: %w", err)
+	}
+
+	totalNodes := countGraphNodes(wf.Graph)
+
+	run, err := s.Queries.CreateWorkflowRun(ctx, db.CreateWorkflowRunParams{
+		SopID:        p.WorkflowID,
+		WorkspaceID:  p.WorkspaceID,
+		AgentID:      p.AgentID,
+		Source:       p.Source,
+		TriggerInput: p.Input,
+		Status:       "running",
+		TotalNodes:   int32(totalNodes),
+		TriggeredBy:  p.TriggeredBy,
+	})
+	if err != nil {
+		return db.SopRun{}, fmt.Errorf("create run: %w", err)
+	}
+
+	// Execute synchronously (blocking) — NOT in a goroutine.
+	s.executeRun(run, wf, p.AgentID)
+
+	// Re-read to get final status + output after DAG completion.
+	final, err := s.Queries.GetWorkflowRun(ctx, run.ID)
+	if err != nil {
+		return run, nil // return original if re-read fails
+	}
+	return final, nil
+}
+
 // executeRun runs the RuleGo engine for a single workflow run.
-func (s *WorkflowService) executeRun(run db.WorkflowRun, wf db.Workflow, agentID pgtype.UUID) {
+func (s *WorkflowService) executeRun(run db.SopRun, wf db.Sop, agentID pgtype.UUID) {
 	runID := uuidStr(run.ID)
 	ctx := context.Background()
 	// Debug: write to file since slog may not show in desktop app

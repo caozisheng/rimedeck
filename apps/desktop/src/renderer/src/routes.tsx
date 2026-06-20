@@ -10,7 +10,7 @@ import { IssueDetailPage } from "./pages/issue-detail-page";
 import { ProjectDetailPage } from "./pages/project-detail-page";
 import { AutopilotDetailPage } from "./pages/autopilot-detail-page";
 import { SkillDetailPage } from "./pages/skill-detail-page";
-import { WorkflowDetailPage } from "./pages/workflow-detail-page";
+import { SOPDetailPage } from "./pages/sop-detail-page";
 import { AgentDetailPage } from "./pages/agent-detail-page";
 import { MemberDetailPage } from "./pages/member-detail-page";
 import { RuntimeDetailPage } from "./pages/runtime-detail-page";
@@ -21,7 +21,7 @@ import { DashboardPage } from "@rimedeck/views/dashboard";
 import { AutopilotsPage } from "@rimedeck/views/autopilots/components";
 import { MyIssuesPage } from "@rimedeck/views/my-issues";
 import { SkillsPage } from "@rimedeck/views/skills";
-import { WorkflowsPage } from "@rimedeck/views/workflows";
+import { SOPsPage } from "@rimedeck/views/sops";
 import { DesktopRuntimesPage } from "./components/desktop-runtimes-page";
 import { DesktopAgentsPage } from "./components/desktop-agents-page";
 import { SquadsPage, SquadDetailPage as SquadDetailPageView } from "@rimedeck/views/squads/components";
@@ -170,11 +170,11 @@ export const appRoutes: RouteObject[] = [
             element: <SkillDetailPage />,
             handle: { title: "Skill" },
           },
-          { path: "workflows", element: <WorkflowsPage />, handle: { title: "Workflows" } },
+          { path: "sops", element: <SOPsPage />, handle: { title: "SOPs" } },
           {
-            path: "workflows/:id",
-            element: <WorkflowDetailPage />,
-            handle: { title: "Workflow" },
+            path: "sops/:id",
+            element: <SOPDetailPage />,
+            handle: { title: "SOP" },
           },
           { path: "agents", element: <DesktopAgentsPage />, handle: { title: "Agents" } },
           {

@@ -27,7 +27,7 @@ import {
 import { ActivityTab } from "./tabs/activity-tab";
 import { InstructionsTab } from "./tabs/instructions-tab";
 import { SkillsTab } from "./tabs/skills-tab";
-import { WorkflowsTab } from "./tabs/workflows-tab";
+import { SOPsTab } from "./tabs/sops-tab";
 import { EnvTab } from "./tabs/env-tab";
 import { CustomArgsTab } from "./tabs/custom-args-tab";
 import { McpConfigTab } from "./tabs/mcp-config-tab";
@@ -40,18 +40,18 @@ export type DetailTab =
   | "tasks"
   | "instructions"
   | "skills"
-  | "workflows"
+  | "sops"
   | "env"
   | "custom_args"
   | "mcp_config"
   | "runtime_config";
 
-const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "workflows" | "environment" | "custom_args" | "mcp_config" | "runtime_config"> = {
+const TAB_LABEL_KEY: Record<DetailTab, "activity" | "tasks" | "instructions" | "skills" | "sops" | "environment" | "custom_args" | "mcp_config" | "runtime_config"> = {
   activity: "activity",
   tasks: "tasks",
   instructions: "instructions",
   skills: "skills",
-  workflows: "workflows",
+  sops: "sops",
   env: "environment",
   custom_args: "custom_args",
   mcp_config: "mcp_config",
@@ -66,7 +66,7 @@ const detailTabs: {
   { id: "tasks", icon: ListTodo },
   { id: "instructions", icon: FileText },
   { id: "skills", icon: BookOpenText },
-  { id: "workflows", icon: Workflow },
+  { id: "sops", icon: Workflow },
   { id: "env", icon: KeyRound },
   { id: "custom_args", icon: Terminal },
   { id: "mcp_config", icon: Plug },
@@ -232,9 +232,9 @@ export function AgentOverviewPane({
             <SkillsTab agent={agent} />
           </TabContent>
         )}
-        {effectiveTab === "workflows" && (
+        {effectiveTab === "sops" && (
           <TabContent>
-            <WorkflowsTab agent={agent} />
+            <SOPsTab agent={agent} />
           </TabContent>
         )}
         {effectiveTab === "env" && (

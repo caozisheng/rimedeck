@@ -1188,6 +1188,22 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 			ThinkingLevel: agent.ThinkingLevel.String,
 			RuntimeConfig: runtimeConfig,
 		}
+
+		// Populate mounted workflows for SOP MCP injection.
+		if agentWorkflows, wfErr := h.Queries.ListAgentWorkflows(r.Context(), agent.ID); wfErr == nil {
+			for _, wf := range agentWorkflows {
+				if wf.Status == "published" {
+					resp.Agent.Workflows = append(resp.Agent.Workflows, AgentWorkflowSummary{
+						ID:          uuidToString(wf.ID),
+						Name:        wf.Name,
+						Description: wf.Description,
+						Icon:        wf.Icon,
+						Category:    wf.Category,
+						Status:      wf.Status,
+					})
+				}
+			}
+		}
 	}
 
 	// Resolve the runtime owner's profile description so the daemon can

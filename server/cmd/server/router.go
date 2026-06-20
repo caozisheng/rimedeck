@@ -278,6 +278,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)
 	r.Get("/api/github/setup", h.GitHubSetupCallback)
 
+	// SOP MCP Bridge — agent runtimes call this during task execution.
+	// Outside workspace middleware; uses agent-scoped auth (to be added).
+	r.Post("/mcp/sops/{agentId}", h.SOPMCPBridge)
+
 	// Daemon API routes (require daemon token or valid user token)
 	r.Route("/api/daemon", func(r chi.Router) {
 		r.Use(middleware.DaemonAuth(queries, patCache, daemonTokenCache))
@@ -583,9 +587,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/skills", h.ListAgentSkills)
 					r.Put("/skills", h.SetAgentSkills)
 					r.Post("/skills/add", h.AddAgentSkills)
-					r.Get("/workflows", h.ListAgentWorkflows)
-					r.Put("/workflows", h.SetAgentWorkflows)
-					r.Post("/workflows/add", h.AddAgentWorkflows)
+					r.Get("/sops", h.ListAgentWorkflows)
+					r.Put("/sops", h.SetAgentWorkflows)
+					r.Post("/sops/add", h.AddAgentWorkflows)
 					// Dedicated env-management endpoint. Owner/admin only;
 					// agent actors are denied. Every reveal / write is
 					// audited to activity_log. See MUL-2600 and
@@ -619,8 +623,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 
-			// Workflows
-			r.Route("/api/workflows", func(r chi.Router) {
+			// SOPs (Standard Operating Procedures)
+			r.Route("/api/sops", func(r chi.Router) {
 				r.Get("/", h.ListWorkflows)
 				r.Post("/", h.CreateWorkflow)
 				r.Get("/templates", h.ListWorkflowTemplates)

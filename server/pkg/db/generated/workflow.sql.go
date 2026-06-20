@@ -12,23 +12,23 @@ import (
 )
 
 const addAgentWorkflow = `-- name: AddAgentWorkflow :exec
-INSERT INTO agent_workflow (agent_id, workflow_id)
+INSERT INTO agent_sop (agent_id, sop_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING
 `
 
 type AddAgentWorkflowParams struct {
-	AgentID    pgtype.UUID `json:"agent_id"`
-	WorkflowID pgtype.UUID `json:"workflow_id"`
+	AgentID pgtype.UUID `json:"agent_id"`
+	SopID   pgtype.UUID `json:"sop_id"`
 }
 
 func (q *Queries) AddAgentWorkflow(ctx context.Context, arg AddAgentWorkflowParams) error {
-	_, err := q.db.Exec(ctx, addAgentWorkflow, arg.AgentID, arg.WorkflowID)
+	_, err := q.db.Exec(ctx, addAgentWorkflow, arg.AgentID, arg.SopID)
 	return err
 }
 
 const archiveWorkflow = `-- name: ArchiveWorkflow :exec
-UPDATE workflow SET status = 'archived', updated_at = now()
+UPDATE sop SET status = 'archived', updated_at = now()
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -43,7 +43,7 @@ func (q *Queries) ArchiveWorkflow(ctx context.Context, arg ArchiveWorkflowParams
 }
 
 const cancelWorkflowRun = `-- name: CancelWorkflowRun :exec
-UPDATE workflow_run SET status = 'cancelled', completed_at = now()
+UPDATE sop_run SET status = 'cancelled', completed_at = now()
 WHERE id = $1 AND status IN ('pending', 'running')
 `
 
@@ -53,11 +53,11 @@ func (q *Queries) CancelWorkflowRun(ctx context.Context, id pgtype.UUID) error {
 }
 
 const countWorkflowRunsByWorkflow = `-- name: CountWorkflowRunsByWorkflow :one
-SELECT count(*) FROM workflow_run WHERE workflow_id = $1
+SELECT count(*) FROM sop_run WHERE sop_id = $1
 `
 
-func (q *Queries) CountWorkflowRunsByWorkflow(ctx context.Context, workflowID pgtype.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countWorkflowRunsByWorkflow, workflowID)
+func (q *Queries) CountWorkflowRunsByWorkflow(ctx context.Context, sopID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWorkflowRunsByWorkflow, sopID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -65,7 +65,7 @@ func (q *Queries) CountWorkflowRunsByWorkflow(ctx context.Context, workflowID pg
 
 const createNodeExecution = `-- name: CreateNodeExecution :one
 
-INSERT INTO workflow_node_execution (run_id, node_id, node_type, status)
+INSERT INTO sop_node_execution (run_id, node_id, node_type, status)
 VALUES ($1, $2, $3, $4)
 RETURNING id, run_id, node_id, node_type, status, inputs, outputs, error, started_at, completed_at, tokens_used, duration_ms
 `
@@ -77,15 +77,15 @@ type CreateNodeExecutionParams struct {
 	Status   string      `json:"status"`
 }
 
-// Workflow Node Execution
-func (q *Queries) CreateNodeExecution(ctx context.Context, arg CreateNodeExecutionParams) (WorkflowNodeExecution, error) {
+// SOP Node Execution
+func (q *Queries) CreateNodeExecution(ctx context.Context, arg CreateNodeExecutionParams) (SopNodeExecution, error) {
 	row := q.db.QueryRow(ctx, createNodeExecution,
 		arg.RunID,
 		arg.NodeID,
 		arg.NodeType,
 		arg.Status,
 	)
-	var i WorkflowNodeExecution
+	var i SopNodeExecution
 	err := row.Scan(
 		&i.ID,
 		&i.RunID,
@@ -104,7 +104,7 @@ func (q *Queries) CreateNodeExecution(ctx context.Context, arg CreateNodeExecuti
 }
 
 const createWorkflow = `-- name: CreateWorkflow :one
-INSERT INTO workflow (workspace_id, name, description, icon, category, graph, status, created_by)
+INSERT INTO sop (workspace_id, name, description, icon, category, graph, status, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, workspace_id, name, description, icon, category, graph, status, version, created_by, created_at, updated_at, published_at
 `
@@ -120,7 +120,7 @@ type CreateWorkflowParams struct {
 	CreatedBy   pgtype.UUID `json:"created_by"`
 }
 
-func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) (Workflow, error) {
+func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) (Sop, error) {
 	row := q.db.QueryRow(ctx, createWorkflow,
 		arg.WorkspaceID,
 		arg.Name,
@@ -131,7 +131,7 @@ func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) 
 		arg.Status,
 		arg.CreatedBy,
 	)
-	var i Workflow
+	var i Sop
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -152,13 +152,13 @@ func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) 
 
 const createWorkflowRun = `-- name: CreateWorkflowRun :one
 
-INSERT INTO workflow_run (workflow_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, triggered_by)
+INSERT INTO sop_run (sop_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, triggered_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, workflow_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, completed_nodes, current_node_id, output, error, issue_id, autopilot_run_id, triggered_by, started_at, completed_at, created_at, total_tokens, total_cost
+RETURNING id, sop_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, completed_nodes, current_node_id, output, error, issue_id, autopilot_run_id, triggered_by, started_at, completed_at, created_at, total_tokens, total_cost
 `
 
 type CreateWorkflowRunParams struct {
-	WorkflowID   pgtype.UUID `json:"workflow_id"`
+	SopID        pgtype.UUID `json:"sop_id"`
 	WorkspaceID  pgtype.UUID `json:"workspace_id"`
 	AgentID      pgtype.UUID `json:"agent_id"`
 	Source       string      `json:"source"`
@@ -168,10 +168,10 @@ type CreateWorkflowRunParams struct {
 	TriggeredBy  pgtype.UUID `json:"triggered_by"`
 }
 
-// Workflow Run
-func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunParams) (WorkflowRun, error) {
+// SOP Run
+func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunParams) (SopRun, error) {
 	row := q.db.QueryRow(ctx, createWorkflowRun,
-		arg.WorkflowID,
+		arg.SopID,
 		arg.WorkspaceID,
 		arg.AgentID,
 		arg.Source,
@@ -180,10 +180,10 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunPa
 		arg.TotalNodes,
 		arg.TriggeredBy,
 	)
-	var i WorkflowRun
+	var i SopRun
 	err := row.Scan(
 		&i.ID,
-		&i.WorkflowID,
+		&i.SopID,
 		&i.WorkspaceID,
 		&i.AgentID,
 		&i.Source,
@@ -207,7 +207,7 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunPa
 }
 
 const deleteWorkflow = `-- name: DeleteWorkflow :exec
-DELETE FROM workflow WHERE id = $1 AND workspace_id = $2
+DELETE FROM sop WHERE id = $1 AND workspace_id = $2
 `
 
 type DeleteWorkflowParams struct {
@@ -221,12 +221,12 @@ func (q *Queries) DeleteWorkflow(ctx context.Context, arg DeleteWorkflowParams) 
 }
 
 const getWorkflow = `-- name: GetWorkflow :one
-SELECT id, workspace_id, name, description, icon, category, graph, status, version, created_by, created_at, updated_at, published_at FROM workflow WHERE id = $1
+SELECT id, workspace_id, name, description, icon, category, graph, status, version, created_by, created_at, updated_at, published_at FROM sop WHERE id = $1
 `
 
-func (q *Queries) GetWorkflow(ctx context.Context, id pgtype.UUID) (Workflow, error) {
+func (q *Queries) GetWorkflow(ctx context.Context, id pgtype.UUID) (Sop, error) {
 	row := q.db.QueryRow(ctx, getWorkflow, id)
-	var i Workflow
+	var i Sop
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -246,7 +246,7 @@ func (q *Queries) GetWorkflow(ctx context.Context, id pgtype.UUID) (Workflow, er
 }
 
 const getWorkflowInWorkspace = `-- name: GetWorkflowInWorkspace :one
-SELECT id, workspace_id, name, description, icon, category, graph, status, version, created_by, created_at, updated_at, published_at FROM workflow WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, name, description, icon, category, graph, status, version, created_by, created_at, updated_at, published_at FROM sop WHERE id = $1 AND workspace_id = $2
 `
 
 type GetWorkflowInWorkspaceParams struct {
@@ -254,9 +254,9 @@ type GetWorkflowInWorkspaceParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-func (q *Queries) GetWorkflowInWorkspace(ctx context.Context, arg GetWorkflowInWorkspaceParams) (Workflow, error) {
+func (q *Queries) GetWorkflowInWorkspace(ctx context.Context, arg GetWorkflowInWorkspaceParams) (Sop, error) {
 	row := q.db.QueryRow(ctx, getWorkflowInWorkspace, arg.ID, arg.WorkspaceID)
-	var i Workflow
+	var i Sop
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -276,15 +276,15 @@ func (q *Queries) GetWorkflowInWorkspace(ctx context.Context, arg GetWorkflowInW
 }
 
 const getWorkflowRun = `-- name: GetWorkflowRun :one
-SELECT id, workflow_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, completed_nodes, current_node_id, output, error, issue_id, autopilot_run_id, triggered_by, started_at, completed_at, created_at, total_tokens, total_cost FROM workflow_run WHERE id = $1
+SELECT id, sop_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, completed_nodes, current_node_id, output, error, issue_id, autopilot_run_id, triggered_by, started_at, completed_at, created_at, total_tokens, total_cost FROM sop_run WHERE id = $1
 `
 
-func (q *Queries) GetWorkflowRun(ctx context.Context, id pgtype.UUID) (WorkflowRun, error) {
+func (q *Queries) GetWorkflowRun(ctx context.Context, id pgtype.UUID) (SopRun, error) {
 	row := q.db.QueryRow(ctx, getWorkflowRun, id)
-	var i WorkflowRun
+	var i SopRun
 	err := row.Scan(
 		&i.ID,
-		&i.WorkflowID,
+		&i.SopID,
 		&i.WorkspaceID,
 		&i.AgentID,
 		&i.Source,
@@ -315,8 +315,8 @@ SELECT
     coalesce(sum(total_tokens), 0) as total_tokens,
     coalesce(avg(EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000)::int, 0) as avg_duration_ms,
     max(created_at) as last_run_at
-FROM workflow_run
-WHERE workflow_id = $1
+FROM sop_run
+WHERE sop_id = $1
 `
 
 type GetWorkflowStatsRow struct {
@@ -328,8 +328,8 @@ type GetWorkflowStatsRow struct {
 	LastRunAt     interface{} `json:"last_run_at"`
 }
 
-func (q *Queries) GetWorkflowStats(ctx context.Context, workflowID pgtype.UUID) (GetWorkflowStatsRow, error) {
-	row := q.db.QueryRow(ctx, getWorkflowStats, workflowID)
+func (q *Queries) GetWorkflowStats(ctx context.Context, sopID pgtype.UUID) (GetWorkflowStatsRow, error) {
+	row := q.db.QueryRow(ctx, getWorkflowStats, sopID)
 	var i GetWorkflowStatsRow
 	err := row.Scan(
 		&i.TotalRuns,
@@ -346,8 +346,8 @@ const listAgentWorkflows = `-- name: ListAgentWorkflows :many
 
 SELECT w.id, w.workspace_id, w.name, w.description, w.icon, w.category, w.status, w.version,
        w.created_by, w.created_at, w.updated_at, w.published_at
-FROM workflow w
-JOIN agent_workflow aw ON aw.workflow_id = w.id
+FROM sop w
+JOIN agent_sop aw ON aw.sop_id = w.id
 WHERE aw.agent_id = $1
 ORDER BY w.name ASC
 `
@@ -367,7 +367,7 @@ type ListAgentWorkflowsRow struct {
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 }
 
-// Agent-Workflow junction (mirrors agent_skill pattern)
+// Agent-SOP junction (mirrors agent_skill pattern)
 func (q *Queries) ListAgentWorkflows(ctx context.Context, agentID pgtype.UUID) ([]ListAgentWorkflowsRow, error) {
 	rows, err := q.db.Query(ctx, listAgentWorkflows, agentID)
 	if err != nil {
@@ -403,8 +403,8 @@ func (q *Queries) ListAgentWorkflows(ctx context.Context, agentID pgtype.UUID) (
 
 const listAgentWorkflowsByWorkspace = `-- name: ListAgentWorkflowsByWorkspace :many
 SELECT aw.agent_id, w.id, w.name, w.description, w.icon, w.category, w.status
-FROM agent_workflow aw
-JOIN workflow w ON w.id = aw.workflow_id
+FROM agent_sop aw
+JOIN sop w ON w.id = aw.sop_id
 WHERE w.workspace_id = $1
 ORDER BY w.name ASC
 `
@@ -448,20 +448,20 @@ func (q *Queries) ListAgentWorkflowsByWorkspace(ctx context.Context, workspaceID
 }
 
 const listNodeExecutionsByRun = `-- name: ListNodeExecutionsByRun :many
-SELECT id, run_id, node_id, node_type, status, inputs, outputs, error, started_at, completed_at, tokens_used, duration_ms FROM workflow_node_execution
+SELECT id, run_id, node_id, node_type, status, inputs, outputs, error, started_at, completed_at, tokens_used, duration_ms FROM sop_node_execution
 WHERE run_id = $1
 ORDER BY started_at ASC NULLS LAST
 `
 
-func (q *Queries) ListNodeExecutionsByRun(ctx context.Context, runID pgtype.UUID) ([]WorkflowNodeExecution, error) {
+func (q *Queries) ListNodeExecutionsByRun(ctx context.Context, runID pgtype.UUID) ([]SopNodeExecution, error) {
 	rows, err := q.db.Query(ctx, listNodeExecutionsByRun, runID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []WorkflowNodeExecution{}
+	items := []SopNodeExecution{}
 	for rows.Next() {
-		var i WorkflowNodeExecution
+		var i SopNodeExecution
 		if err := rows.Scan(
 			&i.ID,
 			&i.RunID,
@@ -487,30 +487,30 @@ func (q *Queries) ListNodeExecutionsByRun(ctx context.Context, runID pgtype.UUID
 }
 
 const listWorkflowRuns = `-- name: ListWorkflowRuns :many
-SELECT id, workflow_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, completed_nodes, current_node_id, output, error, issue_id, autopilot_run_id, triggered_by, started_at, completed_at, created_at, total_tokens, total_cost FROM workflow_run
-WHERE workflow_id = $1
+SELECT id, sop_id, workspace_id, agent_id, source, trigger_input, status, total_nodes, completed_nodes, current_node_id, output, error, issue_id, autopilot_run_id, triggered_by, started_at, completed_at, created_at, total_tokens, total_cost FROM sop_run
+WHERE sop_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
 
 type ListWorkflowRunsParams struct {
-	WorkflowID pgtype.UUID `json:"workflow_id"`
-	Limit      int32       `json:"limit"`
-	Offset     int32       `json:"offset"`
+	SopID  pgtype.UUID `json:"sop_id"`
+	Limit  int32       `json:"limit"`
+	Offset int32       `json:"offset"`
 }
 
-func (q *Queries) ListWorkflowRuns(ctx context.Context, arg ListWorkflowRunsParams) ([]WorkflowRun, error) {
-	rows, err := q.db.Query(ctx, listWorkflowRuns, arg.WorkflowID, arg.Limit, arg.Offset)
+func (q *Queries) ListWorkflowRuns(ctx context.Context, arg ListWorkflowRunsParams) ([]SopRun, error) {
+	rows, err := q.db.Query(ctx, listWorkflowRuns, arg.SopID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []WorkflowRun{}
+	items := []SopRun{}
 	for rows.Next() {
-		var i WorkflowRun
+		var i SopRun
 		if err := rows.Scan(
 			&i.ID,
-			&i.WorkflowID,
+			&i.SopID,
 			&i.WorkspaceID,
 			&i.AgentID,
 			&i.Source,
@@ -544,7 +544,7 @@ const listWorkflowsByWorkspace = `-- name: ListWorkflowsByWorkspace :many
 
 SELECT id, workspace_id, name, description, icon, category, status, version,
        created_by, created_at, updated_at, published_at
-FROM workflow
+FROM sop
 WHERE workspace_id = $1
 ORDER BY updated_at DESC
 `
@@ -564,7 +564,7 @@ type ListWorkflowsByWorkspaceRow struct {
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 }
 
-// Workflow CRUD
+// SOP CRUD
 func (q *Queries) ListWorkflowsByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]ListWorkflowsByWorkspaceRow, error) {
 	rows, err := q.db.Query(ctx, listWorkflowsByWorkspace, workspaceID)
 	if err != nil {
@@ -601,7 +601,7 @@ func (q *Queries) ListWorkflowsByWorkspace(ctx context.Context, workspaceID pgty
 const listWorkflowsByWorkspaceAndStatus = `-- name: ListWorkflowsByWorkspaceAndStatus :many
 SELECT id, workspace_id, name, description, icon, category, status, version,
        created_by, created_at, updated_at, published_at
-FROM workflow
+FROM sop
 WHERE workspace_id = $1 AND status = $2
 ORDER BY updated_at DESC
 `
@@ -660,7 +660,7 @@ func (q *Queries) ListWorkflowsByWorkspaceAndStatus(ctx context.Context, arg Lis
 }
 
 const publishWorkflow = `-- name: PublishWorkflow :one
-UPDATE workflow SET
+UPDATE sop SET
     status = 'published',
     version = version + 1,
     published_at = now(),
@@ -674,9 +674,9 @@ type PublishWorkflowParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-func (q *Queries) PublishWorkflow(ctx context.Context, arg PublishWorkflowParams) (Workflow, error) {
+func (q *Queries) PublishWorkflow(ctx context.Context, arg PublishWorkflowParams) (Sop, error) {
 	row := q.db.QueryRow(ctx, publishWorkflow, arg.ID, arg.WorkspaceID)
-	var i Workflow
+	var i Sop
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -696,22 +696,22 @@ func (q *Queries) PublishWorkflow(ctx context.Context, arg PublishWorkflowParams
 }
 
 const removeAgentWorkflow = `-- name: RemoveAgentWorkflow :exec
-DELETE FROM agent_workflow
-WHERE agent_id = $1 AND workflow_id = $2
+DELETE FROM agent_sop
+WHERE agent_id = $1 AND sop_id = $2
 `
 
 type RemoveAgentWorkflowParams struct {
-	AgentID    pgtype.UUID `json:"agent_id"`
-	WorkflowID pgtype.UUID `json:"workflow_id"`
+	AgentID pgtype.UUID `json:"agent_id"`
+	SopID   pgtype.UUID `json:"sop_id"`
 }
 
 func (q *Queries) RemoveAgentWorkflow(ctx context.Context, arg RemoveAgentWorkflowParams) error {
-	_, err := q.db.Exec(ctx, removeAgentWorkflow, arg.AgentID, arg.WorkflowID)
+	_, err := q.db.Exec(ctx, removeAgentWorkflow, arg.AgentID, arg.SopID)
 	return err
 }
 
 const removeAllAgentWorkflows = `-- name: RemoveAllAgentWorkflows :exec
-DELETE FROM agent_workflow WHERE agent_id = $1
+DELETE FROM agent_sop WHERE agent_id = $1
 `
 
 func (q *Queries) RemoveAllAgentWorkflows(ctx context.Context, agentID pgtype.UUID) error {
@@ -720,7 +720,7 @@ func (q *Queries) RemoveAllAgentWorkflows(ctx context.Context, agentID pgtype.UU
 }
 
 const updateNodeExecution = `-- name: UpdateNodeExecution :exec
-UPDATE workflow_node_execution SET
+UPDATE sop_node_execution SET
     status = $2,
     inputs = $3,
     outputs = $4,
@@ -756,7 +756,7 @@ func (q *Queries) UpdateNodeExecution(ctx context.Context, arg UpdateNodeExecuti
 }
 
 const updateWorkflow = `-- name: UpdateWorkflow :one
-UPDATE workflow SET
+UPDATE sop SET
     name = COALESCE($2, name),
     description = COALESCE($3, description),
     icon = COALESCE($4, icon),
@@ -776,7 +776,7 @@ type UpdateWorkflowParams struct {
 	Graph       []byte      `json:"graph"`
 }
 
-func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) (Workflow, error) {
+func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) (Sop, error) {
 	row := q.db.QueryRow(ctx, updateWorkflow,
 		arg.ID,
 		arg.Name,
@@ -785,7 +785,7 @@ func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) 
 		arg.Category,
 		arg.Graph,
 	)
-	var i Workflow
+	var i Sop
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -805,7 +805,7 @@ func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) 
 }
 
 const updateWorkflowRunStatus = `-- name: UpdateWorkflowRunStatus :exec
-UPDATE workflow_run SET
+UPDATE sop_run SET
     status = $2,
     current_node_id = $3,
     completed_nodes = $4,

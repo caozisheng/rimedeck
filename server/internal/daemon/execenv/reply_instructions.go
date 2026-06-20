@@ -15,7 +15,7 @@ import "fmt"
 // "only if you need it" fallback.
 //
 // Both the per-turn prompt (daemon.buildCommentPrompt) and the CLAUDE.md
-// workflow (InjectRuntimeConfig) call this so the two surfaces cannot drift
+// procedure (InjectRuntimeConfig) call this so the two surfaces cannot drift
 // (hard requirement from PR #2816).
 //
 // Renders nothing on cold start (no prior run → newCommentsSince empty) or when
@@ -101,7 +101,7 @@ func BuildColdCommentsHint(issueID, triggerCommentID string) string {
 
 // BuildCommentReplyInstructions returns the canonical block telling an agent
 // how to post its reply for a comment-triggered task. Both the per-turn
-// prompt (daemon.buildCommentPrompt) and the CLAUDE.md workflow
+// prompt (daemon.buildCommentPrompt) and the CLAUDE.md procedure
 // (InjectRuntimeConfig) call this so the trigger comment ID and the
 // --parent value cannot drift between surfaces.
 //

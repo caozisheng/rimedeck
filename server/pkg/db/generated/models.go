@@ -70,6 +70,12 @@ type AgentSkill struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type AgentSop struct {
+	AgentID   pgtype.UUID        `json:"agent_id"`
+	SopID     pgtype.UUID        `json:"sop_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type AgentTaskQueue struct {
 	ID                pgtype.UUID        `json:"id"`
 	AgentID           pgtype.UUID        `json:"agent_id"`
@@ -98,12 +104,6 @@ type AgentTaskQueue struct {
 	IsLeaderTask      bool               `json:"is_leader_task"`
 	WaitReason        pgtype.Text        `json:"wait_reason"`
 	InitiatorUserID   pgtype.UUID        `json:"initiator_user_id"`
-}
-
-type AgentWorkflow struct {
-	AgentID    pgtype.UUID        `json:"agent_id"`
-	WorkflowID pgtype.UUID        `json:"workflow_id"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
 type Attachment struct {
@@ -138,7 +138,7 @@ type Autopilot struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 	AssigneeType       string             `json:"assignee_type"`
 	ProjectID          pgtype.UUID        `json:"project_id"`
-	WorkflowID         pgtype.UUID        `json:"workflow_id"`
+	SopID              pgtype.UUID        `json:"sop_id"`
 }
 
 type AutopilotRun struct {
@@ -503,6 +503,81 @@ type SkillFile struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Sop struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Icon        string             `json:"icon"`
+	Category    string             `json:"category"`
+	Graph       []byte             `json:"graph"`
+	Status      string             `json:"status"`
+	Version     int32              `json:"version"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+}
+
+type SopCredential struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	Name           string             `json:"name"`
+	Description    string             `json:"description"`
+	CredentialType string             `json:"credential_type"`
+	Value          []byte             `json:"value"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SopNodeExecution struct {
+	ID          pgtype.UUID        `json:"id"`
+	RunID       pgtype.UUID        `json:"run_id"`
+	NodeID      string             `json:"node_id"`
+	NodeType    string             `json:"node_type"`
+	Status      string             `json:"status"`
+	Inputs      []byte             `json:"inputs"`
+	Outputs     []byte             `json:"outputs"`
+	Error       pgtype.Text        `json:"error"`
+	StartedAt   pgtype.Timestamptz `json:"started_at"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	TokensUsed  int64              `json:"tokens_used"`
+	DurationMs  int32              `json:"duration_ms"`
+}
+
+type SopRun struct {
+	ID             pgtype.UUID        `json:"id"`
+	SopID          pgtype.UUID        `json:"sop_id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	AgentID        pgtype.UUID        `json:"agent_id"`
+	Source         string             `json:"source"`
+	TriggerInput   []byte             `json:"trigger_input"`
+	Status         string             `json:"status"`
+	TotalNodes     int32              `json:"total_nodes"`
+	CompletedNodes int32              `json:"completed_nodes"`
+	CurrentNodeID  pgtype.Text        `json:"current_node_id"`
+	Output         []byte             `json:"output"`
+	Error          pgtype.Text        `json:"error"`
+	IssueID        pgtype.UUID        `json:"issue_id"`
+	AutopilotRunID pgtype.UUID        `json:"autopilot_run_id"`
+	TriggeredBy    pgtype.UUID        `json:"triggered_by"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	TotalTokens    int64              `json:"total_tokens"`
+	TotalCost      pgtype.Numeric     `json:"total_cost"`
+}
+
+type SopVersion struct {
+	ID          pgtype.UUID        `json:"id"`
+	SopID       pgtype.UUID        `json:"sop_id"`
+	Version     int32              `json:"version"`
+	Graph       []byte             `json:"graph"`
+	PublishedBy pgtype.UUID        `json:"published_by"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+}
+
 type Squad struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
@@ -676,81 +751,6 @@ type WebhookDelivery struct {
 	ReceivedAt             pgtype.Timestamptz `json:"received_at"`
 	LastAttemptAt          pgtype.Timestamptz `json:"last_attempt_at"`
 	CreatedAt              pgtype.Timestamptz `json:"created_at"`
-}
-
-type Workflow struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Icon        string             `json:"icon"`
-	Category    string             `json:"category"`
-	Graph       []byte             `json:"graph"`
-	Status      string             `json:"status"`
-	Version     int32              `json:"version"`
-	CreatedBy   pgtype.UUID        `json:"created_by"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-}
-
-type WorkflowCredential struct {
-	ID             pgtype.UUID        `json:"id"`
-	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
-	Name           string             `json:"name"`
-	Description    string             `json:"description"`
-	CredentialType string             `json:"credential_type"`
-	Value          []byte             `json:"value"`
-	CreatedBy      pgtype.UUID        `json:"created_by"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-}
-
-type WorkflowNodeExecution struct {
-	ID          pgtype.UUID        `json:"id"`
-	RunID       pgtype.UUID        `json:"run_id"`
-	NodeID      string             `json:"node_id"`
-	NodeType    string             `json:"node_type"`
-	Status      string             `json:"status"`
-	Inputs      []byte             `json:"inputs"`
-	Outputs     []byte             `json:"outputs"`
-	Error       pgtype.Text        `json:"error"`
-	StartedAt   pgtype.Timestamptz `json:"started_at"`
-	CompletedAt pgtype.Timestamptz `json:"completed_at"`
-	TokensUsed  int64              `json:"tokens_used"`
-	DurationMs  int32              `json:"duration_ms"`
-}
-
-type WorkflowRun struct {
-	ID             pgtype.UUID        `json:"id"`
-	WorkflowID     pgtype.UUID        `json:"workflow_id"`
-	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
-	AgentID        pgtype.UUID        `json:"agent_id"`
-	Source         string             `json:"source"`
-	TriggerInput   []byte             `json:"trigger_input"`
-	Status         string             `json:"status"`
-	TotalNodes     int32              `json:"total_nodes"`
-	CompletedNodes int32              `json:"completed_nodes"`
-	CurrentNodeID  pgtype.Text        `json:"current_node_id"`
-	Output         []byte             `json:"output"`
-	Error          pgtype.Text        `json:"error"`
-	IssueID        pgtype.UUID        `json:"issue_id"`
-	AutopilotRunID pgtype.UUID        `json:"autopilot_run_id"`
-	TriggeredBy    pgtype.UUID        `json:"triggered_by"`
-	StartedAt      pgtype.Timestamptz `json:"started_at"`
-	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	TotalTokens    int64              `json:"total_tokens"`
-	TotalCost      pgtype.Numeric     `json:"total_cost"`
-}
-
-type WorkflowVersion struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkflowID  pgtype.UUID        `json:"workflow_id"`
-	Version     int32              `json:"version"`
-	Graph       []byte             `json:"graph"`
-	PublishedBy pgtype.UUID        `json:"published_by"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
 }
 
 type Workspace struct {

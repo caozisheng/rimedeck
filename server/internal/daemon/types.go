@@ -122,7 +122,8 @@ type AgentData struct {
 	ID            string            `json:"id"`
 	Name          string            `json:"name"`
 	Instructions  string            `json:"instructions"`
-	Skills        []SkillData       `json:"skills"`
+	Skills        []SkillData            `json:"skills"`
+	Workflows     []WorkflowSummaryData  `json:"workflows,omitempty"`
 	CustomEnv     map[string]string `json:"custom_env,omitempty"`
 	CustomArgs    []string          `json:"custom_args,omitempty"`
 	McpConfig     json.RawMessage   `json:"mcp_config,omitempty"`
@@ -148,6 +149,13 @@ type SkillData struct {
 type SkillFileData struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
+}
+
+// WorkflowSummaryData holds minimal workflow info for MCP injection.
+type WorkflowSummaryData struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 // TaskUsageEntry represents token usage for a single model during a task execution.

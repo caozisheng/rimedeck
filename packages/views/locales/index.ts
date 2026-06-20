@@ -23,7 +23,7 @@ import enLayout from "./en/layout.json";
 import enUsage from "./en/usage.json";
 import enUi from "./en/ui.json";
 import enSquads from "./en/squads.json";
-import enWorkflows from "./en/workflows.json";
+import enSops from "./en/sops.json";
 import zhHansCommon from "./zh-Hans/common.json";
 import zhHansAuth from "./zh-Hans/auth.json";
 import zhHansSettings from "./zh-Hans/settings.json";
@@ -48,7 +48,7 @@ import zhHansLayout from "./zh-Hans/layout.json";
 import zhHansUsage from "./zh-Hans/usage.json";
 import zhHansUi from "./zh-Hans/ui.json";
 import zhHansSquads from "./zh-Hans/squads.json";
-import zhHansWorkflows from "./zh-Hans/workflows.json";
+import zhHansSops from "./zh-Hans/sops.json";
 import koCommon from "./ko/common.json";
 import koAuth from "./ko/auth.json";
 import koSettings from "./ko/settings.json";
@@ -73,7 +73,7 @@ import koLayout from "./ko/layout.json";
 import koUsage from "./ko/usage.json";
 import koUi from "./ko/ui.json";
 import koSquads from "./ko/squads.json";
-import koWorkflows from "./ko/workflows.json";
+import koSops from "./ko/sops.json";
 import jaCommon from "./ja/common.json";
 import jaAuth from "./ja/auth.json";
 import jaSettings from "./ja/settings.json";
@@ -98,7 +98,7 @@ import jaLayout from "./ja/layout.json";
 import jaUsage from "./ja/usage.json";
 import jaUi from "./ja/ui.json";
 import jaSquads from "./ja/squads.json";
-import jaWorkflows from "./ja/workflows.json";
+import jaSops from "./ja/sops.json";
 
 // Single source of truth for the resource bundle. Both apps (web layout +
 // desktop App.tsx) import from here so adding a locale or namespace happens
@@ -122,7 +122,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     projects: enProjects,
     autopilots: enAutopilots,
     skills: enSkills,
-    workflows: enWorkflows,
+    sops: enSops,
     chat: enChat,
     modals: enModals,
     runtimes: enRuntimes,
@@ -149,7 +149,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     projects: zhHansProjects,
     autopilots: zhHansAutopilots,
     skills: zhHansSkills,
-    workflows: zhHansWorkflows,
+    sops: zhHansSops,
     chat: zhHansChat,
     modals: zhHansModals,
     runtimes: zhHansRuntimes,
@@ -176,7 +176,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     projects: koProjects,
     autopilots: koAutopilots,
     skills: koSkills,
-    workflows: koWorkflows,
+    sops: koSops,
     chat: koChat,
     modals: koModals,
     runtimes: koRuntimes,
@@ -203,7 +203,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     projects: jaProjects,
     autopilots: jaAutopilots,
     skills: jaSkills,
-    workflows: jaWorkflows,
+    sops: jaSops,
     chat: jaChat,
     modals: jaModals,
     runtimes: jaRuntimes,

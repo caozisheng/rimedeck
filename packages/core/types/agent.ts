@@ -208,7 +208,7 @@ export interface Agent {
   thinking_level?: string;
   owner_id: string | null;
   skills: AgentSkillSummary[];
-  workflows: AgentWorkflowSummary[];
+  sops: AgentSOPSummary[];
   created_at: string;
   updated_at: string;
   archived_at: string | null;
@@ -229,11 +229,11 @@ export interface AgentSkillSummary {
 }
 
 /**
- * Minimal workflow shape embedded in an Agent payload (`GET /api/agents`,
+ * Minimal SOP shape embedded in an Agent payload (`GET /api/agents`,
  * `GET /api/agents/:id`). Only summary fields are populated — the agent
  * list batch query joins id/name/description/icon/category/status.
  */
-export interface AgentWorkflowSummary {
+export interface AgentSOPSummary {
   id: string;
   name: string;
   description: string;

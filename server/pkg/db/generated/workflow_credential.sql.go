@@ -12,7 +12,7 @@ import (
 )
 
 const createWorkflowCredential = `-- name: CreateWorkflowCredential :one
-INSERT INTO workflow_credential (workspace_id, name, description, credential_type, value, created_by)
+INSERT INTO sop_credential (workspace_id, name, description, credential_type, value, created_by)
 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, workspace_id, name, description, credential_type, value, created_by, created_at, updated_at
 `
 
@@ -25,7 +25,7 @@ type CreateWorkflowCredentialParams struct {
 	CreatedBy      pgtype.UUID `json:"created_by"`
 }
 
-func (q *Queries) CreateWorkflowCredential(ctx context.Context, arg CreateWorkflowCredentialParams) (WorkflowCredential, error) {
+func (q *Queries) CreateWorkflowCredential(ctx context.Context, arg CreateWorkflowCredentialParams) (SopCredential, error) {
 	row := q.db.QueryRow(ctx, createWorkflowCredential,
 		arg.WorkspaceID,
 		arg.Name,
@@ -34,7 +34,7 @@ func (q *Queries) CreateWorkflowCredential(ctx context.Context, arg CreateWorkfl
 		arg.Value,
 		arg.CreatedBy,
 	)
-	var i WorkflowCredential
+	var i SopCredential
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -50,7 +50,7 @@ func (q *Queries) CreateWorkflowCredential(ctx context.Context, arg CreateWorkfl
 }
 
 const deleteWorkflowCredential = `-- name: DeleteWorkflowCredential :exec
-DELETE FROM workflow_credential WHERE id = $1 AND workspace_id = $2
+DELETE FROM sop_credential WHERE id = $1 AND workspace_id = $2
 `
 
 type DeleteWorkflowCredentialParams struct {
@@ -64,7 +64,7 @@ func (q *Queries) DeleteWorkflowCredential(ctx context.Context, arg DeleteWorkfl
 }
 
 const getWorkflowCredential = `-- name: GetWorkflowCredential :one
-SELECT id, workspace_id, name, description, credential_type, value, created_by, created_at, updated_at FROM workflow_credential WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, name, description, credential_type, value, created_by, created_at, updated_at FROM sop_credential WHERE id = $1 AND workspace_id = $2
 `
 
 type GetWorkflowCredentialParams struct {
@@ -72,9 +72,9 @@ type GetWorkflowCredentialParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-func (q *Queries) GetWorkflowCredential(ctx context.Context, arg GetWorkflowCredentialParams) (WorkflowCredential, error) {
+func (q *Queries) GetWorkflowCredential(ctx context.Context, arg GetWorkflowCredentialParams) (SopCredential, error) {
 	row := q.db.QueryRow(ctx, getWorkflowCredential, arg.ID, arg.WorkspaceID)
-	var i WorkflowCredential
+	var i SopCredential
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
@@ -91,7 +91,7 @@ func (q *Queries) GetWorkflowCredential(ctx context.Context, arg GetWorkflowCred
 
 const listWorkflowCredentials = `-- name: ListWorkflowCredentials :many
 SELECT id, workspace_id, name, description, credential_type, created_by, created_at, updated_at
-FROM workflow_credential WHERE workspace_id = $1 ORDER BY name ASC
+FROM sop_credential WHERE workspace_id = $1 ORDER BY name ASC
 `
 
 type ListWorkflowCredentialsRow struct {
@@ -135,7 +135,7 @@ func (q *Queries) ListWorkflowCredentials(ctx context.Context, workspaceID pgtyp
 }
 
 const updateWorkflowCredential = `-- name: UpdateWorkflowCredential :one
-UPDATE workflow_credential SET
+UPDATE sop_credential SET
     name = COALESCE($2, name),
     description = COALESCE($3, description),
     value = COALESCE($4, value),
@@ -150,14 +150,14 @@ type UpdateWorkflowCredentialParams struct {
 	Value       []byte      `json:"value"`
 }
 
-func (q *Queries) UpdateWorkflowCredential(ctx context.Context, arg UpdateWorkflowCredentialParams) (WorkflowCredential, error) {
+func (q *Queries) UpdateWorkflowCredential(ctx context.Context, arg UpdateWorkflowCredentialParams) (SopCredential, error) {
 	row := q.db.QueryRow(ctx, updateWorkflowCredential,
 		arg.ID,
 		arg.Name,
 		arg.Description,
 		arg.Value,
 	)
-	var i WorkflowCredential
+	var i SopCredential
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,

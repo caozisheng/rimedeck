@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/analytics"
-	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -459,41 +457,6 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 			// Don't fail the send — the message content is already saved and
 			// the attachments remain on the session (still downloadable).
 			slog.Warn("link chat attachments failed", "error", err, "message_id", uuidToString(msg.ID))
-		}
-	}
-
-	// Check if the message triggers a workflow. If the agent has workflows
-	// and the message content starts with "/workflow ", try matching a workflow name.
-	if h.WorkflowService != nil && strings.HasPrefix(strings.TrimSpace(req.Content), "/workflow ") {
-		wfName := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(req.Content), "/workflow "))
-		workflows, wfErr := h.Queries.ListAgentWorkflows(r.Context(), session.AgentID)
-		if wfErr == nil {
-			for _, wf := range workflows {
-				if strings.EqualFold(wf.Name, wfName) {
-					// Trigger the workflow instead of a coding task.
-					wfRun, runErr := h.WorkflowService.TriggerRun(r.Context(), service.TriggerRunParams{
-						WorkflowID:  wf.ID,
-						WorkspaceID: parseUUID(workspaceID),
-						AgentID:     session.AgentID,
-						Source:      "chat",
-						TriggeredBy: parseUUID(userID),
-					})
-					if runErr == nil {
-						// Post a system message with the workflow run result.
-						h.Queries.CreateChatMessage(r.Context(), db.CreateChatMessageParams{
-							ChatSessionID: session.ID,
-							Role:          "assistant",
-							Content:       fmt.Sprintf("⚡ Workflow \"%s\" triggered (run ID: %s)", wf.Name, uuidToString(wfRun.ID)),
-						})
-						writeJSON(w, http.StatusCreated, SendChatMessageResponse{
-							MessageID: uuidToString(msg.ID),
-						})
-						return
-					}
-					slog.Warn("workflow trigger from chat failed", "error", runErr)
-					break
-				}
-			}
 		}
 	}
 

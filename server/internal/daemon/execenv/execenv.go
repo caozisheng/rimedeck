@@ -71,6 +71,7 @@ type TaskContextForEnv struct {
 	AgentName               string
 	AgentInstructions       string // agent identity/persona instructions, injected into CLAUDE.md
 	AgentSkills             []SkillContextForEnv
+	AgentSOPs               []SOPContextForEnv
 	Repos                   []RepoContextForEnv     // workspace repos available for checkout
 	ProjectID               string                  // issue's project, when present
 	ProjectTitle            string                  // human-readable project title
@@ -121,6 +122,14 @@ type SkillContextForEnv struct {
 type SkillFileContextForEnv struct {
 	Path    string
 	Content string
+}
+
+// SOPContextForEnv represents an SOP (Standard Operating Procedure) attached
+// to the agent. Injected into the runtime brief so the agent knows it can
+// trigger these SOPs via the trigger_sop MCP tool.
+type SOPContextForEnv struct {
+	Name        string
+	Description string
 }
 
 // Environment represents a prepared, isolated execution environment.

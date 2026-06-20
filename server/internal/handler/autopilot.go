@@ -43,7 +43,7 @@ type AutopilotResponse struct {
 	LastRunAt          *string `json:"last_run_at"`
 	CreatedAt          string  `json:"created_at"`
 	UpdatedAt          string  `json:"updated_at"`
-	WorkflowID         *string `json:"workflow_id"`
+	SopID              *string `json:"sop_id"`
 }
 
 type AutopilotTriggerResponse struct {
@@ -129,7 +129,7 @@ func autopilotToResponse(a db.Autopilot) AutopilotResponse {
 		LastRunAt:          timestampToPtr(a.LastRunAt),
 		CreatedAt:          timestampToString(a.CreatedAt),
 		UpdatedAt:          timestampToString(a.UpdatedAt),
-		WorkflowID:         uuidToPtr(a.WorkflowID),
+		SopID:              uuidToPtr(a.SopID),
 	}
 }
 
@@ -246,7 +246,7 @@ type CreateAutopilotRequest struct {
 	AssigneeID         string  `json:"assignee_id"`
 	ExecutionMode      string  `json:"execution_mode"`
 	IssueTitleTemplate *string `json:"issue_title_template"`
-	WorkflowID         *string `json:"workflow_id"`
+	SopID              *string `json:"sop_id"`
 }
 
 type UpdateAutopilotRequest struct {
@@ -258,7 +258,7 @@ type UpdateAutopilotRequest struct {
 	Status             *string `json:"status"`
 	ExecutionMode      *string `json:"execution_mode"`
 	IssueTitleTemplate *string `json:"issue_title_template"`
-	WorkflowID         *string `json:"workflow_id"`
+	SopID              *string `json:"sop_id"`
 }
 
 type CreateAutopilotTriggerRequest struct {
@@ -454,7 +454,7 @@ func (h *Handler) CreateAutopilot(w http.ResponseWriter, r *http.Request) {
 		Description:        ptrToText(req.Description),
 		IssueTitleTemplate: ptrToText(req.IssueTitleTemplate),
 		ProjectID:          projectID,
-		WorkflowID:         ptrToUUID(req.WorkflowID),
+		SopID:              ptrToUUID(req.SopID),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create autopilot")
@@ -499,7 +499,7 @@ func (h *Handler) UpdateAutopilot(w http.ResponseWriter, r *http.Request) {
 		AssigneeID:         prev.AssigneeID,
 		IssueTitleTemplate: prev.IssueTitleTemplate,
 		ProjectID:          prev.ProjectID,
-		WorkflowID:         prev.WorkflowID,
+		SopID:              prev.SopID,
 	}
 	if req.Title != nil {
 		params.Title = pgtype.Text{String: *req.Title, Valid: true}
@@ -529,8 +529,8 @@ func (h *Handler) UpdateAutopilot(w http.ResponseWriter, r *http.Request) {
 		}
 		params.ProjectID = projectID
 	}
-	if _, ok := rawFields["workflow_id"]; ok {
-		params.WorkflowID = ptrToUUID(req.WorkflowID)
+	if _, ok := rawFields["sop_id"]; ok {
+		params.SopID = ptrToUUID(req.SopID)
 	}
 	// assignee_type and assignee_id are validated as a pair: switching
 	// between agent and squad without supplying a new id would leave the

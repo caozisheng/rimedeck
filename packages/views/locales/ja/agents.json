@@ -133,7 +133,7 @@
     "section_properties": "プロパティ",
     "section_details": "詳細",
     "section_skills": "スキル",
-    "section_workflows": "ワークフロー",
+    "section_sops": "SOP",
     "prop_runtime": "ランタイム",
     "prop_model": "モデル",
     "prop_thinking": "思考",
@@ -158,8 +158,8 @@
     "trigger_aria": "ワークスペースのスキルを追加",
     "trigger_label": "追加"
   },
-  "workflow_attach": {
-    "trigger_aria": "ワークフローを追加",
+  "sop_attach": {
+    "trigger_aria": "SOP を追加",
     "trigger_label": "追加"
   },
   "pickers": {
@@ -203,7 +203,7 @@
     "tasks": "タスク",
     "instructions": "指示",
     "skills": "スキル",
-    "workflows": "ワークフロー",
+    "sops": "SOP",
     "environment": "環境",
     "custom_args": "カスタム引数",
     "mcp_config": "MCP",
@@ -461,17 +461,17 @@
     "agent_count_other": "エージェント {{count}} 件",
     "empty": "まだマシンがありません"
   },
-  "workflows": {
-    "intro": "このエージェントに接続されたワークフローは、エージェントのモデル、指示、スキルを LLM ノードに使用します。",
+  "sops": {
+    "intro": "このエージェントに接続された SOP は、エージェントのモデル、指示、スキルを LLM ノードに使用します。",
     "add_action": "追加",
-    "empty_title": "ワークフローが接続されていません",
-    "empty_hint": "ワークフローを接続して、このエージェントに実行させましょう。すべての LLM ノードにエージェントのモデルとスキルが使用されます。",
-    "detach_aria": "ワークフローを解除",
-    "detach_success_toast": "ワークフローを解除しました",
-    "detach_failed_toast": "ワークフローの解除に失敗しました",
-    "attach_dialog_title": "ワークフローを追加",
-    "attach_dialog_empty": "追加できるワークフローがありません。",
-    "attach_success_toast": "ワークフローを追加しました",
-    "attach_failed_toast": "ワークフローの追加に失敗しました"
+    "empty_title": "SOP が接続されていません",
+    "empty_hint": "SOP を接続して、このエージェントに実行させましょう。すべての LLM ノードにエージェントのモデルとスキルが使用されます。",
+    "detach_aria": "SOP を解除",
+    "detach_success_toast": "SOP を解除しました",
+    "detach_failed_toast": "SOP の解除に失敗しました",
+    "attach_dialog_title": "SOP を追加",
+    "attach_dialog_empty": "追加できる SOP がありません。",
+    "attach_success_toast": "SOP を追加しました",
+    "attach_failed_toast": "SOP の追加に失敗しました"
   }
 }

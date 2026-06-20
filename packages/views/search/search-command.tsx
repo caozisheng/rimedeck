@@ -121,7 +121,7 @@ type NavKey =
   | "agents"
   | "runtimes"
   | "skills"
-  | "workflows"
+  | "sops"
   | "settings";
 
 interface NavPage {
@@ -194,7 +194,7 @@ export function SearchCommand() {
     { key: "agents", label: t(($) => $.pages.agents), icon: Bot, keywords: ["agents", "bots", "ai"] },
     { key: "runtimes", label: t(($) => $.pages.runtimes), icon: Monitor, keywords: ["runtimes", "environments"] },
     { key: "skills", label: t(($) => $.pages.skills), icon: BookOpenText, keywords: ["skills", "library"] },
-    { key: "workflows", label: t(($) => $.pages.workflows), icon: Zap, keywords: ["workflows", "automation", "dag", "工作流"] },
+    { key: "sops", label: t(($) => $.pages.sops), icon: Zap, keywords: ["sops", "automation", "dag", "SOP"] },
     { key: "settings", label: t(($) => $.pages.settings), icon: Settings, keywords: ["settings", "config", "preferences", "设置"] },
   ];
   const { push, pathname, getShareableUrl } = useNavigation();

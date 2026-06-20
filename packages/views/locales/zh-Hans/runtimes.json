@@ -120,8 +120,8 @@
       },
       "cascade": {
         "title_other": "归档 {{count}} 个智能体并删除该运行时？",
-        "description": "删除「{{name}}」。下列智能体将被归档并从可用工作流中移除，其排队中或运行中的 task 会被取消，随后运行时本身会被删除。",
-        "warning": "此操作具有破坏性。归档的智能体将从可用工作流中移除，其排队中或运行中的 task 会被取消。",
+        "description": "删除「{{name}}」。下列智能体将被归档并从可用 SOP 中移除，其排队中或运行中的 task 会被取消，随后运行时本身会被删除。",
+        "warning": "此操作具有破坏性。归档的智能体将从可用 SOP 中移除，其排队中或运行中的 task 会被取消。",
         "notice_runtime_has_active_agents": "自打开此弹窗后，又有新的活动智能体加入。请确认新方案后继续。",
         "notice_runtime_delete_plan_changed": "在弹窗打开期间，活动智能体集合发生了变化。请确认新方案后继续。",
         "checkbox_other": "我已了解：这 {{count}} 个智能体将被归档，其排队中或运行中的 task 会被取消。",

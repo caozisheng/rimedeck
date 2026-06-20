@@ -64,7 +64,7 @@ function agent(overrides: Partial<Agent>): Agent {
     model: "",
     owner_id: null,
     skills: [],
-    workflows: [],
+    sops: [],
     created_at: "",
     updated_at: "",
     archived_at: null,

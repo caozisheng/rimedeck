@@ -45,7 +45,7 @@ import { ModelPicker } from "./inspector/model-picker";
 import { RuntimePicker } from "./inspector/runtime-picker";
 import { SkillAttach } from "./inspector/skill-attach";
 import { ThinkingPropRow } from "./inspector/thinking-prop-row";
-import { WorkflowAttach } from "./inspector/workflow-attach";
+import { SOPAttach } from "./inspector/sop-attach";
 import { VisibilityPicker } from "./inspector/visibility-picker";
 
 interface InspectorProps {
@@ -207,18 +207,18 @@ export function AgentDetailInspector({
         </div>
       </div>
 
-      {/* Workflows */}
+      {/* SOPs */}
       <div className="flex flex-col border-b px-5 py-4">
         <div className="mb-2 flex items-center gap-2">
           <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            {t(($) => $.inspector.section_workflows)}
+            {t(($) => $.inspector.section_sops)}
           </span>
           <span className="font-mono text-[10px] tabular-nums text-muted-foreground/70">
-            {(agent.workflows ?? []).length}
+            {(agent.sops ?? []).length}
           </span>
         </div>
         <div className="flex flex-wrap gap-1">
-          {(agent.workflows ?? []).map((w) => (
+          {(agent.sops ?? []).map((w) => (
             <span
               key={w.id}
               className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
@@ -226,7 +226,7 @@ export function AgentDetailInspector({
               {w.name}
             </span>
           ))}
-          <WorkflowAttach agent={agent} canEdit={canEdit} />
+          <SOPAttach agent={agent} canEdit={canEdit} />
         </div>
       </div>
     </aside>

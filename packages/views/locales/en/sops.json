@@ -1,0 +1,168 @@
+{
+  "page": {
+    "title": "SOPs",
+    "create": "Create SOP",
+    "search_placeholder": "Search SOPs…",
+    "load_failed": "Failed to load SOPs",
+    "unknown_error": "Unknown error",
+    "retry": "Retry",
+    "untitled_sop": "Untitled SOP",
+    "empty": {
+      "title": "No SOPs yet",
+      "description": "SOPs orchestrate multi-step agent processes using a visual DAG editor. Create your first SOP to get started."
+    },
+    "no_matches": {
+      "title": "No matching SOPs",
+      "with_query": "No SOPs matching \"{{query}}\"{{filterSuffix}}.",
+      "with_query_filter_suffix": " with status \"{{status}}\"",
+      "filter_only": "No {{status}} SOPs.",
+      "try_different": " Try a different search or filter."
+    },
+    "filters": {
+      "all": "All",
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    }
+  },
+  "table": {
+    "name": "Name",
+    "used_by": "Used by",
+    "category": "Category",
+    "status": "Status",
+    "updated": "Updated",
+    "not_mounted": "Not mounted",
+    "no_description": "No description",
+    "delete_aria": "Delete SOP",
+    "delete_tooltip": "Delete"
+  },
+  "create_dialog": {
+    "title": "Create SOP",
+    "blank": "Blank",
+    "blank_description": "Start from an empty canvas",
+    "from_template": "From Template",
+    "from_template_description": "Pick a pre-built SOP",
+    "import": "Import",
+    "import_description": "Import from n8n or Dify"
+  },
+  "delete_dialog": {
+    "title": "Delete SOP",
+    "description": "Are you sure you want to delete <strong>{{name}}</strong>? This action cannot be undone. Any Autopilots or Agents referencing this SOP will be disconnected.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "deleting": "Deleting…"
+  },
+  "toast": {
+    "created": "SOP created",
+    "create_failed": "Failed to create SOP",
+    "deleted": "Deleted \"{{name}}\"",
+    "delete_failed": "Failed to delete SOP"
+  },
+  "detail": {
+    "not_found": "SOP not found",
+    "publish": "Publish",
+    "published": "SOP published",
+    "publish_failed": "Failed to publish SOP",
+    "saved": "SOP saved",
+    "save_failed": "Failed to save SOP",
+    "export_failed": "Failed to export SOP",
+    "export_json": "Download JSON",
+    "export_n8n": "Export as n8n",
+    "export_dify": "Export as Dify YAML"
+  },
+  "editor": {
+    "nodes": "Nodes",
+    "save": "Save",
+    "test_run": "Test Run",
+    "run_history": "Run History",
+    "current_run": "Current Run",
+    "node_config": "Node Config",
+    "name_label": "Name",
+    "type_label": "Type",
+    "description_label": "Description",
+    "configuration_label": "Configuration",
+    "edge_success": "Success",
+    "delete_node": "Delete Node",
+    "select_agent": "Select agent…",
+    "no_agents": "No agents available",
+    "test_run_failed": "Test run failed",
+    "close": "✕",
+    "fields_back": "← Fields",
+    "advanced_json": "Advanced JSON →"
+  },
+  "template_gallery": {
+    "title": "Template Gallery",
+    "created_from_template": "Created \"{{name}}\" from template",
+    "create_failed": "Failed to create SOP from template",
+    "no_templates": "No templates in this category.",
+    "creating": "Creating SOP…"
+  },
+  "import_dialog": {
+    "title": "Import SOP",
+    "tab_upload": "Upload File",
+    "tab_paste": "Paste",
+    "tab_url": "From URL",
+    "drop_hint": "Drop a <strong>.json</strong> or <strong>.yml</strong> file here, or click to browse",
+    "paste_placeholder": "Paste n8n JSON or Dify YAML here…",
+    "url_placeholder": "https://example.com/sop.json",
+    "fetch": "Fetch",
+    "fetch_failed": "Failed to fetch from URL",
+    "import_failed": "Failed to import SOP",
+    "imported": "Imported \"{{name}}\"",
+    "import_edit": "Import & Edit",
+    "detected_format": "Detected format:",
+    "dify_note": "Node mappings for Dify SOPs will be resolved server-side.",
+    "warnings_title": "Import warnings",
+    "mapped": "{{count}} mapped",
+    "degraded": "{{count}} degraded",
+    "unsupported": "{{count}} unsupported",
+    "skipped": "{{count}} skipped"
+  },
+  "categories": {
+    "all": "All",
+    "document": "Document",
+    "scraper": "Scraper",
+    "subscription": "Subscription",
+    "spreadsheet": "Spreadsheet",
+    "sales": "Sales",
+    "data": "Data",
+    "general": "General"
+  },
+  "status": {
+    "draft": "draft",
+    "published": "published",
+    "archived": "archived"
+  },
+  "run": {
+    "cancel": "Cancel Run",
+    "cancel_button": "Cancel",
+    "completed": "Completed",
+    "failed": "Failed",
+    "running": "Running",
+    "pending": "Pending",
+    "cancelled": "Cancelled",
+    "no_runs": "No runs yet",
+    "no_runs_hint": "No runs yet. Click <strong>▶ Test Run</strong> to execute the SOP.",
+    "not_found": "Run not found",
+    "output": "Output",
+    "error": "Error",
+    "input": "Input",
+    "duration_ms": "{{ms}}ms",
+    "nodes_progress": "{{completed}}/{{total}} nodes",
+    "waiting_first": "Waiting for first node…",
+    "node_count": "{{count}} nodes"
+  },
+  "stats": {
+    "title": "Run Statistics",
+    "runs_count": "{{count}} runs",
+    "total_runs": "Total Runs",
+    "success_rate": "Success Rate",
+    "avg_duration": "Avg Duration",
+    "total_tokens": "Total Tokens",
+    "last_run": "Last Run",
+    "just_now": "just now",
+    "minutes_ago": "{{count}}m ago",
+    "hours_ago": "{{count}}h ago",
+    "days_ago": "{{count}}d ago"
+  }
+}

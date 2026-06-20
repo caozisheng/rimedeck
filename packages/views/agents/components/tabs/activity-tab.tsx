@@ -80,13 +80,13 @@ export function ActivityTab({ agent }: ActivityTabProps) {
   // (list / detail / activity). They have their own UI in the chat
   // experience; mixing them in here muddies "what is this agent doing
   // for the team" with "what is this agent doing in private chat".
-  const isWorkflowTask = (t: AgentTask) => !t.chat_session_id;
+  const isSOPTask = (t: AgentTask) => !t.chat_session_id;
 
   const activeTasks = useMemo(() => {
     return snapshot.filter(
       (t) =>
         t.agent_id === agent.id &&
-        isWorkflowTask(t) &&
+        isSOPTask(t) &&
         (t.status === "running" ||
           t.status === "queued" ||
           t.status === "dispatched"),
@@ -100,7 +100,7 @@ export function ActivityTab({ agent }: ActivityTabProps) {
     return [...agentTasks]
       .filter(
         (t) =>
-          isWorkflowTask(t) &&
+          isSOPTask(t) &&
           !!t.completed_at &&
           (t.status === "completed" ||
             t.status === "failed" ||

@@ -16,8 +16,8 @@ export const workspaceKeys = {
   squadMemberStatus: (wsId: string, squadId: string) =>
     ["workspaces", wsId, "squads", squadId, "members-status"] as const,
   skills: (wsId: string) => ["workspaces", wsId, "skills"] as const,
-  workflows: (wsId: string) => ["workspaces", wsId, "workflows"] as const,
-  workflowTemplates: (wsId: string) => ["workspaces", wsId, "workflows", "templates"] as const,
+  sops: (wsId: string) => ["workspaces", wsId, "sops"] as const,
+  sopTemplates: (wsId: string) => ["workspaces", wsId, "sops", "templates"] as const,
   assigneeFrequency: (wsId: string) => ["workspaces", wsId, "assignee-frequency"] as const,
 };
 
@@ -88,61 +88,61 @@ export function skillDetailOptions(wsId: string, skillId: string) {
   });
 }
 
-export function workflowListOptions(wsId: string) {
+export function sopListOptions(wsId: string) {
   return queryOptions({
-    queryKey: workspaceKeys.workflows(wsId),
-    queryFn: () => api.listWorkflows(),
+    queryKey: workspaceKeys.sops(wsId),
+    queryFn: () => api.listSOPs(),
   });
 }
 
-export function workflowDetailOptions(wsId: string, workflowId: string) {
+export function sopDetailOptions(wsId: string, sopId: string) {
   return queryOptions({
-    queryKey: [...workspaceKeys.workflows(wsId), workflowId] as const,
-    queryFn: () => api.getWorkflow(workflowId),
-    enabled: !!workflowId,
+    queryKey: [...workspaceKeys.sops(wsId), sopId] as const,
+    queryFn: () => api.getSOP(sopId),
+    enabled: !!sopId,
   });
 }
 
-export function workflowStatsOptions(wsId: string, workflowId: string) {
+export function sopStatsOptions(wsId: string, sopId: string) {
   return queryOptions({
-    queryKey: [...workspaceKeys.workflows(wsId), workflowId, "stats"] as const,
-    queryFn: () => api.getWorkflowStats(workflowId),
-    enabled: !!workflowId,
+    queryKey: [...workspaceKeys.sops(wsId), sopId, "stats"] as const,
+    queryFn: () => api.getSOPStats(sopId),
+    enabled: !!sopId,
   });
 }
 
-export function workflowTemplateListOptions(wsId: string) {
+export function sopTemplateListOptions(wsId: string) {
   return queryOptions({
-    queryKey: workspaceKeys.workflowTemplates(wsId),
-    queryFn: () => api.listWorkflowTemplates(),
+    queryKey: workspaceKeys.sopTemplates(wsId),
+    queryFn: () => api.listSOPTemplates(),
   });
 }
 
-export const workflowRunKeys = {
-  all: (wsId: string) => ["workflows", wsId, "runs"] as const,
-  list: (wsId: string, workflowId: string) =>
-    [...workflowRunKeys.all(wsId), "list", workflowId] as const,
-  detail: (wsId: string, workflowId: string, runId: string) =>
-    [...workflowRunKeys.all(wsId), "detail", workflowId, runId] as const,
+export const sopRunKeys = {
+  all: (wsId: string) => ["sops", wsId, "runs"] as const,
+  list: (wsId: string, sopId: string) =>
+    [...sopRunKeys.all(wsId), "list", sopId] as const,
+  detail: (wsId: string, sopId: string, runId: string) =>
+    [...sopRunKeys.all(wsId), "detail", sopId, runId] as const,
 };
 
-export function workflowRunListOptions(wsId: string, workflowId: string) {
+export function sopRunListOptions(wsId: string, sopId: string) {
   return queryOptions({
-    queryKey: workflowRunKeys.list(wsId, workflowId),
-    queryFn: () => api.listWorkflowRuns(workflowId),
-    enabled: !!workflowId,
+    queryKey: sopRunKeys.list(wsId, sopId),
+    queryFn: () => api.listSOPRuns(sopId),
+    enabled: !!sopId,
   });
 }
 
-export function workflowRunDetailOptions(
+export function sopRunDetailOptions(
   wsId: string,
-  workflowId: string,
+  sopId: string,
   runId: string,
   opts?: { refetchInterval?: number },
 ) {
   return queryOptions({
-    queryKey: workflowRunKeys.detail(wsId, workflowId, runId),
-    queryFn: () => api.getWorkflowRun(workflowId, runId),
+    queryKey: sopRunKeys.detail(wsId, sopId, runId),
+    queryFn: () => api.getSOPRun(sopId, runId),
     enabled: !!runId,
     refetchInterval: opts?.refetchInterval,
   });
@@ -177,17 +177,17 @@ export function selectSkillAssignments(
 }
 
 /**
- * Builds a `workflowId → Agent[]` lookup from the `workflows` array
+ * Builds a `sopId → Agent[]` lookup from the `sops` array
  * embedded in each agent, mirroring `selectSkillAssignments`.
  */
-export function selectWorkflowAssignments(
+export function selectSOPAssignments(
   agents: Agent[] | undefined,
 ): Map<string, Agent[]> {
   const map = new Map<string, Agent[]>();
   if (!agents) return map;
   for (const a of agents) {
     if (a.archived_at) continue;
-    for (const w of a.workflows ?? []) {
+    for (const w of a.sops ?? []) {
       const existing = map.get(w.id);
       if (existing) existing.push(a);
       else map.set(w.id, [a]);

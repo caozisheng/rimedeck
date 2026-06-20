@@ -23,7 +23,7 @@ export type {
   Skill,
   SkillSummary,
   AgentSkillSummary,
-  AgentWorkflowSummary,
+  AgentSOPSummary,
   SkillFile,
   CreateSkillRequest,
   UpdateSkillRequest,
@@ -151,6 +151,7 @@ export type {
   BackupData,
   BackupSkill,
   BackupSkillFile,
+  BackupSOP,
   BackupAgent,
   BackupSquad,
   BackupSquadMember,
@@ -158,4 +159,4 @@ export type {
   ImportResultCounts,
   ImportRequest,
 } from "./backup";
-export type { Workflow, WorkflowSummary, WorkflowStatus, WorkflowRun, WorkflowRunStatus, WorkflowNodeExecution, WorkflowTemplate, ImportWarning, WorkflowStats } from "./workflow";
+export type { SOP, SOPSummary, SOPStatus, SOPRun, SOPRunStatus, SOPNodeExecution, SOPTemplate, ImportWarning, SOPStats } from "./sop";

@@ -25,7 +25,7 @@ type BackupData struct {
 	ExportedAt string           `json:"exported_at"`
 	AppVersion string           `json:"app_version"`
 	Skills     []BackupSkill    `json:"skills"`
-	Workflows  []BackupWorkflow `json:"workflows"`
+	SOPs       []BackupSOP      `json:"sops"`
 	Agents     []BackupAgent    `json:"agents"`
 	Squads     []BackupSquad    `json:"squads"`
 }
@@ -56,7 +56,7 @@ type BackupAgent struct {
 	Visibility         string          `json:"visibility"`
 	MaxConcurrentTasks int32           `json:"max_concurrent_tasks"`
 	SkillNames         []string        `json:"skill_names"`
-	WorkflowNames      []string        `json:"workflow_names"`
+	SOPNames           []string        `json:"sop_names"`
 }
 
 type BackupSquad struct {
@@ -74,7 +74,7 @@ type BackupSquadMember struct {
 	Role       string `json:"role"`
 }
 
-type BackupWorkflow struct {
+type BackupSOP struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description"`
 	Icon        string          `json:"icon"`
@@ -92,7 +92,7 @@ type ImportRequest struct {
 
 type ImportResultCounts struct {
 	Skills    int `json:"skills"`
-	Workflows int `json:"workflows"`
+	SOPs      int `json:"sops"`
 	Agents    int `json:"agents"`
 	Squads    int `json:"squads"`
 }
@@ -119,7 +119,7 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 	filterAgents := parseCSVParam(r, "agents")
 	filterSkills := parseCSVParam(r, "skills")
 	filterSquads := parseCSVParam(r, "squads")
-	filterWorkflows := parseCSVParam(r, "workflows")
+	filterSOPs := parseCSVParam(r, "sops")
 
 	// 1. Load all un-archived skills (with content)
 	skills, err := h.Queries.ListSkillsByWorkspace(ctx, wsUUID)
@@ -159,23 +159,23 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 		skillsByAgent[key] = append(skillsByAgent[key], as.Name)
 	}
 
-	// 4b. Load workflows (summary) and fetch graph per workflow
-	workflowSummaries, err := h.Queries.ListWorkflowsByWorkspace(ctx, wsUUID)
+	// 4b. Load SOPs (summary) and fetch graph per SOP
+	sopSummaries, err := h.Queries.ListWorkflowsByWorkspace(ctx, wsUUID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list workflows")
+		writeError(w, http.StatusInternalServerError, "failed to list SOPs")
 		return
 	}
 
-	// 4c. Load agent-workflow associations
-	agentWorkflows, err := h.Queries.ListAgentWorkflowsByWorkspace(ctx, wsUUID)
+	// 4c. Load agent-SOP associations
+	agentSOPs, err := h.Queries.ListAgentWorkflowsByWorkspace(ctx, wsUUID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list agent workflows")
+		writeError(w, http.StatusInternalServerError, "failed to list agent SOPs")
 		return
 	}
-	workflowsByAgent := make(map[string][]string)
-	for _, aw := range agentWorkflows {
+	sopsByAgent := make(map[string][]string)
+	for _, aw := range agentSOPs {
 		key := uuidToString(aw.AgentID)
-		workflowsByAgent[key] = append(workflowsByAgent[key], aw.Name)
+		sopsByAgent[key] = append(sopsByAgent[key], aw.Name)
 	}
 
 	// 5. Load un-archived squads
@@ -240,20 +240,20 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 		data.Skills = append(data.Skills, bs)
 	}
 
-	// Workflows
-	for _, ws := range workflowSummaries {
+	// SOPs
+	for _, ws := range sopSummaries {
 		if ws.Status == "archived" {
 			continue
 		}
-		if len(filterWorkflows) > 0 && !containsStr(filterWorkflows, ws.Name) {
+		if len(filterSOPs) > 0 && !containsStr(filterSOPs, ws.Name) {
 			continue
 		}
-		// Fetch full workflow with graph
+		// Fetch full SOP with graph
 		fullWF, err := h.Queries.GetWorkflow(ctx, ws.ID)
 		if err != nil {
-			continue // skip workflows whose graph can't be loaded
+			continue // skip SOPs whose graph can't be loaded
 		}
-		data.Workflows = append(data.Workflows, BackupWorkflow{
+		data.SOPs = append(data.SOPs, BackupSOP{
 			Name:        fullWF.Name,
 			Description: fullWF.Description,
 			Icon:        fullWF.Icon,
@@ -282,13 +282,13 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 			Visibility:         a.Visibility,
 			MaxConcurrentTasks: a.MaxConcurrentTasks,
 			SkillNames:         skillsByAgent[uuidToString(a.ID)],
-			WorkflowNames:      workflowsByAgent[uuidToString(a.ID)],
+			SOPNames:            sopsByAgent[uuidToString(a.ID)],
 		}
 		if ba.SkillNames == nil {
 			ba.SkillNames = []string{}
 		}
-		if ba.WorkflowNames == nil {
-			ba.WorkflowNames = []string{}
+		if ba.SOPNames == nil {
+			ba.SOPNames = []string{}
 		}
 		data.Agents = append(data.Agents, ba)
 	}
@@ -332,8 +332,8 @@ func (h *Handler) ExportBackup(w http.ResponseWriter, r *http.Request) {
 	if data.Squads == nil {
 		data.Squads = []BackupSquad{}
 	}
-	if data.Workflows == nil {
-		data.Workflows = []BackupWorkflow{}
+	if data.SOPs == nil {
+		data.SOPs = []BackupSOP{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -473,24 +473,24 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 		result.Created.Skills++
 	}
 
-	// Phase 2: Workflows
-	workflowIDByName := make(map[string]pgtype.UUID)
-	existingWorkflows, err := qtx.ListWorkflowsByWorkspace(ctx, wsUUID)
+	// Phase 2: SOPs
+	sopIDByName := make(map[string]pgtype.UUID)
+	existingSOPs, err := qtx.ListWorkflowsByWorkspace(ctx, wsUUID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list existing workflows")
+		writeError(w, http.StatusInternalServerError, "failed to list existing SOPs")
 		return
 	}
-	for _, wf := range existingWorkflows {
-		workflowIDByName[wf.Name] = wf.ID
+	for _, wf := range existingSOPs {
+		sopIDByName[wf.Name] = wf.ID
 	}
 
-	for _, bw := range req.Workflows {
-		if existingID, exists := workflowIDByName[bw.Name]; exists {
+	for _, bw := range req.SOPs {
+		if existingID, exists := sopIDByName[bw.Name]; exists {
 			if !req.Overwrite {
-				result.Skipped.Workflows++
+				result.Skipped.SOPs++
 				continue
 			}
-			// Overwrite: update existing workflow
+			// Overwrite: update existing SOP
 			graph := []byte(bw.Graph)
 			if len(graph) == 0 {
 				graph = []byte("{}")
@@ -504,9 +504,9 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 				Graph:       graph,
 			})
 			if err != nil {
-				result.Warnings = append(result.Warnings, fmt.Sprintf("Workflow %q: update failed: %v", bw.Name, err))
+				result.Warnings = append(result.Warnings, fmt.Sprintf("SOP %q: update failed: %v", bw.Name, err))
 			} else {
-				result.Created.Workflows++
+				result.Created.SOPs++
 			}
 			continue
 		}
@@ -529,11 +529,11 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 			CreatedBy:   userUUID,
 		})
 		if err != nil {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Workflow %q: create failed: %v", bw.Name, err))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("SOP %q: create failed: %v", bw.Name, err))
 			continue
 		}
-		workflowIDByName[bw.Name] = wf.ID
-		result.Created.Workflows++
+		sopIDByName[bw.Name] = wf.ID
+		result.Created.SOPs++
 	}
 
 	// Phase 3: Agents
@@ -566,17 +566,17 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 				}
 				_ = qtx.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agentID, SkillID: skillID})
 			}
-			// Re-bind workflows
-			for _, wfName := range ba.WorkflowNames {
-				wfID, found := workflowIDByName[wfName]
+			// Re-bind SOPs
+			for _, wfName := range ba.SOPNames {
+				wfID, found := sopIDByName[wfName]
 				if !found {
-					result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: workflow %q not found, binding skipped", ba.Name, wfName))
+					result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: SOP %q not found, binding skipped", ba.Name, wfName))
 					continue
 				}
-				_ = qtx.AddAgentWorkflow(ctx, db.AddAgentWorkflowParams{AgentID: agentID, WorkflowID: wfID})
+			_ = qtx.AddAgentWorkflow(ctx, db.AddAgentWorkflowParams{AgentID: agentID, SopID: wfID})
 			}
 			result.Skipped.Agents++
-			result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: already exists, re-bound %d skills and %d workflows", ba.Name, len(ba.SkillNames), len(ba.WorkflowNames)))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: already exists, re-bound %d skills and %d SOPs", ba.Name, len(ba.SkillNames), len(ba.SOPNames)))
 			continue
 		}
 
@@ -632,15 +632,15 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		// Bind workflows
-		for _, wfName := range ba.WorkflowNames {
-			wfID, found := workflowIDByName[wfName]
+		// Bind SOPs
+		for _, wfName := range ba.SOPNames {
+			wfID, found := sopIDByName[wfName]
 			if !found {
-				result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: workflow %q not found, binding skipped", ba.Name, wfName))
+				result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: SOP %q not found, binding skipped", ba.Name, wfName))
 				continue
 			}
-			if err := qtx.AddAgentWorkflow(ctx, db.AddAgentWorkflowParams{AgentID: agent.ID, WorkflowID: wfID}); err != nil {
-				writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to bind workflow %q to agent %q: %v", wfName, ba.Name, err))
+			if err := qtx.AddAgentWorkflow(ctx, db.AddAgentWorkflowParams{AgentID: agent.ID, SopID: wfID}); err != nil {
+				writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to bind SOP %q to agent %q: %v", wfName, ba.Name, err))
 				return
 			}
 		}
