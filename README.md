@@ -11,65 +11,36 @@ Local-first AI agent workbench — manage issues, orchestrate AI coding agents, 
 
 ---
 
-## Design Highlights
+## Why RimeDeck
+
+**Zero Docker, zero cloud.** RimeDeck embeds PostgreSQL and the Go server as Electron child processes. Double-click to launch — the app starts the database, runs migrations, spawns the server, and opens the UI. No containers, no remote API, no manual setup.
+
+**Compute sharing.** Add remote machines as headless compute nodes over LAN / Tailscale / VPN. The remote daemon claims and runs agent tasks via a scoped daemon token — contributing GPU/CPU without accessing the workspace UI.
+
+**Remote collaboration.** Invite team members to your workspace with full UI access — issues, agents, runtimes, settings — authenticated via JWT, exactly like a cloud app but running on your own machine.
 
 ### Agent = Person, Skill = Knowledge, SOP = Capability
-
-Three-layer architecture that mirrors how a human team works:
 
 | Layer | What it is | How it's delivered |
 |-------|-----------|-------------------|
 | **Agent** | An AI entity with identity, model, and instructions | Bound to one of 16 runtime CLIs |
-| **Skill** | Reusable knowledge (code review checklist, language conventions) | Injected into system prompt — passive knowledge |
+| **Skill** | Reusable knowledge (code review checklist, conventions) | Injected into system prompt — passive knowledge |
 | **SOP** | A deterministic DAG pipeline (HTTP → LLM → filter → doc gen) | Injected into runtime config — active capability the agent calls on demand |
 
 ### SOP-as-MCP: Agent-Triggered Deterministic Pipelines
 
-SOPs (Standard Operating Procedures) are pre-built DAGs executed server-side by the [RuleGo](https://github.com/rulego/rulego) engine. Non-LLM nodes (HTTP calls, JS filters, document generation) run at **zero token cost**; only LLM nodes consume tokens.
-
-**Dual-path injection** ensures all 16 runtimes can discover and trigger SOPs:
+SOPs are pre-built DAGs executed server-side by the [RuleGo](https://github.com/rulego/rulego) engine. Non-LLM nodes run at **zero token cost**; only LLM nodes consume tokens. Dual-path injection ensures all 16 runtimes discover SOPs:
 
 ```
 Path 1 (primary):  SOP list → CLAUDE.md / AGENTS.md → agent reads natively
 Path 2 (auxiliary): SOP MCP server → McpConfig → agent sees trigger_sop tool
 ```
 
-The agent **decides autonomously** whether to trigger an SOP based on the user's request — no server-side intent matching or hardcoded commands.
-
-### 16 Runtime CLIs, One Unified Interface
-
-| Runtime | CLI | Provider |
-|---------|-----|----------|
-| Antigravity | `agy` | Google |
-| Claude Code | `claude` | Anthropic |
-| Codex | `codex` | OpenAI |
-| Copilot | `copilot` | GitHub / Microsoft |
-| Cursor | `cursor-agent` | Cursor |
-| Gemini CLI | `gemini` | Google |
-| Hermes | `hermes` | NousResearch |
-| Kimi | `kimi` | Moonshot AI |
-| Kiro CLI | `kiro-cli` | Amazon |
-| OMP | `omp` | Community |
-| OpenCode | `opencode` | Community |
-| OpenClaw | `openclaw` | Community |
-| Pi | `pi` | Community |
-| Qoder | `qoder` | Qodo |
-| Qwen Code | `qwen-code` | Alibaba |
-| CodeBuddy | `codebuddy` | Tencent |
-
-All runtimes share the same `Backend` interface — `Execute(ctx, prompt, ExecOptions)`. Skills, SOPs, MCP config, and system prompts are injected uniformly via `ExecOptions` and per-task runtime config files.
-
-### Local-First, Network-Optional
-
-- **Embedded PostgreSQL** + Go server as Electron child processes — double-click to launch
-- **Compute sharing** — add remote machines as headless compute nodes via daemon token
-- **Workspace collaboration** — invite members over LAN / Tailscale / VPN with full UI access
-- **Backup & restore** — export agents, skills, SOPs, squads as a single JSON file
+The agent **decides autonomously** whether to trigger an SOP — no server-side intent matching or hardcoded commands.
 
 ### Squad-Based Multi-Agent Orchestration
 
-A **Squad** is a team with one leader agent and member agents/users. When an issue is assigned to a squad, the leader claims it, breaks the work down, and delegates sub-tasks via `@mention` — no centralized orchestrator, just agent-to-agent communication on the issue thread.
-
+A **Squad** is a team with one leader agent and member agents/users. The leader claims issues, breaks work down, and delegates sub-tasks via `@mention` — no centralized orchestrator, just agent-to-agent communication on the issue thread.
 ---
 
 ## Architecture
@@ -94,7 +65,7 @@ A **Squad** is a team with one leader agent and member agents/users. When an iss
   │  Security   │                           │  Test TDD   │
   │             │                           │             │
   │ SOPs: ──────┤  listed in runtime config │ SOPs: ──────┤
-  │  竞品监控   │  + MCP tool (if supported) │  周报生成   │
+  │  monitors   │  + MCP tool (if supported)│weekly report │
   └─────────────┘                           └─────────────┘
          │                                          │
          ▼                                          ▼
