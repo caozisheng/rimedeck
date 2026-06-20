@@ -85,7 +85,10 @@
     "delete_node": "ノードを削除",
     "select_agent": "エージェントを選択…",
     "no_agents": "エージェントがありません",
-    "test_run_failed": "テスト実行に失敗しました"
+    "test_run_failed": "テスト実行に失敗しました",
+    "close": "✕",
+    "fields_back": "← フィールド",
+    "advanced_json": "JSON →"
   },
   "template_gallery": {
     "title": "テンプレートギャラリー",
@@ -144,7 +147,10 @@
     "output": "出力",
     "error": "エラー",
     "nodes_progress": "{{completed}}/{{total}} ノード",
-    "waiting_first": "最初のノードを待機中…"
+    "waiting_first": "最初のノードを待機中…",
+    "input": "入力",
+    "duration_ms": "{{ms}}ms",
+    "node_count": "{{count}}ノード"
   },
   "stats": {
     "title": "実行統計",

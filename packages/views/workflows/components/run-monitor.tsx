@@ -52,6 +52,7 @@ function statusColor(status: WorkflowRunStatus) {
 
 function NodeExecutionRow({ ne }: { ne: WorkflowNodeExecution }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useT("workflows");
 
   const formatData = (data: Record<string, unknown> | null): string => {
     if (!data) return "(none)";
@@ -80,7 +81,7 @@ function NodeExecutionRow({ ne }: { ne: WorkflowNodeExecution }) {
           <span className="ml-auto truncate text-destructive max-w-[200px]">{ne.error}</span>
         )}
         {!ne.error && ne.duration_ms > 0 && (
-          <span className="ml-auto tabular-nums text-muted-foreground">{ne.duration_ms}ms</span>
+          <span className="ml-auto tabular-nums text-muted-foreground">{t(($) => $.run.duration_ms, { ms: ne.duration_ms })}</span>
         )}
         <span className="text-muted-foreground/50">
           {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
@@ -90,7 +91,7 @@ function NodeExecutionRow({ ne }: { ne: WorkflowNodeExecution }) {
         <div className="border-t px-2 py-2 space-y-2">
           {ne.inputs && (
             <div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Input</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">{t(($) => $.run.input)}</p>
               <pre className="rounded bg-muted p-1.5 text-[11px] overflow-x-auto max-h-40 whitespace-pre-wrap break-all">
                 {formatData(ne.inputs)}
               </pre>
@@ -98,7 +99,7 @@ function NodeExecutionRow({ ne }: { ne: WorkflowNodeExecution }) {
           )}
           {ne.outputs && (
             <div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Output</p>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">{t(($) => $.run.output)}</p>
               <pre className="rounded bg-muted p-1.5 text-[11px] overflow-x-auto max-h-40 whitespace-pre-wrap break-all">
                 {formatData(ne.outputs)}
               </pre>
@@ -106,7 +107,7 @@ function NodeExecutionRow({ ne }: { ne: WorkflowNodeExecution }) {
           )}
           {ne.error && (
             <div>
-              <p className="text-[10px] font-semibold text-destructive uppercase tracking-wider mb-0.5">Error</p>
+              <p className="text-[10px] font-semibold text-destructive uppercase tracking-wider mb-0.5">{t(($) => $.run.error)}</p>
               <pre className="rounded bg-destructive/5 p-1.5 text-[11px] text-destructive whitespace-pre-wrap break-all">
                 {ne.error}
               </pre>

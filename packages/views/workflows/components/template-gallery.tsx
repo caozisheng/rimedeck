@@ -41,6 +41,7 @@ function TemplateCard({
   onSelect: (t: WorkflowTemplate) => void;
   busy: boolean;
 }) {
+  const { t } = useT("workflows");
   return (
     <button
       type="button"
@@ -57,7 +58,7 @@ function TemplateCard({
           {template.description}
         </p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-          <span>{template.node_count} nodes</span>
+          <span>{t(($) => $.run.node_count, { count: template.node_count })}</span>
           {template.tags.length > 0 && (
             <>
               <span>·</span>

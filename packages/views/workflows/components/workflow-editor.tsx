@@ -244,7 +244,7 @@ export function WorkflowEditor({
                 onClick={() => setSelectedNodeId(null)}
                 className="text-muted-foreground hover:text-foreground text-xs"
               >
-                ✕
+                {t(($) => $.editor.close)}
               </button>
             </div>
             <div className="space-y-4 text-sm">
@@ -448,7 +448,7 @@ function NodeConfigFields({
               onClick={() => setShowAdvanced(false)}
               className="text-[10px] text-primary hover:underline"
             >
-              ← Fields
+              {t(($) => $.editor.fields_back)}
             </button>
           )}
         </div>
@@ -506,7 +506,7 @@ function NodeConfigFields({
         onClick={() => setShowAdvanced(true)}
         className="text-[10px] text-muted-foreground hover:text-foreground"
       >
-        Advanced JSON →
+        {t(($) => $.editor.advanced_json)}
       </button>
     </div>
   );

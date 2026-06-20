@@ -85,7 +85,10 @@
     "delete_node": "Delete Node",
     "select_agent": "Select agent…",
     "no_agents": "No agents available",
-    "test_run_failed": "Test run failed"
+    "test_run_failed": "Test run failed",
+    "close": "✕",
+    "fields_back": "← Fields",
+    "advanced_json": "Advanced JSON →"
   },
   "template_gallery": {
     "title": "Template Gallery",
@@ -143,8 +146,11 @@
     "not_found": "Run not found",
     "output": "Output",
     "error": "Error",
+    "input": "Input",
+    "duration_ms": "{{ms}}ms",
     "nodes_progress": "{{completed}}/{{total}} nodes",
-    "waiting_first": "Waiting for first node…"
+    "waiting_first": "Waiting for first node…",
+    "node_count": "{{count}} nodes"
   },
   "stats": {
     "title": "Run Statistics",

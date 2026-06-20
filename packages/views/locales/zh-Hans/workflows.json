@@ -85,7 +85,10 @@
     "delete_node": "删除节点",
     "select_agent": "选择智能体…",
     "no_agents": "暂无智能体",
-    "test_run_failed": "测试运行失败"
+    "test_run_failed": "测试运行失败",
+    "close": "✕",
+    "fields_back": "← 字段",
+    "advanced_json": "高级 JSON →"
   },
   "template_gallery": {
     "title": "模板库",
@@ -144,7 +147,10 @@
     "output": "输出",
     "error": "错误",
     "nodes_progress": "{{completed}}/{{total}} 个节点",
-    "waiting_first": "等待第一个节点…"
+    "waiting_first": "等待第一个节点…",
+    "input": "输入",
+    "duration_ms": "{{ms}}ms",
+    "node_count": "{{count}} 个节点"
   },
   "stats": {
     "title": "运行统计",

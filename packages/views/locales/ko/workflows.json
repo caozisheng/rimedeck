@@ -85,7 +85,10 @@
     "delete_node": "노드 삭제",
     "select_agent": "에이전트 선택…",
     "no_agents": "에이전트 없음",
-    "test_run_failed": "테스트 실행 실패"
+    "test_run_failed": "테스트 실행 실패",
+    "close": "✕",
+    "fields_back": "← 필드",
+    "advanced_json": "JSON →"
   },
   "template_gallery": {
     "title": "템플릿 갤러리",
@@ -144,7 +147,10 @@
     "output": "출력",
     "error": "오류",
     "nodes_progress": "{{completed}}/{{total}} 노드",
-    "waiting_first": "첫 번째 노드 대기 중…"
+    "waiting_first": "첫 번째 노드 대기 중…",
+    "input": "입력",
+    "duration_ms": "{{ms}}ms",
+    "node_count": "{{count}}개 노드"
   },
   "stats": {
     "title": "실행 통계",
