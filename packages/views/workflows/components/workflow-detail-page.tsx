@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -117,7 +118,18 @@ export function WorkflowDetailPage({ workflowId }: WorkflowDetailPageProps) {
             <ArrowLeft className="h-4 w-4" />
           </button>
           <WorkflowIcon className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">{workflow.name}</span>
+          <EditableName
+            value={workflow.name}
+            onSave={async (name) => {
+              await api.updateWorkflow(workflowId, { name });
+              queryClient.invalidateQueries({
+                queryKey: [...workspaceKeys.workflows(wsId), workflowId],
+              });
+              queryClient.invalidateQueries({
+                queryKey: workspaceKeys.workflows(wsId),
+              });
+            }}
+          />
           <StatusBadge status={workflow.status} />
         </div>
         <div className="flex items-center gap-2">
@@ -187,5 +199,67 @@ function StatusBadge({ status }: { status: string }) {
     >
       {label}
     </span>
+  );
+}
+
+/** Click-to-edit inline name field. Saves on blur or Enter; reverts on Escape. */
+function EditableName({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (name: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = useCallback(() => {
+    setDraft(value);
+    setEditing(true);
+    // Focus after render.
+    setTimeout(() => inputRef.current?.select(), 0);
+  }, [value]);
+
+  const commit = useCallback(async () => {
+    const trimmed = draft.trim();
+    setEditing(false);
+    if (!trimmed || trimmed === value) return;
+    try {
+      await onSave(trimmed);
+    } catch {
+      toast.error("Failed to rename workflow");
+    }
+  }, [draft, value, onSave]);
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="text-sm font-medium hover:underline hover:underline-offset-2 cursor-text"
+        onClick={startEdit}
+      >
+        {value}
+      </button>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      autoFocus
+      className="text-sm font-medium bg-transparent border-b border-primary outline-none px-0 py-0 w-48"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        } else if (e.key === "Escape") {
+          setEditing(false);
+        }
+      }}
+    />
   );
 }

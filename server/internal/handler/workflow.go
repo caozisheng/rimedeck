@@ -395,13 +395,17 @@ func (h *Handler) CreateWorkflow(w http.ResponseWriter, r *http.Request) {
 	if len(graph) == 0 {
 		graph = defaultWorkflowGraph
 	}
+	category := req.Category
+	if category == "" {
+		category = "general"
+	}
 
 	workflow, err := h.Queries.CreateWorkflow(r.Context(), db.CreateWorkflowParams{
 		WorkspaceID: workspaceUUID,
 		Name:        req.Name,
 		Description: req.Description,
 		Icon:        req.Icon,
-		Category:    req.Category,
+		Category:    category,
 		Graph:       graph,
 		Status:      "draft",
 		CreatedBy:   creatorUUID,
