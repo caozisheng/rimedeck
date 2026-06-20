@@ -21,13 +21,13 @@ const (
 // --- Export / Import JSON types ---
 
 type BackupData struct {
-	Version    int           `json:"version"`
-	ExportedAt string        `json:"exported_at"`
-	AppVersion string        `json:"app_version"`
-	Skills     []BackupSkill `json:"skills"`
-	Agents     []BackupAgent `json:"agents"`
-	Squads     []BackupSquad `json:"squads"`
+	Version    int              `json:"version"`
+	ExportedAt string           `json:"exported_at"`
+	AppVersion string           `json:"app_version"`
+	Skills     []BackupSkill    `json:"skills"`
 	Workflows  []BackupWorkflow `json:"workflows"`
+	Agents     []BackupAgent    `json:"agents"`
+	Squads     []BackupSquad    `json:"squads"`
 }
 
 type BackupSkill struct {
@@ -564,7 +564,7 @@ func (h *Handler) ImportBackup(w http.ResponseWriter, r *http.Request) {
 					result.Warnings = append(result.Warnings, fmt.Sprintf("Agent %q: skill %q not found, binding skipped", ba.Name, skillName))
 					continue
 				}
-			_ = qtx.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agentID, SkillID: skillID})
+				_ = qtx.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agentID, SkillID: skillID})
 			}
 			// Re-bind workflows
 			for _, wfName := range ba.WorkflowNames {

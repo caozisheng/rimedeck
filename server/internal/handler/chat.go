@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/analytics"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -460,9 +462,42 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enqueue a chat task after the message exists. For web chat the sender is
-	// the authenticated request user (sessions are creator-only), so they are
-	// the task initiator — surfaced to the agent under `## Task Initiator`.
+	// Check if the message triggers a workflow. If the agent has workflows
+	// and the message content starts with "/run ", try matching a workflow name.
+	if h.WorkflowService != nil && strings.HasPrefix(strings.TrimSpace(req.Content), "/run ") {
+		wfName := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(req.Content), "/run "))
+		workflows, wfErr := h.Queries.ListAgentWorkflows(r.Context(), session.AgentID)
+		if wfErr == nil {
+			for _, wf := range workflows {
+				if strings.EqualFold(wf.Name, wfName) {
+					// Trigger the workflow instead of a coding task.
+					wfRun, runErr := h.WorkflowService.TriggerRun(r.Context(), service.TriggerRunParams{
+						WorkflowID:  wf.ID,
+						WorkspaceID: parseUUID(workspaceID),
+						AgentID:     session.AgentID,
+						Source:      "chat",
+						TriggeredBy: parseUUID(userID),
+					})
+					if runErr == nil {
+						// Post a system message with the workflow run result.
+						h.Queries.CreateChatMessage(r.Context(), db.CreateChatMessageParams{
+							ChatSessionID: session.ID,
+							Role:          "assistant",
+							Content:       fmt.Sprintf("⚡ Workflow \"%s\" triggered (run ID: %s)", wf.Name, uuidToString(wfRun.ID)),
+						})
+						writeJSON(w, http.StatusCreated, SendChatMessageResponse{
+							MessageID: uuidToString(msg.ID),
+						})
+						return
+					}
+					slog.Warn("workflow trigger from chat failed", "error", runErr)
+					break
+				}
+			}
+		}
+	}
+
+	// Enqueue a chat task after the message exists.
 	task, err := h.TaskService.EnqueueChatTask(r.Context(), session, parseUUID(userID))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to enqueue chat task: "+err.Error())
