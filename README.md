@@ -2,7 +2,7 @@
 
 # RimeDeck
 
-Local-first AI agent workbench — manage issues, orchestrate AI coding agents, and run deterministic SOPs, all in one desktop app. Zero Docker, zero cloud dependency. Forked from [Multica](https://github.com/multica-ai/multica).
+Local-first AI agent workbench — manage issues, orchestrate AI coding agents, and run deterministic SOPs (Standard Operating Procedures), all in one desktop app. Zero Docker, zero cloud dependency. Forked from [Multica](https://github.com/multica-ai/multica).
 
 <details open>
 <summary>📸 Screenshot</summary>
