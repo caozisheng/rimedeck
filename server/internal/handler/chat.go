@@ -463,9 +463,9 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if the message triggers a workflow. If the agent has workflows
-	// and the message content starts with "/run ", try matching a workflow name.
-	if h.WorkflowService != nil && strings.HasPrefix(strings.TrimSpace(req.Content), "/run ") {
-		wfName := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(req.Content), "/run "))
+	// and the message content starts with "/workflow ", try matching a workflow name.
+	if h.WorkflowService != nil && strings.HasPrefix(strings.TrimSpace(req.Content), "/workflow ") {
+		wfName := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(req.Content), "/workflow "))
 		workflows, wfErr := h.Queries.ListAgentWorkflows(r.Context(), session.AgentID)
 		if wfErr == nil {
 			for _, wf := range workflows {
