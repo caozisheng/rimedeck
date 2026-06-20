@@ -360,14 +360,13 @@ func (s *WorkflowService) executeRun(run db.WorkflowRun, wf db.Workflow, agentID
 		return
 	}
 
-	// Re-check run status — it may have been cancelled while we were executing.
+	// Mark run as completed (or failed if any node errored out).
+	// Skip only if already cancelled by user.
 	currentRun, err := s.Queries.GetWorkflowRun(ctx, run.ID)
-	if err == nil && (currentRun.Status == "cancelled" || currentRun.Status == "failed") {
-		slog.Info("workflow run already terminal, skipping completion update", "run_id", runID, "status", currentRun.Status)
+	if err == nil && currentRun.Status == "cancelled" {
 		return
 	}
 
-	// Mark run as completed (or failed if any node errored out).
 	finalStatus := "completed"
 	if hasFailedNode {
 		finalStatus = "failed"
@@ -388,7 +387,7 @@ func (s *WorkflowService) executeRun(run db.WorkflowRun, wf db.Workflow, agentID
 		s.Bus.Publish(events.Event{
 			Type:        "workflow_run:completed",
 			WorkspaceID: uuidStr(run.WorkspaceID),
-			Payload:     map[string]any{"run_id": runID, "status": "completed"},
+			Payload:     map[string]any{"run_id": runID, "status": finalStatus},
 		})
 	}
 }
