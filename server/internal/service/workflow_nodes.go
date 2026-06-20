@@ -126,9 +126,6 @@ func delegateToAgent(agentIDStr, triggeredByStr, prompt string) (string, error) 
 	}
 
 	creatorUUID := parseHexUUID(triggeredByStr)
-	if !creatorUUID.Valid {
-		return "", fmt.Errorf("invalid triggered_by user: %s", triggeredByStr)
-	}
 
 	agent, err := q.GetAgent(bgCtx, agentUUID)
 	if err != nil {
@@ -136,6 +133,14 @@ func delegateToAgent(agentIDStr, triggeredByStr, prompt string) (string, error) 
 	}
 	if !agent.RuntimeID.Valid {
 		return "", fmt.Errorf("agent has no runtime")
+	}
+
+	// Use triggered_by user as session creator; fall back to agent owner.
+	if !creatorUUID.Valid {
+		creatorUUID = agent.OwnerID
+	}
+	if !creatorUUID.Valid {
+		return "", fmt.Errorf("no valid creator for chat session")
 	}
 
 	session, err := q.CreateChatSession(bgCtx, db.CreateChatSessionParams{
