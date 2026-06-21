@@ -14,6 +14,7 @@ import { installNavigationGestures } from "./navigation-gestures";
 import { getAppVersion } from "./app-version";
 import { setupLocalBackend, shutdownLocalBackend } from "./local-backend";
 import { showSplash, updateSplashStatus, closeSplash } from "./splash";
+import { createTray, destroyTray, getTrayStrings, isForceQuit, setForceQuit } from "./tray";
 import type { RuntimeConfigResult } from "../shared/runtime-config";
 import {
   createElectronReloadPrompt,
@@ -261,6 +262,39 @@ function createWindow(): void {
   window.on("closed", () => {
     if (mainWindow === window) mainWindow = null;
   });
+
+  // --- System tray integration (Windows) ---------------------------------
+
+  // Close button → ask the user whether to minimize to tray or quit.
+  // Skipped when forceQuit is set (tray "Quit", auto-updater, before-quit).
+  if (process.platform === "win32") {
+    window.on("close", (event) => {
+      if (isForceQuit()) return; // let the window close normally
+
+      event.preventDefault();
+
+      const strings = getTrayStrings(lastKnownSystemLocale);
+      dialog
+        .showMessageBox(window, {
+          type: "question",
+          buttons: [strings.closeDialogMinimize, strings.closeDialogQuit],
+          defaultId: 0,
+          cancelId: 0,
+          title: strings.closeDialogTitle,
+          message: strings.closeDialogMessage,
+        })
+        .then(({ response }) => {
+          if (response === 0) {
+            // Minimize to tray
+            window.hide();
+          } else {
+            // Quit
+            setForceQuit(true);
+            app.quit();
+          }
+        });
+    });
+  }
 
   // Strip Origin header from WebSocket upgrade requests so the server's
   // origin whitelist doesn't reject connections from localhost dev origins.
@@ -618,6 +652,11 @@ if (!gotTheLock) {
 
     createWindow();
 
+    // Windows: create system tray icon so minimize-to-tray works.
+    if (process.platform === "win32") {
+      createTray(BUNDLED_ICON_PATH, () => mainWindow, lastKnownSystemLocale);
+    }
+
     setupAutoUpdater(() => mainWindow);
     setupDaemonManager(() => mainWindow);
     setupLocalDirectory(() => mainWindow);
@@ -647,12 +686,12 @@ if (!gotTheLock) {
 
 let localBackendQuitting = false;
 app.on("before-quit", (event) => {
+  // Ensure close handlers don't intercept during quit.
+  setForceQuit(true);
+  destroyTray();
+
   if (localBackendQuitting) return;
   localBackendQuitting = true;
-  // On macOS, NSPersistentUIManager.flushAllChanges blocks during quit if
-  // the renderer is unresponsive. Destroy the window eagerly so there is no
-  // restorable UI state to serialize — prevents the deadlock especially when
-  // electron-updater's autoInstallOnAppQuit triggers quitAndInstall.
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.removeAllListeners("close");
     mainWindow.destroy();
@@ -665,5 +704,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("window-all-closed", () => {
+  // On Windows, hiding to tray fires window-all-closed — don't quit.
+  if (process.platform === "win32") return;
   if (process.platform !== "darwin") app.quit();
 });
