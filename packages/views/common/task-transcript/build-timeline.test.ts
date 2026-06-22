@@ -93,6 +93,19 @@ describe("task transcript timeline", () => {
     ]);
   });
 
+  it("omits synthesized progress rows and legacy progress stored as thinking", () => {
+    const items = buildTimeline([
+      message(0, "progress", "Running Bash: curl wttr.in/Shenzhen"),
+      message(1, "thinking", "Running Bash: curl wttr.in/Shenzhen"),
+      message(2, "thinking", "Bash result received; reviewing output."),
+      message(3, "thinking", "Checking the requested issue."),
+    ]);
+
+    expect(items).toEqual([
+      expect.objectContaining({ seq: 3, type: "thinking", content: "Checking the requested issue." }),
+    ]);
+  });
+
   it("falls back to the previous created_at when the merged fragment has none", () => {
     const items = coalesceTimelineItems([
       { seq: 1, type: "text", content: "hello ", created_at: "2026-06-09T09:00:00.000Z" },

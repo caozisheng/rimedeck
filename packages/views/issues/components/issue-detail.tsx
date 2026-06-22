@@ -42,7 +42,7 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 import { AvatarGroup, AvatarGroupCount } from "@rimedeck/ui/components/ui/avatar";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { PropRow } from "../../common/prop-row";
-import type { Attachment, Issue, IssueStatus, IssuePriority, TimelineEntry, UpdateIssueRequest } from "@rimedeck/core/types";
+import type { AgentTask, Attachment, Issue, IssueStatus, IssuePriority, TimelineEntry, UpdateIssueRequest } from "@rimedeck/core/types";
 import { contentReferencesAttachment } from "@rimedeck/core/types";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "@rimedeck/core/issues/config";
 import { formatDateOnly } from "@rimedeck/core/issues/date";
@@ -58,6 +58,7 @@ import { ResolvedThreadBar } from "./resolved-thread-bar";
 import { collectThreadReplies, deriveThreadResolution } from "./thread-utils";
 import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
+import { AgentWorkCard } from "./agent-work-card";
 import { PullRequestList } from "./pull-request-list";
 import { useGitHubSettings } from "@rimedeck/core/github";
 import { useQuery } from "@tanstack/react-query";
@@ -66,7 +67,7 @@ import { useWorkspacePaths } from "@rimedeck/core/paths";
 import { useActorName } from "@rimedeck/core/workspace/hooks";
 import { useWorkspaceId } from "@rimedeck/core/hooks";
 import { useRecentContextStore } from "@rimedeck/core/chat";
-import { issueListOptions, issueDetailOptions, childIssuesOptions, issueUsageOptions, issueAttachmentsOptions } from "@rimedeck/core/issues/queries";
+import { issueKeys, issueListOptions, issueDetailOptions, childIssuesOptions, issueUsageOptions, issueAttachmentsOptions } from "@rimedeck/core/issues/queries";
 import { projectDetailOptions } from "@rimedeck/core/projects/queries";
 import { ProjectIcon } from "../../projects/components/project-icon";
 import { issueLabelsOptions } from "@rimedeck/core/labels";
@@ -77,6 +78,8 @@ import { BatchActionToolbar } from "./batch-action-toolbar";
 import { useIssueTimeline } from "../hooks/use-issue-timeline";
 import { useIssueReactions } from "../hooks/use-issue-reactions";
 import { useIssueSubscribers } from "../hooks/use-issue-subscribers";
+import { buildCommentTaskLinks } from "../utils/task-comment-link";
+import { buildPendingAgentReplyPlacement } from "../utils/pending-agent-replies";
 import { ReactionBar } from "@rimedeck/ui/components/common/reaction-bar";
 import { useFileUpload } from "@rimedeck/core/hooks/use-file-upload";
 import { api } from "@rimedeck/core/api";
@@ -172,7 +175,7 @@ function SubscriberPopoverContent({
 }
 
 function shortDate(date: string | null): string {
-  if (!date) return "â€”";
+  if (!date) return "-";
   return formatDateOnly(date, { month: "short", day: "numeric" }, "en-US");
 }
 
@@ -291,10 +294,10 @@ const EMPTY_REPLIES: TimelineEntry[] = [];
 //     the user explicitly added it via "+ Add property" in this session
 //     (priority / due_date / labels)
 //
-// Parent is not in either group â€” it has its own standalone section below
+// Parent is not in either group â€?it has its own standalone section below
 // the Properties block, rendered only when the issue actually has a parent.
 //
-// `OPTIONAL_PROP_KEYS` is the open set â€” adding a new optional field
+// `OPTIONAL_PROP_KEYS` is the open set â€?adding a new optional field
 // means appending here, wiring its row in the JSX switch below, and
 // adding a locale key. The picker, visibility rules, and add-property
 // menu all flow from this one list.
@@ -339,7 +342,8 @@ function shallowEqualEntries(a: TimelineEntry[], b: TimelineEntry[]): boolean {
 type TimelineItem =
   | { kind: "comment"; id: string; entry: TimelineEntry }
   | { kind: "resolved-bar"; id: string; entry: TimelineEntry }
-  | { kind: "activity-group"; id: string; entries: TimelineEntry[] };
+  | { kind: "activity-group"; id: string; entries: TimelineEntry[] }
+  | { kind: "agent-work"; id: string; task: AgentTask };
 
 type RawTimelineGroup = {
   type: "comment" | "activities";
@@ -349,6 +353,7 @@ type RawTimelineGroup = {
 function flattenGroups(
   groups: ReadonlyArray<RawTimelineGroup>,
   expandedResolved: ReadonlySet<string>,
+  activeTasks: ReadonlyArray<AgentTask> = [],
 ): TimelineItem[] {
   const out: TimelineItem[] = [];
   for (const group of groups) {
@@ -368,6 +373,9 @@ function flattenGroups(
         entries: group.entries,
       });
     }
+  }
+  for (const task of activeTasks) {
+    out.push({ kind: "agent-work", id: task.id, task });
   }
   return out;
 }
@@ -390,7 +398,7 @@ function TimelineSkeleton() {
 }
 
 // When the trailing block is expanded, we still truncate its body to the most
-// recent N entries â€” a single block of 50 status flips drowns the comment area
+// recent N entries â€?a single block of 50 status flips drowns the comment area
 // as badly as N blocks of 1 would. Older entries fold behind a "Show N more
 // activities" line that expands in place.
 const LAST_ACTIVITY_BLOCK_VISIBLE_LIMIT = 8;
@@ -447,7 +455,7 @@ function ActivityBlock({
     hiddenOlderCount > 0 ? entries.slice(-LAST_ACTIVITY_BLOCK_VISIBLE_LIMIT) : entries;
   // Hide the "v N activities" collapse header while we're in the truncated
   // default state. The "Show N more" link is the only control users need
-  // when they're glancing at recent activity â€” stacking two chevron rows
+  // when they're glancing at recent activity â€?stacking two chevron rows
   // looked like nested folds and added visual noise without value. Once the
   // user explicitly reveals older entries, the header reappears so they can
   // fold the whole block back to a single count line.
@@ -530,7 +538,7 @@ function ActivityBlock({
 }
 
 // ---------------------------------------------------------------------------
-// SubIssueRow â€” sub-issue list item with inline status & assignee editing
+// SubIssueRow â€?sub-issue list item with inline status & assignee editing
 // ---------------------------------------------------------------------------
 
 function SubIssueRow({ child }: { child: Issue }) {
@@ -559,7 +567,7 @@ function SubIssueRow({ child }: { child: Issue }) {
   );
 
   // AppLink wraps only the title/identifier area. Pickers and checkbox are
-  // siblings, so their clicks never navigate â€” no stopPropagation acrobatics
+  // siblings, so their clicks never navigate â€?no stopPropagation acrobatics
   // and no risk of the native checkbox / picker triggers being blocked.
   return (
     <div
@@ -665,7 +673,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const user = useAuthStore((s) => s.user);
   const paths = useWorkspacePaths();
 
-  // Issue navigation â€” read from TQ list cache
+  // Issue navigation â€?read from TQ list cache
   const wsId = useWorkspaceId();
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
@@ -704,7 +712,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // Per-issue, per-session set of optional properties currently visible in
   // the sidebar Properties section. Seeded on issue switch with whichever
   // fields are already set; "+ Add property" adds an entry, clearing a
-  // value does *not* remove one (avoids row-flicker on edit â†’ clear).
+  // value does *not* remove one (avoids row-flicker on edit â†?clear).
   // Resets when the user navigates to a different issue.
   const [visibleOptionalProps, setVisibleOptionalProps] = useState<Set<OptionalPropKey>>(
     () => new Set(),
@@ -715,7 +723,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const [autoOpenProp, setAutoOpenProp] = useState<OptionalPropKey | null>(null);
   // Controlled state for the "+ Add property" popover. Base UI's Popover
   // doesn't auto-dismiss on item click (it's not a Menu primitive), so the
-  // popover would stay open behind the newly auto-opened picker â€” two
+  // popover would stay open behind the newly auto-opened picker â€?two
   // popovers stacked. We close it explicitly in `addOptionalProp`.
   const [addPropPopoverOpen, setAddPropPopoverOpen] = useState(false);
   // Virtuoso's `customScrollParent` wants the HTMLElement, not a ref. A plain
@@ -726,7 +734,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   // Per-session: which resolved threads the user has temporarily expanded.
-  // Not persisted (matches Linear) â€” reload collapses everything back to bars.
+  // Not persisted (matches Linear) â€?reload collapses everything back to bars.
   const [expandedResolved, setExpandedResolved] = useState<Set<string>>(() => new Set());
   const toggleResolvedExpand = useCallback((commentId: string, expand: boolean) => {
     setExpandedResolved((prev) => {
@@ -757,7 +765,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // "only the trailing block is expanded" (computed from timelineView.groups
   // below); these two sets capture user clicks that diverge from the default.
   // Two sets are needed because "default" can flip when a new activity block
-  // appends â€” without an explicit collapse override, a manually-collapsed
+  // appends â€?without an explicit collapse override, a manually-collapsed
   // older block would re-expand when it stops being the trailing one (or vice
   // versa). Not persisted, matches the resolved-thread behaviour above.
   const [expandedActivityIds, setExpandedActivityIds] = useState<Set<string>>(() => new Set());
@@ -805,9 +813,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   }, []);
   const didHighlightRef = useRef<string | null>(null);
 
-  // Issue data from TQ â€” uses detail query, seeded from list cache if available.
+  // Issue data from TQ â€?uses detail query, seeded from list cache if available.
   // Only seed when description is present; list API omits it, and ContentEditor
-  // reads defaultValue on mount only â€” seeding null description shows an empty editor.
+  // reads defaultValue on mount only â€?seeding null description shows an empty editor.
   const { data: issue = null, isLoading: issueLoading } = useQuery({
     ...issueDetailOptions(wsId, id),
     initialData: () => {
@@ -834,7 +842,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
   // Fire `onDelete` once when the issue transitions from loaded to missing.
   // Delete goes through a shell-level modal, so the caller (e.g. inbox) can't
-  // be notified directly â€” instead, the detail page observes its own cache
+  // be notified directly â€?instead, the detail page observes its own cache
   // clearing and runs the callback. We navigate via `onDeletedNavigateTo` on
   // the actions menu when no callback is supplied (standalone routes).
   const hadIssueRef = useRef(false);
@@ -856,17 +864,50 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     }
   }, [issue, issueLoading, onDelete]);
 
-  // Custom hooks â€” encapsulate timeline, reactions, subscribers
+  // Custom hooks â€?encapsulate timeline, reactions, subscribers
   const {
     timeline, loading: timelineLoading,
     submitComment, submitReply,
     editComment, deleteComment, toggleResolveComment, toggleReaction: handleToggleReaction,
   } = useIssueTimeline(id, user?.id);
 
+  const { data: issueTasks = [] } = useQuery({
+    queryKey: issueKeys.tasks(id),
+    queryFn: () => api.listTasksByIssue(id),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const activeTimelineTasks = useMemo(
+    () =>
+      issueTasks
+        .filter((task) =>
+          task.status === "queued" ||
+          task.status === "dispatched" ||
+          task.status === "waiting_local_directory" ||
+          task.status === "running",
+        )
+        .toSorted(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        ),
+    [issueTasks],
+  );
+
+  const commentTaskLinks = useMemo(
+    () => buildCommentTaskLinks(timeline, issueTasks),
+    [timeline, issueTasks],
+  );
+
+  const pendingAgentReplyPlacement = useMemo(
+    () => buildPendingAgentReplyPlacement(timeline, activeTimelineTasks, commentTaskLinks),
+    [timeline, activeTimelineTasks, commentTaskLinks],
+  );
+
   // Resolve / unresolve must always clear the per-session expand entry so
   // re-resolving an already-expanded thread folds it back to the bar (the
   // expand Set is keyed only on commentId, not on resolution state). Without
-  // this wrapper, an expand â†’ unresolve â†’ resolve sequence keeps the thread
+  // this wrapper, an expand â†?unresolve â†?resolve sequence keeps the thread
   // visually expanded after the second resolve.
   const handleResolveToggle = useCallback(
     (commentId: string, resolved: boolean) => {
@@ -975,11 +1016,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // resolved thread). Kept in a useMemo so Virtuoso's data identity is stable
   // across unrelated re-renders.
   const items = useMemo<TimelineItem[]>(
-    () => flattenGroups(timelineView.groups, expandedResolved),
-    [timelineView.groups, expandedResolved],
+    () => flattenGroups(timelineView.groups, expandedResolved, pendingAgentReplyPlacement.unplacedTasks),
+    [timelineView.groups, expandedResolved, pendingAgentReplyPlacement.unplacedTasks],
   );
 
-  // ID of the trailing activity block â€” the only one expanded by default.
+  // ID of the trailing activity block â€?the only one expanded by default.
   const lastActivityGroupId = useMemo(() => {
     for (let i = timelineView.groups.length - 1; i >= 0; i--) {
       const g = timelineView.groups[i]!;
@@ -988,7 +1029,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     return null;
   }, [timelineView.groups]);
 
-  // Map of reply-comment id â†’ root-comment id, so a deep-link to a reply
+  // Map of reply-comment id â†?root-comment id, so a deep-link to a reply
   // (which lives inside a CommentCard, not in the flat items array) can fall
   // back to scrolling the root thread into view. Without this, an inbox
   // notification on a reply would land at items[-1] and short-circuit.
@@ -1040,7 +1081,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   });
 
   // Project segment in the breadcrumb. The issue's project_id is the source of
-  // truth â€” same URL renders the same breadcrumb regardless of entry path.
+  // truth â€?same URL renders the same breadcrumb regardless of entry path.
   const issueProjectId = issue?.project_id;
   const { data: breadcrumbProject = null } = useQuery({
     ...projectDetailOptions(wsId, issueProjectId ?? ""),
@@ -1050,8 +1091,8 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     ...childIssuesOptions(wsId, id),
     enabled: !!issue,
   });
-  // Parent's children â€” used to render the "x/y" progress next to the
-  // "Sub-issue of â€¦" breadcrumb under the title.
+  // Parent's children â€?used to render the "x/y" progress next to the
+  // "Sub-issue of â€? breadcrumb under the title.
   const { data: parentChildIssues = [] } = useQuery({
     ...childIssuesOptions(wsId, parentIssueId ?? ""),
     enabled: !!parentIssueId,
@@ -1104,12 +1145,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
     const rootId = replyToRoot.get(highlightCommentId);
     if (rootId && rootId !== highlightCommentId) {
-      // Root resolved â†’ the whole thread is a folded bar.
+      // Root resolved â†?the whole thread is a folded bar.
       if (items[targetIdx]?.kind === "resolved-bar") {
         toggleResolvedExpand(rootId, true);
         return;
       }
-      // A reply is the resolution â†’ the other replies fold behind the
+      // A reply is the resolution â†?the other replies fold behind the
       // "N comments" bar; expand if the target is one of those folded replies.
       const rootItem = items[targetIdx];
       if (rootItem?.kind === "comment" && !expandedResolved.has(rootId)) {
@@ -1131,11 +1172,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     didHighlightRef.current = highlightCommentId;
 
     // Center the target comment WITHIN its own scroll container by driving the
-    // container's scrollTop directly â€” never native scrollIntoView. Native
+    // container's scrollTop directly â€?never native scrollIntoView. Native
     // scrollIntoView is spec'd to scroll EVERY scrollable ancestor: on a cold
     // mount where the timeline is still growing (streaming agent), the inner
     // scroller can't satisfy centering on its own, so the scroll propagates up
-    // and moves the desktop shell's `overflow:hidden` wrapper â€” shoving the
+    // and moves the desktop shell's `overflow:hidden` wrapper â€?shoving the
     // whole page, header included, off the top with no scrollbar to recover,
     // until a resize reflows it (#3929). Scoping the scroll to `container`
     // keeps it contained; re-centering across frames lands the comment
@@ -1152,7 +1193,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         container.scrollTop + (e.top - c.top) - (container.clientHeight - e.height) / 2,
       );
       container.scrollTop = target;
-      // Content is still laying out â†’ the centered offset keeps shifting; keep
+      // Content is still laying out â†?the centered offset keeps shifting; keep
       // re-centering until it stabilizes (within 1px) or we hit ~0.5s of frames.
       if (Math.abs(target - last) > 1 && ++frames < 30) {
         last = target;
@@ -1170,7 +1211,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   }, [highlightCommentId, items, targetIdx, scrollContainerEl, replyToRoot, expandedResolved, timelineView, toggleResolvedExpand]);
 
   // Cmd-F / Ctrl-F on a virtualized timeline only searches what's mounted in
-  // the viewport â€” off-screen comments are invisible to browser find-in-page.
+  // the viewport â€?off-screen comments are invisible to browser find-in-page.
   // Intercept once per (session, issue) when the list is long enough that the
   // user might actually try; let the keystroke pass through on short lists.
   // Real fix is in-app search (separate PR); this is the toast stopgap.
@@ -1229,7 +1270,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const actions = useIssueActions(issue);
   const handleUpdateField = actions.updateField;
 
-  // Labels live in their own query (not on the issue body) â€” fetch the count
+  // Labels live in their own query (not on the issue body) â€?fetch the count
   // here so seeding can decide whether the "Labels" optional row should be
   // shown for an issue that already has labels attached.
   const { data: attachedLabels = [] } = useQuery(issueLabelsOptions(wsId, id));
@@ -1239,7 +1280,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   //   - on issue switch, reset to whichever fields are currently set
   //   - on the SAME issue, additively pick up fields the user just set
   //     (so the row stays visible after they edit + clear in one session)
-  // Removal happens only on issue switch â€” never on clear.
+  // Removal happens only on issue switch â€?never on clear.
   const seededIssueIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!issue) return;
@@ -1378,7 +1419,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           <ChevronRight className={`!size-3 shrink-0 stroke-[2.5] text-muted-foreground transition-transform ${propertiesOpen ? "rotate-90" : ""}`} />
         </button>
         {propertiesOpen && <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 pl-2">
-          {/* Core props â€” always rendered. */}
+          {/* Core props â€?always rendered. */}
           <PropRow label={t(($) => $.detail.prop_status)}>
             <StatusPicker status={issue.status} onUpdate={handleUpdateField} align="start" />
           </PropRow>
@@ -1392,7 +1433,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             />
           </PropRow>
 
-          {/* Optional props â€” rendered only when set on the issue OR added
+          {/* Optional props â€?rendered only when set on the issue OR added
               via "+ Add property" in this session. Row order follows the
               order of `OPTIONAL_PROP_KEYS`. */}
           {visibleOptionalProps.has("priority") && (
@@ -1433,7 +1474,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             </PropRow>
           )}
 
-          {/* "+ Add property" â€” opens a Popover listing optional fields
+          {/* "+ Add property" â€?opens a Popover listing optional fields
               not yet displayed. Hidden once every optional field is on
               screen. Sits inside the same grid as a full-row, with its
               own padding so the visual rhythm follows the rows above. */}
@@ -1485,7 +1526,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </div>}
       </div>
 
-      {/* Parent issue â€” standalone section, only when the issue has a
+      {/* Parent issue â€?standalone section, only when the issue has a
           parent. Setting a parent is reachable via the issue actions menu;
           this card surfaces an existing parent without occupying sidebar
           space for issues that don't have one. */}
@@ -1512,7 +1553,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </div>
       )}
 
-      {/* Pull requests â€” hidden when the workspace disables the PR sidebar
+      {/* Pull requests â€?hidden when the workspace disables the PR sidebar
           (or the GitHub master switch is off). Backend data is kept either
           way so re-enabling restores the section instantly. */}
       {githubSettings.prSidebar && (
@@ -1553,7 +1594,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </div>}
       </div>
 
-      {/* Execution log â€” active runs + collapsed past runs. Self-contained;
+      {/* Execution log â€?active runs + collapsed past runs. Self-contained;
           owns its own collapse state and WS subscriptions. Hides itself
           when there are no runs to show. */}
       <ExecutionLogSection issueId={id} />
@@ -1593,11 +1634,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </div>
       )}
 
-      {/* Metadata â€” agent-facing free-form KV bag. The values almost
+      {/* Metadata â€?agent-facing free-form KV bag. The values almost
           never mean anything to humans, so the trigger row matches the
           sibling section headers (Pull requests / Details / Parent issue)
           but clicking opens a dialog with the raw JSON instead of expanding
-          inline â€” the payload can be large and pushing the rest of the
+          inline â€?the payload can be large and pushing the rest of the
           sidebar down was noisy. */}
       {Object.keys(issue.metadata ?? {}).length > 0 && (
         <>
@@ -1627,7 +1668,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   );
 
   // Shared row renderer for both timeline render modes (flat / virtualized).
-  // The wrapper `id="comment-..."` is the deep-link target â€” equivalent to
+  // The wrapper `id="comment-..."` is the deep-link target â€?equivalent to
   // a native `<a href="#comment-...">` anchor.
   const renderItem = (_i: number, item: TimelineItem): React.ReactElement => {
     if (item.kind === "resolved-bar") {
@@ -1660,7 +1701,17 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             expandedResolvedIds={expandedResolved}
             onResolvedExpandChange={toggleResolvedExpand}
             highlightedCommentId={highlightedId}
+            taskId={commentTaskLinks.get(item.id)}
+            commentTaskLinks={commentTaskLinks}
+            pendingAgentReplies={pendingAgentReplyPlacement.pendingByRoot.get(item.id)}
           />
+        </div>
+      );
+    }
+    if (item.kind === "agent-work") {
+      return (
+        <div className="pb-3" id={`task-${item.id}`}>
+          <AgentWorkCard task={item.task} />
         </div>
       );
     }
@@ -1691,7 +1742,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // project_id and parent_issue_id are orthogonal (a sub-issue can live in a
   // different project than its parent), so we never render both: parent wins,
   // else project, else nothing. The project is still shown in the properties
-  // panel. The workspace name is intentionally absent â€” "all issues" is a view,
+  // panel. The workspace name is intentionally absent â€?"all issues" is a view,
   // not a container.
   const breadcrumbSegments: BreadcrumbSegment[] = parentIssue
     ? [{ href: paths.issueDetail(parentIssue.id), label: parentIssue.identifier }]
@@ -1875,7 +1926,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                 // freshly-signed `download_url`, and the persisted auth-gated
                 // download endpoint fails to load as a native <img> on clients
                 // whose origin isn't the API host (Desktop/Electron, mobile
-                // webview) â€” while still working on web via the cookie/proxy.
+                // webview) â€?while still working on web via the cookie/proxy.
                 // This mirrors the comment/reply/chat composers, which already
                 // bind via `contentReferencesAttachment` (MUL-3130 / MUL-3192).
                 const ids = descPendingAttachmentsRef.current
@@ -1885,7 +1936,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               }}
               onUploadFile={handleDescriptionUpload}
               debounceMs={1500}
-              // Closing the issue modal must save what the user last saw â€”
+              // Closing the issue modal must save what the user last saw â€?
               // without the flush, a paste followed by a quick close loses
               // the image markdown and its attachment_ids bind (MUL-3254).
               flushPendingOnUnmount
@@ -1908,7 +1959,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             {descDragOver && <FileDropOverlay />}
           </div>
 
-          {/* Sub-issues â€” Linear-style */}
+          {/* Sub-issues â€?Linear-style */}
           {childIssues.length === 0 && (
             <div className="mt-6">
               <button
@@ -1978,7 +2029,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                   </Tooltip>
                 </div>
 
-                {/* Inline batch toolbar â€” appears next to the rows when
+                {/* Inline batch toolbar â€?appears next to the rows when
                     selections exist, instead of as a far-away fixed bar. */}
                 <BatchActionToolbar placement="inline" />
 
@@ -2058,7 +2109,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                 The per-task timeline + past runs live in the right panel
                 via ExecutionLogSection. */}
 
-            {/* Timeline entries â€” virtualized via react-virtuoso to keep
+            {/* Timeline entries â€?virtualized via react-virtuoso to keep
                 first-paint cost O(viewport) instead of O(N). On a 500-comment
                 issue the unvirtualized .map froze the page for several
                 seconds (markdown parse + lowlight code highlight runs per
@@ -2072,15 +2123,15 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               <TimelineSkeleton />
             ) : (
               // Two render modes:
-              //   - `highlightCommentId` set (came from inbox deep-link) â†’
+              //   - `highlightCommentId` set (came from inbox deep-link) â†?
               //     render flat. Every comment mounts, every height is real,
               //     the target id is in the DOM the instant the useEffect
               //     above runs `scrollIntoView`. No virtualization estimate
               //     errors, no spacer reflow drift. Pays cold-mount cost
               //     proportional to items.length (markdown + lowlight per
-              //     comment), which is acceptable in the deep-link case â€”
+              //     comment), which is acceptable in the deep-link case â€?
               //     the user has explicit intent to land on a specific item.
-              //   - otherwise â†’ Virtuoso. Browsing mode, virtualization
+              //   - otherwise â†?Virtuoso. Browsing mode, virtualization
               //     wins on first-paint perf for long timelines.
               //
               // The split is deliberate: virtualization and "land precisely
@@ -2105,7 +2156,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       // followOutput intentionally NOT set. Virtuoso treats
                       // it as a sticky "is at bottom" flag and resets
                       // scrollTop to maxScrollTop on every height-change
-                      // tick â€” issue-detail is document-shaped, not chat.
+                      // tick â€?issue-detail is document-shaped, not chat.
                       itemContent={renderItem}
                     />
                   </div>
@@ -2121,7 +2172,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               )
             )}
 
-            {/* Bottom comment input â€” no avatar, full width */}
+            {/* Bottom comment input â€?no avatar, full width */}
             <div className="mt-4">
               {/* key={id}: web's /issues/[id] route doesn't remount on
                   issueId change, so without an explicit key the editor

@@ -259,6 +259,7 @@ func handleTaskActivity(ctx context.Context, bus *events.Bus, queries *db.Querie
 	}
 	agentID, _ := payload["agent_id"].(string)
 	issueID, _ := payload["issue_id"].(string)
+	taskID, _ := payload["task_id"].(string)
 	if issueID == "" {
 		return
 	}
@@ -277,7 +278,7 @@ func handleTaskActivity(ctx context.Context, bus *events.Bus, queries *db.Querie
 		ActorType:   util.StrToText("agent"),
 		ActorID:     parseUUID(agentID),
 		Action:      action,
-		Details:     []byte("{}"),
+		Details:     taskActivityDetails(taskID),
 	})
 	if err != nil {
 		slog.Error("activity: failed to record task activity",
@@ -286,6 +287,17 @@ func handleTaskActivity(ctx context.Context, bus *events.Bus, queries *db.Querie
 	}
 
 	publishActivityEvent(bus, e, activity)
+}
+
+func taskActivityDetails(taskID string) []byte {
+	if taskID == "" {
+		return []byte("{}")
+	}
+	details, err := json.Marshal(map[string]string{"task_id": taskID})
+	if err != nil {
+		return []byte("{}")
+	}
+	return details
 }
 
 // publishActivityEvent sends an activity:created event for WS broadcasting.

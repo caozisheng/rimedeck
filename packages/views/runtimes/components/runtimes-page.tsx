@@ -53,6 +53,8 @@ interface RuntimesPageProps {
   localMachineActions?: React.ReactNode;
   /** Desktop-only synthetic machines, e.g. WSL distros before their daemon registers. */
   extraLocalMachines?: RuntimeMachine[];
+  /** Desktop-only daemon ids belonging to managed WSL distros. */
+  localWslDaemonIds?: Set<string>;
   /** Desktop-only per-machine controls, used for Windows vs WSL daemon actions. */
   machineActions?: (machine: RuntimeMachine) => React.ReactNode;
   /** Desktop-only replacement for the Add a computer dialog. */
@@ -93,6 +95,7 @@ export function RuntimesPage({
   localMachineName,
   localMachineActions,
   extraLocalMachines,
+  localWslDaemonIds,
   machineActions,
   connectComputerDialog,
   hasLocalMachine,
@@ -152,6 +155,7 @@ export function RuntimesPage({
         workloadByRuntimeId: workloadIndex,
         ensureLocalMachine: hasLocalMachine,
         extraLocalMachines,
+        localWslDaemonIds,
       }),
     [
       runtimes,
@@ -162,6 +166,7 @@ export function RuntimesPage({
       workloadIndex,
       hasLocalMachine,
       extraLocalMachines,
+      localWslDaemonIds,
     ],
   );
 

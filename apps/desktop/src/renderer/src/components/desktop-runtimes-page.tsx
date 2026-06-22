@@ -20,6 +20,7 @@ import type {
 } from "../../../shared/daemon-types";
 
 const WSL_MACHINE_PREFIX = "local-wsl:";
+const WSL_DAEMON_MACHINE_PREFIX = "local-wsl-daemon:";
 
 /**
  * Desktop wrapper around the shared `RuntimesPage`. The Desktop process owns
@@ -56,14 +57,24 @@ export function DesktopRuntimesPage() {
     status.state === "starting" ||
     status.state === "running" ||
     wsl.machines.some((machine) => machine.health === "online");
+  const wslDaemonIds = useMemo(
+    () =>
+      new Set(
+        wsl.machines
+          .map((machine) => machine.daemonId)
+          .filter((id): id is string => !!id),
+      ),
+    [wsl.machines],
+  );
 
   return (
     <RuntimesPage
       localDaemonId={status.daemonId ?? lastIdentity.daemonId}
       localMachineName={status.deviceName ?? lastIdentity.deviceName ?? hostName}
       extraLocalMachines={wsl.machines}
+      localWslDaemonIds={wslDaemonIds}
       machineActions={(machine) =>
-        machine.id.startsWith(WSL_MACHINE_PREFIX) ? (
+        isWslMachine(machine) ? (
           <WslRuntimeActions machine={machine} busy={wsl.busy} onRun={wsl.run} />
         ) : machine.isCurrent ? (
           <DaemonRuntimeActions />
@@ -181,9 +192,12 @@ function wslMachineFromStatus({
 }): RuntimeMachine {
   const state = status?.state ?? "stopped";
   const online = state === "running";
+  const daemonId = status?.daemonId ?? null;
   return {
-    id: `${WSL_MACHINE_PREFIX}${distro}`,
-    daemonId: status?.daemonId ?? null,
+    id: daemonId
+      ? `${WSL_DAEMON_MACHINE_PREFIX}${daemonId}`
+      : `${WSL_MACHINE_PREFIX}${distro}`,
+    daemonId,
     title: hostName ? `${hostName} WSL` : "This machine WSL",
     subtitle: distro,
     deviceInfo: distro,
@@ -441,6 +455,13 @@ function wslDistroFromMachine(machine: RuntimeMachine): string {
     return machine.id.slice(WSL_MACHINE_PREFIX.length);
   }
   return machine.subtitle ?? machine.title.replace(/^WSL:\s*/, "");
+}
+
+function isWslMachine(machine: RuntimeMachine): boolean {
+  return (
+    machine.id.startsWith(WSL_MACHINE_PREFIX) ||
+    machine.id.startsWith(WSL_DAEMON_MACHINE_PREFIX)
+  );
 }
 
 function errorMessage(err: unknown): string {

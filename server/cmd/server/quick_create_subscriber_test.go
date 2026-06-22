@@ -153,7 +153,7 @@ func TestQuickCreateFailure_WritesFailureInbox(t *testing.T) {
 	}
 
 	// Fail the task — the completion handler should write a failure inbox.
-	if err := taskSvc.FailTask(ctx, task.ID, "agent crashed", "agent_error"); err != nil {
+	if _, err := taskSvc.FailTask(ctx, task.ID, "agent crashed", "", "", "agent_error"); err != nil {
 		t.Fatalf("FailTask: %v", err)
 	}
 

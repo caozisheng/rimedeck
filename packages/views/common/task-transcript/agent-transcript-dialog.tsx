@@ -39,6 +39,7 @@ import { useTranscriptViewStore, type TranscriptSortDirection } from "@rimedeck/
 import type { AgentTask, Agent, AgentRuntime } from "@rimedeck/core/types/agent";
 import { redactSecrets } from "./redact";
 import type { TimelineItem } from "./build-timeline";
+import { getToolDisplayName } from "./tool-labels";
 import { useT } from "../../i18n";
 
 interface AgentTranscriptDialogProps {
@@ -95,9 +96,9 @@ function getEventLabel(item: TimelineItem): string {
     case "thinking":
       return "Thinking";
     case "tool_use":
-      return item.tool ?? "Tool";
+      return getToolDisplayName(item.tool) ?? "Tool";
     case "tool_result":
-      return item.tool ? `${item.tool}` : "Result";
+      return getToolDisplayName(item.tool) ?? "Result";
     case "error":
       return "Error";
     default:
@@ -197,7 +198,7 @@ export function AgentTranscriptDialog({
     for (const item of items) {
       if (item.tool && (item.type === "tool_use" || item.type === "tool_result")) {
         const key = `tool:${item.tool}`;
-        if (!options.has(key)) options.set(key, key);
+        if (!options.has(key)) options.set(key, `tool:${getToolDisplayName(item.tool) ?? item.tool}`);
       } else {
         const value = item.type;
         if (!options.has(value)) {

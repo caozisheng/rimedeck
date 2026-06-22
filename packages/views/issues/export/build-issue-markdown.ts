@@ -1,5 +1,6 @@
 import type { Issue, TimelineEntry, AgentTask } from "@rimedeck/core/types";
 import type { TimelineItem } from "../../common/task-transcript/build-timeline";
+import { getToolDisplayName } from "../../common/task-transcript/tool-labels";
 
 export interface ExportContext {
   issue: Issue;
@@ -184,7 +185,7 @@ function renderTranscript(task: AgentTask, items: TimelineItem[]): string {
         }
         break;
       case "tool_use":
-        lines.push(`**[${item.seq}] Tool: ${item.tool ?? "unknown"}**`);
+        lines.push(`**[${item.seq}] Tool: ${getToolDisplayName(item.tool) ?? "unknown"}**`);
         if (item.input) {
           lines.push("```json");
           lines.push(JSON.stringify(item.input, null, 2));
@@ -223,9 +224,9 @@ function getEventLabel(item: TimelineItem): string {
     case "thinking":
       return "Thinking";
     case "tool_use":
-      return item.tool ?? "Tool";
+      return getToolDisplayName(item.tool) ?? "Tool";
     case "tool_result":
-      return item.tool ? `${item.tool}` : "Result";
+      return getToolDisplayName(item.tool) ?? "Result";
     case "error":
       return "Error";
     default:

@@ -422,6 +422,12 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		runtimeName = overrides.RuntimeName
 	}
 
+	launchedBy := strings.TrimSpace(os.Getenv("MULTICA_LAUNCHED_BY"))
+	hostKind := strings.TrimSpace(os.Getenv("MULTICA_HOST_KIND"))
+	hostOS := strings.TrimSpace(os.Getenv("MULTICA_HOST_OS"))
+	wslDistro := strings.TrimSpace(os.Getenv("MULTICA_WSL_DISTRO"))
+	managedByDesktop := envBool("MULTICA_MANAGED_BY_DESKTOP")
+
 	// Workspaces root: override > env > default (~/.rimedeck/workspaces or ~/.rimedeck/workspaces_<profile>)
 	workspacesRoot, err := ResolveWorkspacesRoot(profile, overrides.WorkspacesRoot)
 	if err != nil {
@@ -493,6 +499,11 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		LegacyDaemonIDs:                legacyDaemonIDs,
 		DeviceName:                     deviceName,
 		RuntimeName:                    runtimeName,
+		LaunchedBy:                     launchedBy,
+		HostKind:                       hostKind,
+		HostOS:                         hostOS,
+		WSLDistro:                      wslDistro,
+		ManagedByDesktop:               managedByDesktop,
 		Profile:                        profile,
 		Agents:                         agents,
 		WorkspacesRoot:                 workspacesRoot,
@@ -821,6 +832,15 @@ func isSafeAgentName(s string) bool {
 		}
 	}
 	return true
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "true", "1", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // openclawOverrideFrom returns the OpenClaw override block from a loaded

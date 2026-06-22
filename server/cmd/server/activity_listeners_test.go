@@ -308,6 +308,13 @@ func TestActivityTaskCompleted(t *testing.T) {
 	if util.UUIDToString(activities[0].ActorID) != agentID {
 		t.Fatalf("expected actor_id %s, got %s", agentID, util.UUIDToString(activities[0].ActorID))
 	}
+	var details map[string]string
+	if err := json.Unmarshal(activities[0].Details, &details); err != nil {
+		t.Fatalf("failed to unmarshal details: %v", err)
+	}
+	if details["task_id"] != "00000000-0000-0000-0000-000000000001" {
+		t.Fatalf("expected task_id in details, got %q", details["task_id"])
+	}
 }
 
 func TestActivityTaskFailed(t *testing.T) {
@@ -342,5 +349,12 @@ func TestActivityTaskFailed(t *testing.T) {
 	}
 	if activities[0].Action != "task_failed" {
 		t.Fatalf("expected action 'task_failed', got %q", activities[0].Action)
+	}
+	var details map[string]string
+	if err := json.Unmarshal(activities[0].Details, &details); err != nil {
+		t.Fatalf("failed to unmarshal details: %v", err)
+	}
+	if details["task_id"] != "00000000-0000-0000-0000-000000000002" {
+		t.Fatalf("expected task_id in details, got %q", details["task_id"])
 	}
 }

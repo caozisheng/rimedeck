@@ -283,6 +283,38 @@ func TestLoadConfig_AutoUpdateEnv_ForcesOffForCloud(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_CapturesDesktopWslHostMetadata(t *testing.T) {
+	stageFakeAgent(t)
+	t.Setenv("MULTICA_LAUNCHED_BY", "desktop")
+	t.Setenv("MULTICA_MANAGED_BY_DESKTOP", "true")
+	t.Setenv("MULTICA_HOST_KIND", "wsl")
+	t.Setenv("MULTICA_HOST_OS", "linux")
+	t.Setenv("MULTICA_WSL_DISTRO", "Ubuntu-24.04")
+
+	cfg, err := LoadConfig(Overrides{
+		ServerURL:      "http://localhost:8080",
+		WorkspacesRoot: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.LaunchedBy != "desktop" {
+		t.Fatalf("LaunchedBy = %q, want desktop", cfg.LaunchedBy)
+	}
+	if !cfg.ManagedByDesktop {
+		t.Fatalf("ManagedByDesktop = false, want true")
+	}
+	if cfg.HostKind != "wsl" {
+		t.Fatalf("HostKind = %q, want wsl", cfg.HostKind)
+	}
+	if cfg.HostOS != "linux" {
+		t.Fatalf("HostOS = %q, want linux", cfg.HostOS)
+	}
+	if cfg.WSLDistro != "Ubuntu-24.04" {
+		t.Fatalf("WSLDistro = %q, want Ubuntu-24.04", cfg.WSLDistro)
+	}
+}
+
 // TestLoadConfig_AutoUpdate_NoFlagWinsOverCloudDefault keeps the legacy CLI
 // flag working: --no-auto-update (translated into overrides.DisableAutoUpdate)
 // forces auto-update off even when the cloud default and env var would enable.

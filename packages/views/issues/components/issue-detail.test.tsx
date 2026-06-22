@@ -777,6 +777,141 @@ describe("IssueDetail (shared)", () => {
     expect(screen.getAllByText("I can help with this").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("renders active agent work inline in the main timeline", async () => {
+    mockApiObj.listTasksByIssue.mockResolvedValue([
+      {
+        id: "00000000-0000-0000-0000-000000000001",
+        agent_id: "agent-1",
+        runtime_id: "runtime-1",
+        issue_id: "issue-1",
+        status: "running",
+        priority: 0,
+        dispatched_at: null,
+        started_at: "2026-06-08T08:00:00Z",
+        completed_at: null,
+        result: null,
+        error: null,
+        created_at: "2026-06-08T08:00:00Z",
+        trigger_summary: "Started from comment",
+      },
+    ]);
+    mockApiObj.listTaskMessages.mockResolvedValue([
+      {
+        task_id: "00000000-0000-0000-0000-000000000001",
+        issue_id: "issue-1",
+        seq: 1,
+        type: "thinking",
+        content: "Checking the issue workflow",
+      },
+    ]);
+
+    renderIssueDetail();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-work-card")).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("Working").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Checking the issue workflow").length).toBeGreaterThan(0);
+  });
+
+  it("shows a transcript button on completed agent replies matched from issue tasks", async () => {
+    mockApiObj.listTasksByIssue.mockResolvedValue([
+      {
+        id: "00000000-0000-0000-0000-000000000001",
+        agent_id: "agent-1",
+        runtime_id: "runtime-1",
+        issue_id: "issue-1",
+        status: "completed",
+        priority: 0,
+        dispatched_at: null,
+        started_at: "2026-01-16T23:59:00Z",
+        completed_at: "2026-01-17T00:00:00Z",
+        result: null,
+        error: null,
+        created_at: "2026-01-16T23:58:00Z",
+      },
+    ]);
+
+    renderIssueDetail();
+
+    await waitFor(() => {
+      expect(screen.getAllByText("I can help with this").length).toBeGreaterThanOrEqual(1);
+    });
+    expect(
+      screen.getByRole("button", { name: "View transcript" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a transcript button on completed nested agent replies matched from issue tasks", async () => {
+    mockApiObj.listTimeline.mockResolvedValue([
+      {
+        type: "comment",
+        id: "comment-1",
+        actor_type: "member",
+        actor_id: "user-1",
+        content: "Can you handle this?",
+        parent_id: null,
+        created_at: "2026-01-17T00:00:00Z",
+        updated_at: "2026-01-17T00:00:00Z",
+        reactions: [],
+      },
+      {
+        type: "comment",
+        id: "reply-1",
+        actor_type: "agent",
+        actor_id: "agent-1",
+        content: "Nested agent result",
+        parent_id: "comment-1",
+        created_at: "2026-01-17T00:00:02Z",
+        updated_at: "2026-01-17T00:00:02Z",
+        reactions: [],
+      },
+    ] as TimelineEntry[]);
+    mockApiObj.listTasksByIssue.mockResolvedValue([
+      {
+        id: "00000000-0000-0000-0000-000000000001",
+        agent_id: "agent-1",
+        runtime_id: "runtime-1",
+        issue_id: "issue-1",
+        status: "completed",
+        priority: 0,
+        dispatched_at: null,
+        started_at: "2026-01-16T23:59:00Z",
+        completed_at: "2026-01-17T00:00:01Z",
+        result: null,
+        error: null,
+        created_at: "2026-01-16T23:58:00Z",
+      },
+    ]);
+    mockApiObj.listTaskMessages.mockResolvedValue([
+      {
+        task_id: "00000000-0000-0000-0000-000000000001",
+        issue_id: "issue-1",
+        seq: 1,
+        type: "thinking",
+        content: "Checked the nested reply context",
+      },
+    ]);
+
+    renderIssueDetail();
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Nested agent result").length).toBeGreaterThanOrEqual(1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "View transcript" }));
+
+    const transcript = await screen.findByTestId("task-timeline-preview");
+    const replyContent = screen.getAllByText("Nested agent result").find(
+      (node) => node.getAttribute("data-testid") === "readonly-content",
+    );
+    if (!replyContent) {
+      throw new Error("expected readonly reply content");
+    }
+    expect(transcript.compareDocumentPosition(replyContent)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it("collapses non-trailing activity blocks and expands the last one by default", async () => {
     // Timeline shape:
     //   [activities: status_changed, priority_changed] ← block A (older)

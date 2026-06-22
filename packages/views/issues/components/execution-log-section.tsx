@@ -15,7 +15,7 @@ import {
 } from "@rimedeck/ui/components/ui/tooltip";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatDuration } from "../../agents/components/agent-activity-hover-content";
-import { TranscriptButton } from "../../common/task-transcript";
+import { TaskTimelinePreview, TranscriptButton } from "../../common/task-transcript";
 import { failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT } from "../../i18n";
 import { TerminateTaskConfirmDialog } from "./terminate-task-confirm-dialog";
@@ -297,59 +297,64 @@ export function ActiveTaskRow({
   };
 
   return (
-    <RowShell task={task}>
-      <TriggerText text={trigger} />
-      <RowStatus title={label}>
-        {task.status === "running" ? (
-          <>
-            <span className="text-info tabular-nums">{elapsed}</span>
-            <span className="sr-only">{label}</span>
-          </>
-        ) : (
-          <span className={`${tone} min-w-0 truncate`}>{label}</span>
-        )}
-      </RowStatus>
-      <RowActions>
-        {showTranscript && (
-          <TranscriptButton
-            task={task}
-            agentName=""
-            isLive={task.status === "running"}
-            title={t(($) => $.execution_log.transcript_tooltip)}
-          />
-        )}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={requestCancel}
-                disabled={cancelling}
-                aria-label={t(($) => $.execution_log.cancel_task_aria)}
-              />
-            }
-            className="flex items-center justify-center rounded p-1 text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {cancelling ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Square className="h-3.5 w-3.5" />
-            )}
-          </TooltipTrigger>
-          <TooltipContent>{t(($) => $.execution_log.cancel_task_tooltip)}</TooltipContent>
-        </Tooltip>
-      </RowActions>
-      <TerminateTaskConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onConfirm={() => void handleCancel()}
-        showRunningNote={
-          task.status === "running" ||
-          task.status === "dispatched" ||
-          task.status === "waiting_local_directory"
-        }
-      />
-    </RowShell>
+    <div className="space-y-1">
+      <RowShell task={task}>
+        <TriggerText text={trigger} />
+        <RowStatus title={label}>
+          {task.status === "running" ? (
+            <>
+              <span className="text-info tabular-nums">{elapsed}</span>
+              <span className="sr-only">{label}</span>
+            </>
+          ) : (
+            <span className={`${tone} min-w-0 truncate`}>{label}</span>
+          )}
+        </RowStatus>
+        <RowActions>
+          {showTranscript && (
+            <TranscriptButton
+              task={task}
+              agentName=""
+              isLive={task.status === "running"}
+              title={t(($) => $.execution_log.transcript_tooltip)}
+            />
+          )}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={requestCancel}
+                  disabled={cancelling}
+                  aria-label={t(($) => $.execution_log.cancel_task_aria)}
+                />
+              }
+              className="flex items-center justify-center rounded p-1 text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {cancelling ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Square className="h-3.5 w-3.5" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>{t(($) => $.execution_log.cancel_task_tooltip)}</TooltipContent>
+          </Tooltip>
+        </RowActions>
+        <TerminateTaskConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          onConfirm={() => void handleCancel()}
+          showRunningNote={
+            task.status === "running" ||
+            task.status === "dispatched" ||
+            task.status === "waiting_local_directory"
+          }
+        />
+      </RowShell>
+      {showTranscript && (
+        <TaskTimelinePreview taskId={task.id} className="ml-7" />
+      )}
+    </div>
   );
 }
 

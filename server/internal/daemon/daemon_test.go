@@ -1075,6 +1075,95 @@ func TestExecuteAndDrain_NoRetryWhenSessionEstablished(t *testing.T) {
 	}
 }
 
+type messageBackend struct {
+	messages []agent.Message
+	result   agent.Result
+}
+
+func (b messageBackend) Execute(_ context.Context, _ string, _ agent.ExecOptions) (*agent.Session, error) {
+	msgCh := make(chan agent.Message, len(b.messages))
+	for _, msg := range b.messages {
+		msgCh <- msg
+	}
+	close(msgCh)
+	resCh := make(chan agent.Result, 1)
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		resCh <- b.result
+	}()
+	return &agent.Session{Messages: msgCh, Result: resCh}, nil
+}
+
+func TestExecuteAndDrain_ReportsToolMessagesWithoutSyntheticProgress(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var reported []TaskMessageData
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/daemon/tasks/task-progress/messages" {
+			http.NotFound(w, r)
+			return
+		}
+		var body struct {
+			Messages []TaskMessageData `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode task messages: %v", err)
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		reported = append(reported, body.Messages...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	d := &Daemon{client: NewClient(srv.URL), logger: slog.Default()}
+	backend := messageBackend{
+		messages: []agent.Message{
+			{Type: agent.MessageToolUse, Tool: "Bash", CallID: "call-1", Input: map[string]any{"command": "curl wttr.in/Shenzhen"}},
+			{Type: agent.MessageToolResult, Tool: "Bash", CallID: "call-1", Output: "weather output"},
+		},
+		result: agent.Result{Status: "completed", Output: "done"},
+	}
+
+	result, tools, err := d.executeAndDrain(context.Background(), backend, "prompt", agent.ExecOptions{}, slog.Default(), "task-progress")
+	if err != nil {
+		t.Fatalf("executeAndDrain: %v", err)
+	}
+	if result.Status != "completed" || tools != 1 {
+		t.Fatalf("unexpected result=%+v tools=%d", result, tools)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		mu.Lock()
+		var gotToolUse, gotToolResult bool
+		for _, msg := range reported {
+			if msg.Type == "progress" {
+				t.Fatalf("did not expect synthetic progress, got %+v", reported)
+			}
+			if msg.Type == "tool_use" && msg.Tool == "Bash" {
+				gotToolUse = true
+			}
+			if msg.Type == "tool_result" && msg.Tool == "Bash" && msg.Output == "weather output" {
+				gotToolResult = true
+			}
+		}
+		mu.Unlock()
+		if gotToolUse && gotToolResult {
+			return
+		}
+		if time.Now().After(deadline) {
+			mu.Lock()
+			defer mu.Unlock()
+			t.Fatalf("expected tool messages, got %+v", reported)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestExecuteAndDrain_CodexInactivityReportsToolResultTranscript(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell-script fixture is POSIX-only")

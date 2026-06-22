@@ -1,7 +1,7 @@
 "use client";
 
-import { memo, useCallback, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, ChevronRight, ListChevronsDownUp, Copy, MoreHorizontal, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Bot, CheckCircle2, ChevronRight, Clock3, ListChevronsDownUp, Copy, MoreHorizontal, Pencil, RotateCcw, ScrollText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@rimedeck/ui/components/ui/card";
 import { Button } from "@rimedeck/ui/components/ui/button";
@@ -41,11 +41,15 @@ import { useCommentCollapseStore, useCommentDraftStore } from "@rimedeck/core/is
 import { useT } from "../../i18n";
 import { CommentsFoldBar } from "./resolved-thread-bar";
 import { deriveThreadResolution } from "./thread-utils";
+import { TaskTimelinePreview } from "../../common/task-transcript";
+import { formatDuration } from "../../agents/components/agent-activity-hover-content";
+import type { PendingAgentReply } from "../utils/pending-agent-replies";
 
 const highlightedCommentBackgroundClass =
   "bg-[color-mix(in_srgb,var(--card)_95%,var(--brand)_5%)]";
 const highlightedCommentFadeClass =
   "after:from-[color-mix(in_srgb,var(--card)_95%,var(--brand)_5%)]";
+const EMPTY_PENDING_AGENT_REPLIES: readonly PendingAgentReply[] = [];
 
 function StickyHeaderShell({
   className,
@@ -122,6 +126,12 @@ interface CommentCardProps {
   onResolvedExpandChange?: (rootId: string, expand: boolean) => void;
   /** ID of the comment to highlight (flash animation). */
   highlightedCommentId?: string | null;
+  /** Task transcript linked to this root agent response, when known. */
+  taskId?: string;
+  /** Task transcript links keyed by comment id, including nested replies. */
+  commentTaskLinks?: ReadonlyMap<string, string>;
+  /** Active agent tasks rendered as placeholder replies inside this thread. */
+  pendingAgentReplies?: readonly PendingAgentReply[];
 }
 
 // ---------------------------------------------------------------------------
@@ -373,6 +383,7 @@ function CommentRow({
   onDelete,
   onToggleReaction,
   onResolveToggle,
+  taskId,
 }: {
   issueId: string;
   entry: TimelineEntry;
@@ -386,6 +397,7 @@ function CommentRow({
   onDelete: (commentId: string) => void;
   onToggleReaction: (commentId: string, emoji: string) => void;
   onResolveToggle?: (commentId: string, resolved: boolean) => void;
+  taskId?: string;
 }) {
   const { t } = useT("issues");
   const timeAgo = useTimeAgo();
@@ -397,6 +409,7 @@ function CommentRow({
   const canEditEntry = isOwn || (canModerate && entry.actor_type === "member");
   const canDeleteEntry = isOwn || canModerate;
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [taskTimelineOpen, setTaskTimelineOpen] = useState(false);
 
   const reactions = entry.reactions ?? [];
 
@@ -434,6 +447,28 @@ function CommentRow({
         )}
 
         <div className="ml-auto flex items-center gap-0.5">
+          {taskId && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-muted-foreground"
+                    aria-pressed={taskTimelineOpen}
+                    aria-label={t(($) => $.execution_log.transcript_tooltip)}
+                    onClick={() => setTaskTimelineOpen((value) => !value)}
+                  >
+                    <ScrollText className="h-4 w-4" />
+                  </Button>
+                }
+              />
+              <TooltipContent>
+                {t(($) => $.execution_log.transcript_tooltip)}
+              </TooltipContent>
+            </Tooltip>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -547,6 +582,9 @@ function CommentRow({
         </div>
       ) : (
         <>
+          {taskId && taskTimelineOpen && (
+            <TaskTimelinePreview taskId={taskId} className="mb-2 ml-12 mr-4" maxItems={12} />
+          )}
           <div className="pl-12 pr-4 pt-1 text-sm leading-relaxed text-foreground/85">
             <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />
           </div>
@@ -560,6 +598,105 @@ function CommentRow({
           />
         </>
       )}
+    </div>
+  );
+}
+
+type ThreadChild =
+  | { kind: "reply"; reply: TimelineEntry }
+  | { kind: "pending"; pending: PendingAgentReply };
+
+function buildThreadChildren(
+  replies: readonly TimelineEntry[],
+  pendingReplies: readonly PendingAgentReply[] = [],
+): ThreadChild[] {
+  return [
+    ...replies.map((reply): ThreadChild => ({ kind: "reply", reply })),
+    ...pendingReplies.map((pending): ThreadChild => ({ kind: "pending", pending })),
+  ].toSorted((a, b) => {
+    const aTime = getThreadChildCreatedAt(a);
+    const bTime = getThreadChildCreatedAt(b);
+    return aTime - bTime;
+  });
+}
+
+function getThreadChildCreatedAt(child: ThreadChild): number {
+  return new Date(
+    child.kind === "reply"
+      ? child.reply.created_at
+      : child.pending.task.created_at,
+  ).getTime();
+}
+
+function PendingAgentReplyRow({
+  pending,
+}: {
+  pending: PendingAgentReply;
+}) {
+  const { t } = useT("issues");
+  const { getActorName } = useActorName();
+  const task = pending.task;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const elapsed = formatDuration(
+    task.started_at ?? task.dispatched_at ?? task.created_at,
+    now,
+  );
+  const showTranscript =
+    task.status !== "queued" && task.status !== "waiting_local_directory";
+
+  return (
+    <div
+      className="border-t border-border/50 py-1.5"
+      id={`task-${task.id}`}
+      data-testid="pending-agent-reply"
+    >
+      <StickyHeaderShell
+        sticky={false}
+        className="flex items-center gap-2.5 px-4 pt-1 pb-1.5"
+      >
+        <ActorAvatar
+          actorType="agent"
+          actorId={task.agent_id}
+          size={24}
+          enableHoverCard
+          showStatusDot
+        />
+        <span className="cursor-pointer text-sm font-medium">
+          {getActorName("agent", task.agent_id)}
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-info/10 px-1.5 py-0.5 text-[11px] font-medium text-info">
+          <Bot className="h-3 w-3" />
+          {t(($) => $.execution_log.status_running)}
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground tabular-nums">
+          <Clock3 className="h-3 w-3" />
+          {elapsed}
+        </span>
+      </StickyHeaderShell>
+      <div className="pl-12 pr-4 pt-1 pb-1">
+        {showTranscript ? (
+          <TaskTimelinePreview
+            taskId={task.id}
+            className="border-info/20 bg-muted/20"
+            maxItems={12}
+            emptyFallback={
+              <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
+                Waiting for the first events...
+              </div>
+            }
+          />
+        ) : (
+          <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
+            Waiting for the first events...
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -583,6 +720,9 @@ function CommentCardImpl({
   expandedResolvedIds,
   onResolvedExpandChange,
   highlightedCommentId,
+  taskId,
+  commentTaskLinks,
+  pendingAgentReplies = EMPTY_PENDING_AGENT_REPLIES,
 }: CommentCardProps) {
   const { t } = useT("issues");
   const timeAgo = useTimeAgo();
@@ -598,10 +738,16 @@ function CommentCardImpl({
   const canEditEntry = isOwn || (canModerate && entry.actor_type === "member");
   const canDeleteEntry = isOwn || canModerate;
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [taskTimelineOpen, setTaskTimelineOpen] = useState(false);
+  const rootTaskId = taskId ?? commentTaskLinks?.get(entry.id);
 
   const allNestedReplies = replies;
 
   const replyCount = allNestedReplies.length;
+  const threadChildren = useMemo(
+    () => buildThreadChildren(allNestedReplies, pendingAgentReplies),
+    [allNestedReplies, pendingAgentReplies],
+  );
   const contentPreview = (entry.content ?? "").replace(/\n/g, " ").slice(0, 80);
   const reactions = entry.reactions ?? [];
 
@@ -699,67 +845,89 @@ function CommentCardImpl({
 
             {open && (
               <div className="ml-auto flex items-center gap-0.5">
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => {
-                    void copyText(entry.content ?? "").then((ok) => {
-                      if (ok) toast.success(t(($) => $.comment.copied_toast));
-                    });
-                  }}>
-                    <Copy className="h-3.5 w-3.5" />
-                    {t(($) => $.comment.copy_action)}
-                  </DropdownMenuItem>
-                  {onResolveToggle && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onResolveToggle(entry.id, !entry.resolved_at)}>
-                        {entry.resolved_at ? (
-                          <>
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            {t(($) => $.comment.resolve.unresolve_thread_action)}
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            {t(($) => $.comment.resolve.resolve_thread_action)}
-                          </>
+                {rootTaskId && (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground"
+                          aria-pressed={taskTimelineOpen}
+                          aria-label={t(($) => $.execution_log.transcript_tooltip)}
+                          onClick={() => setTaskTimelineOpen((value) => !value)}
+                        >
+                          <ScrollText className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>
+                      {t(($) => $.execution_log.transcript_tooltip)}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    }
+                  />
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      void copyText(entry.content ?? "").then((ok) => {
+                        if (ok) toast.success(t(($) => $.comment.copied_toast));
+                      });
+                    }}>
+                      <Copy className="h-3.5 w-3.5" />
+                      {t(($) => $.comment.copy_action)}
+                    </DropdownMenuItem>
+                    {onResolveToggle && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onResolveToggle(entry.id, !entry.resolved_at)}>
+                          {entry.resolved_at ? (
+                            <>
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              {t(($) => $.comment.resolve.unresolve_thread_action)}
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              {t(($) => $.comment.resolve.resolve_thread_action)}
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {(canEditEntry || canDeleteEntry) && (
+                      <>
+                        <DropdownMenuSeparator />
+                        {canEditEntry && (
+                          <DropdownMenuItem onClick={edit.startEdit}>
+                            <Pencil className="h-3.5 w-3.5" />
+                            {t(($) => $.comment.edit_action)}
+                          </DropdownMenuItem>
                         )}
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  {(canEditEntry || canDeleteEntry) && (
-                    <>
-                      <DropdownMenuSeparator />
-                      {canEditEntry && (
-                        <DropdownMenuItem onClick={edit.startEdit}>
-                          <Pencil className="h-3.5 w-3.5" />
-                          {t(($) => $.comment.edit_action)}
-                        </DropdownMenuItem>
-                      )}
-                      {canEditEntry && canDeleteEntry && <DropdownMenuSeparator />}
-                      {canDeleteEntry && (
-                        <DropdownMenuItem onClick={() => setConfirmDelete(true)} variant="destructive">
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {t(($) => $.comment.delete_action)}
-                        </DropdownMenuItem>
-                      )}
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DeleteCommentDialog
-                open={confirmDelete}
-                onOpenChange={setConfirmDelete}
-                onConfirm={() => onDelete(entry.id)}
-                hasReplies
-              />
+                        {canEditEntry && canDeleteEntry && <DropdownMenuSeparator />}
+                        {canDeleteEntry && (
+                          <DropdownMenuItem onClick={() => setConfirmDelete(true)} variant="destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {t(($) => $.comment.delete_action)}
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DeleteCommentDialog
+                  open={confirmDelete}
+                  onOpenChange={setConfirmDelete}
+                  onConfirm={() => onDelete(entry.id)}
+                  hasReplies
+                />
               </div>
             )}
           </div>
@@ -821,6 +989,9 @@ function CommentCardImpl({
               </div>
             ) : (
               <>
+                {rootTaskId && taskTimelineOpen && (
+                  <TaskTimelinePreview taskId={rootTaskId} className="mb-2 ml-10" maxItems={12} />
+                )}
                 <div className="pl-10 text-sm leading-relaxed text-foreground/85">
                   <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />
                 </div>
@@ -867,6 +1038,7 @@ function CommentCardImpl({
                     onDelete={onDelete}
                     onToggleReaction={onToggleReaction}
                     onResolveToggle={onResolveToggle}
+                    taskId={commentTaskLinks?.get(resolutionReply.id)}
                   />
                 </div>
               )}
@@ -886,22 +1058,34 @@ function CommentCardImpl({
                 </button>
               )}
               {/* Replies — chronological; the resolution keeps its place with a badge */}
-              {allNestedReplies.map((reply) => (
-                <div key={reply.id} id={`comment-${reply.id}`} className={cn("border-t border-border/50 transition-colors duration-700", highlightedCommentId === reply.id && highlightedCommentBackgroundClass)}>
-                  <CommentRow
-                    issueId={issueId}
-                    entry={reply}
-                    currentUserId={currentUserId}
-                    canModerate={canModerate}
-                    isResolution={reply.id === replyResolutionId}
-                    isHighlighted={highlightedCommentId === reply.id}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onToggleReaction={onToggleReaction}
-                    onResolveToggle={onResolveToggle}
+              {threadChildren.map((child) =>
+                child.kind === "pending" ? (
+                  <PendingAgentReplyRow
+                    key={`task:${child.pending.task.id}`}
+                    pending={child.pending}
                   />
-                </div>
-              ))}
+                ) : (
+                  <div
+                    key={child.reply.id}
+                    id={`comment-${child.reply.id}`}
+                    className={cn("border-t border-border/50 transition-colors duration-700", highlightedCommentId === child.reply.id && highlightedCommentBackgroundClass)}
+                  >
+                    <CommentRow
+                      issueId={issueId}
+                      entry={child.reply}
+                      currentUserId={currentUserId}
+                      canModerate={canModerate}
+                      isResolution={child.reply.id === replyResolutionId}
+                      isHighlighted={highlightedCommentId === child.reply.id}
+                      onEdit={onEdit}
+                      onDelete={onDelete}
+                      onToggleReaction={onToggleReaction}
+                      onResolveToggle={onResolveToggle}
+                      taskId={commentTaskLinks?.get(child.reply.id)}
+                    />
+                  </div>
+                ),
+              )}
 
               {/* Reply input */}
               <div className="border-t border-border/50 px-4 py-2.5">
