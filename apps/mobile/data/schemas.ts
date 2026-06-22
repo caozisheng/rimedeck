@@ -289,7 +289,7 @@ export const SendChatMessageResponseSchema: z.ZodType<SendChatMessageResponse> =
 }).loose();
 
 // Live timeline emitted by the agent runtime while a task is running. Each
-// row is one execution step (thinking / tool_use / tool_result / text /
+// row is one execution step (progress / thinking / tool_use / tool_result / text /
 // error). Mirrors web's TaskMessagePayload type and the WS `task:message`
 // payload so the mobile cache shape stays interchangeable with web's.
 export const TaskMessagePayloadSchema: z.ZodType<TaskMessagePayload> = z.object({
@@ -301,7 +301,7 @@ export const TaskMessagePayloadSchema: z.ZodType<TaskMessagePayload> = z.object(
   // the row still renders (as a plain markdown chunk) instead of crashing
   // the timeline. Matches root CLAUDE.md "Enum drift downgrades, not crashes".
   type: z
-    .enum(["text", "thinking", "tool_use", "tool_result", "error"])
+    .enum(["text", "thinking", "progress", "tool_use", "tool_result", "error"])
     .catch("text"),
   tool: z.string().optional(),
   content: z.string().optional(),

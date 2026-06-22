@@ -274,6 +274,24 @@ func TestCodexLegacyEventAgentMessage(t *testing.T) {
 	}
 }
 
+func TestCodexLegacyEventAgentReasoningEmitsThinking(t *testing.T) {
+	t.Parallel()
+
+	c, _, _ := newTestCodexClient(t)
+	var gotThinking string
+	c.onMessage = func(msg Message) {
+		if msg.Type == MessageThinking {
+			gotThinking = msg.Content
+		}
+	}
+
+	c.handleLine(`{"jsonrpc":"2.0","method":"codex/event","params":{"msg":{"type":"agent_reasoning","text":"Checking recent changes"}}}`)
+
+	if gotThinking != "Checking recent changes" {
+		t.Fatalf("expected thinking 'Checking recent changes', got %q", gotThinking)
+	}
+}
+
 func TestCodexLegacyEventExecCommand(t *testing.T) {
 	t.Parallel()
 
@@ -651,6 +669,72 @@ func TestCodexRawItemAgentMessageFinalAnswer(t *testing.T) {
 	}
 	if !turnDone {
 		t.Fatal("expected onTurnDone for final_answer")
+	}
+}
+
+func TestCodexRawItemAgentMessageDeltaSuppressesCompletedDuplicate(t *testing.T) {
+	t.Parallel()
+
+	c, _, _ := newTestCodexClient(t)
+	c.notificationProtocol = "raw"
+	c.turnStarted = true
+
+	var messages []Message
+	c.onMessage = func(msg Message) {
+		messages = append(messages, msg)
+	}
+
+	c.handleLine(`{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"item":{"type":"agentMessage","id":"msg-1"},"delta":"Checking the issue path"}}`)
+	c.handleLine(`{"jsonrpc":"2.0","method":"item/completed","params":{"item":{"type":"agentMessage","id":"msg-1","text":"Checking the issue path","phase":"final_answer"}}}`)
+
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message after deduplication, got %d", len(messages))
+	}
+	if messages[0].Type != MessageText || messages[0].Content != "Checking the issue path" {
+		t.Fatalf("unexpected message: %+v", messages[0])
+	}
+}
+
+func TestCodexRawItemAgentMessageCompletedEmitsOnlyMissingSuffix(t *testing.T) {
+	t.Parallel()
+
+	c, _, _ := newTestCodexClient(t)
+	c.notificationProtocol = "raw"
+
+	var messages []Message
+	c.onMessage = func(msg Message) {
+		messages = append(messages, msg)
+	}
+
+	c.handleLine(`{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"item":{"type":"agentMessage","id":"msg-1"},"delta":"Checking "}}`)
+	c.handleLine(`{"jsonrpc":"2.0","method":"item/completed","params":{"item":{"type":"agentMessage","id":"msg-1","text":"Checking the issue path","phase":"final_answer"}}}`)
+
+	if len(messages) != 2 {
+		t.Fatalf("expected delta plus missing suffix, got %d messages", len(messages))
+	}
+	if messages[0].Content != "Checking " || messages[1].Content != "the issue path" {
+		t.Fatalf("unexpected messages: %+v", messages)
+	}
+}
+
+func TestCodexRawItemAgentMessageDeltaEmitsText(t *testing.T) {
+	t.Parallel()
+
+	c, _, _ := newTestCodexClient(t)
+	c.notificationProtocol = "raw"
+
+	var messages []Message
+	c.onMessage = func(msg Message) {
+		messages = append(messages, msg)
+	}
+
+	c.handleLine(`{"jsonrpc":"2.0","method":"item/agentMessage/delta","params":{"item":{"type":"agentMessage","id":"msg-1"},"delta":"Checking the issue path"}}`)
+
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(messages))
+	}
+	if messages[0].Type != MessageText || messages[0].Content != "Checking the issue path" {
+		t.Fatalf("unexpected message: %+v", messages[0])
 	}
 }
 

@@ -184,6 +184,46 @@ describe("runtime machine grouping", () => {
     });
   });
 
+  it("consolidates current-user local runtimes with the local device name across daemon id drift", () => {
+    const machines = buildRuntimeMachines(
+      [
+        makeRuntime({
+          id: "rt-claude",
+          daemon_id: "d789a40f-dirty",
+          provider: "claude",
+          name: "Claude (pyoneer)",
+          device_info: "pyoneer 路 claude 1.0.0",
+          owner_id: "user-1",
+        }),
+        makeRuntime({
+          id: "rt-codex",
+          daemon_id: "019eb5d6-uuid",
+          provider: "codex",
+          name: "Codex (pyoneer)",
+          device_info: "pyoneer 路 codex 1.0.0",
+          owner_id: "user-1",
+        }),
+      ],
+      {
+        now: NOW,
+        localDaemonId: "019eb5d6-uuid",
+        localMachineName: "pyoneer",
+        currentUserId: "user-1",
+        ensureLocalMachine: true,
+      },
+    );
+
+    expect(machines).toHaveLength(1);
+    expect(machines[0]).toMatchObject({
+      id: "local-device:pyoneer",
+      title: "pyoneer",
+      section: "local",
+      isCurrent: true,
+      onlineCount: 2,
+      providerNames: ["claude", "codex"],
+    });
+  });
+
   it("does not treat a cloud runtime with the local device name as current", () => {
     const machines = buildRuntimeMachines(
       [
@@ -350,6 +390,126 @@ describe("runtime machine grouping", () => {
       onlineCount: 1,
       issueCount: 0,
       runtimes: expect.arrayContaining([expect.objectContaining({ id: "rt-wsl2" })]),
+    });
+  });
+
+  it("prefers the desktop-known WSL daemon id when metadata also has a distro", () => {
+    const machines = buildRuntimeMachines(
+      [
+        makeRuntime({
+          id: "rt-wsl2",
+          daemon_id: "wsl2-daemon-uuid",
+          name: "Claude (KIKI-PC)",
+          status: "offline",
+          device_info: "KIKI-PC 路 claude 1.0.0",
+          owner_id: "user-1",
+          metadata: {
+            cli_version: "0.3.0",
+            host_kind: "wsl",
+            wsl_distro: "Ubuntu-24.04",
+          },
+        }),
+      ],
+      {
+        now: NOW,
+        localDaemonId: "desktop-daemon-uuid",
+        localMachineName: "KIKI-PC",
+        currentUserId: "user-1",
+        ensureLocalMachine: true,
+        localWslDaemonIds: new Set(["wsl2-daemon-uuid"]),
+        extraLocalMachines: [
+          {
+            id: "local-wsl-daemon:wsl2-daemon-uuid",
+            daemonId: "wsl2-daemon-uuid",
+            title: "KIKI-PC WSL",
+            subtitle: "Ubuntu-24.04",
+            deviceInfo: "Ubuntu-24.04",
+            cliVersion: null,
+            mode: "local",
+            section: "local",
+            isCurrent: false,
+            tags: ["WSL"],
+            health: "online",
+            runtimes: [],
+            onlineCount: 1,
+            issueCount: 0,
+            runningCount: 0,
+            queuedCount: 0,
+            providerNames: [],
+            lastSeenAt: null,
+          },
+        ],
+      },
+    );
+
+    expect(machines).toHaveLength(2);
+    const wsl = machines.find((m) => m.id === "local-wsl-daemon:wsl2-daemon-uuid");
+    expect(wsl).toMatchObject({
+      title: "KIKI-PC WSL",
+      health: "online",
+      runtimes: expect.arrayContaining([expect.objectContaining({ id: "rt-wsl2" })]),
+    });
+    expect(machines.find((m) => m.id === "local-wsl:Ubuntu-24.04")).toBeUndefined();
+  });
+
+  it("keeps desktop-known WSL daemon ids separate even before runtime metadata refreshes", () => {
+    const machines = buildRuntimeMachines(
+      [
+        makeRuntime({
+          id: "rt-wsl2",
+          daemon_id: "wsl2-daemon-uuid",
+          name: "Claude (KIKI-PC)",
+          device_info: "KIKI-PC 路 claude 1.0.0",
+          owner_id: "user-1",
+        }),
+      ],
+      {
+        now: NOW,
+        localDaemonId: "desktop-daemon-uuid",
+        localMachineName: "KIKI-PC",
+        currentUserId: "user-1",
+        ensureLocalMachine: true,
+        localWslDaemonIds: new Set(["wsl2-daemon-uuid"]),
+        extraLocalMachines: [
+          {
+            id: "local-wsl-daemon:wsl2-daemon-uuid",
+            daemonId: "wsl2-daemon-uuid",
+            title: "KIKI-PC WSL",
+            subtitle: "Ubuntu-24.04",
+            deviceInfo: "Ubuntu-24.04",
+            cliVersion: null,
+            mode: "local",
+            section: "local",
+            isCurrent: false,
+            tags: ["WSL"],
+            health: "online",
+            runtimes: [],
+            onlineCount: 1,
+            issueCount: 0,
+            runningCount: 0,
+            queuedCount: 0,
+            providerNames: [],
+            lastSeenAt: null,
+          },
+        ],
+      },
+    );
+
+    expect(machines).toHaveLength(2);
+    const wsl = machines.find((m) => m.id === "local-wsl-daemon:wsl2-daemon-uuid");
+    expect(wsl).toMatchObject({
+      title: "KIKI-PC WSL",
+      section: "local",
+      isCurrent: false,
+      tags: ["WSL"],
+      daemonId: "wsl2-daemon-uuid",
+      runtimes: expect.arrayContaining([expect.objectContaining({ id: "rt-wsl2" })]),
+    });
+    const local = machines.find((m) => m.isCurrent);
+    expect(local).toMatchObject({
+      title: "KIKI-PC",
+      section: "local",
+      runtimes: [],
     });
   });
 

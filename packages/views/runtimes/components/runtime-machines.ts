@@ -43,6 +43,7 @@ interface RuntimeMachineOptions {
    * OWNED by the current user may be consolidated by device name.
    */
   currentUserId?: string | null;
+  localWslDaemonIds?: Set<string>;
   workloadByRuntimeId?: Map<string, RuntimeWorkloadSummary>;
   /**
    * When true, guarantee that the result contains a machine flagged
@@ -86,7 +87,7 @@ export function buildRuntimeMachines(
   const drafts = new Map<string, RuntimeMachineDraft>();
 
   for (const runtime of runtimes) {
-    const id = runtimeMachineId(runtime);
+    const id = runtimeMachineId(runtime, options);
     const draft =
       drafts.get(id) ??
       ({
@@ -223,7 +224,7 @@ function finalizeRuntimeMachine(
     runtimes.some((r) => r.owner_id === options.currentUserId);
   const matchesLocalName = (value: string | null | undefined): boolean =>
     !!value && value.toLowerCase() === options.localMachineName?.toLowerCase();
-  const isWsl = runtimes.some((runtime) => runtime.metadata?.host_kind === "wsl");
+  const isWsl = runtimes.some((runtime) => isWslRuntime(runtime, options));
   const isCurrent =
     !isWsl &&
     ((!!options.localDaemonId && draft.daemonId === options.localDaemonId) ||
@@ -291,18 +292,58 @@ function finalizeRuntimeMachine(
   };
 }
 
-function runtimeMachineId(runtime: AgentRuntime): string {
+function runtimeMachineId(
+  runtime: AgentRuntime,
+  options: RuntimeMachineOptions,
+): string {
   if (
-    runtime.metadata?.host_kind === "wsl" &&
-    typeof runtime.metadata.wsl_distro === "string" &&
+    isWslRuntime(runtime, options) &&
+    runtime.daemon_id &&
+    options.localWslDaemonIds?.has(runtime.daemon_id)
+  ) {
+    return `${runtime.runtime_mode}-wsl-daemon:${runtime.daemon_id}`;
+  }
+  if (
+    isWslRuntime(runtime, options) &&
+    typeof runtime.metadata?.wsl_distro === "string" &&
     runtime.metadata.wsl_distro.trim()
   ) {
     return `${runtime.runtime_mode}-wsl:${runtime.metadata.wsl_distro.trim()}`;
+  }
+  if (matchesCurrentLocalDevice(runtime, options)) {
+    return `local-device:${options.localMachineName!.trim()}`;
   }
   if (runtime.daemon_id) return `${runtime.runtime_mode}:${runtime.daemon_id}`;
   const deviceName = runtimeDeviceName(runtime);
   if (deviceName) return `${runtime.runtime_mode}:device:${deviceName}`;
   return `${runtime.runtime_mode}:runtime:${runtime.id}`;
+}
+
+function matchesCurrentLocalDevice(
+  runtime: AgentRuntime,
+  options: RuntimeMachineOptions,
+): boolean {
+  if (runtime.runtime_mode !== "local") return false;
+  if (isWslRuntime(runtime, options)) return false;
+  if (!options.currentUserId || runtime.owner_id !== options.currentUserId) {
+    return false;
+  }
+  const localName = options.localMachineName?.trim().toLowerCase();
+  if (!localName) return false;
+  const matchesLocalName = (value: string | null | undefined): boolean =>
+    !!value && value.trim().toLowerCase() === localName;
+  return (
+    matchesLocalName(runtime.daemon_id) ||
+    matchesLocalName(runtimeDeviceName(runtime))
+  );
+}
+
+function isWslRuntime(
+  runtime: AgentRuntime,
+  options: RuntimeMachineOptions,
+): boolean {
+  if (runtime.metadata?.host_kind === "wsl") return true;
+  return !!runtime.daemon_id && !!options.localWslDaemonIds?.has(runtime.daemon_id);
 }
 
 function runtimeDeviceName(runtime: AgentRuntime): string | null {

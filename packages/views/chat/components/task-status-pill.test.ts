@@ -37,4 +37,22 @@ describe("pickStageKeys", () => {
   it("returns thinking for running with no messages", () => {
     expect(pickStageKeys("running", [], "online")).toEqual({ stageKey: "thinking" });
   });
+
+  it("ignores daemon progress summaries when choosing the running stage", () => {
+    expect(
+      pickStageKeys(
+        "running",
+        [
+          {
+            task_id: "task-1",
+            issue_id: "issue-1",
+            seq: 1,
+            type: "progress",
+            content: "Running Bash: git status",
+          },
+        ],
+        "online",
+      ),
+    ).toEqual({ stageKey: "thinking" });
+  });
 });

@@ -28,6 +28,7 @@ import type { ChatMessage, ChatPendingTask, TaskFailureReason } from "@rimedeck/
 import type { ChatTimelineItem } from "@rimedeck/core/chat";
 import { failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { buildTimeline } from "../../common/task-transcript";
+import { getToolDisplayName } from "../../common/task-transcript/tool-labels";
 import { TaskStatusPill } from "./task-status-pill";
 import { formatElapsedMs } from "../lib/format";
 import { splitTimeline, extractCopyText } from "../lib/copy-text";
@@ -541,7 +542,7 @@ function ToolCallRow({ item }: { item: ChatTimelineItem }) {
             !hasInput && "invisible",
           )}
         />
-        <span className="font-medium text-foreground shrink-0">{item.tool}</span>
+        <span className="font-medium text-foreground shrink-0">{getToolDisplayName(item.tool)}</span>
         {summary && <span className="truncate text-muted-foreground">{summary}</span>}
       </CollapsibleTrigger>
       {hasInput && (
@@ -563,7 +564,7 @@ function ToolResultRow({ item }: { item: ChatTimelineItem }) {
 
   const preview = output.length > 120 ? output.slice(0, 120) + "..." : output;
   const labelPrefix = item.tool
-    ? t(($) => $.message_list.tool_result_named, { tool: item.tool })
+    ? t(($) => $.message_list.tool_result_named, { tool: getToolDisplayName(item.tool) ?? item.tool })
     : t(($) => $.message_list.tool_result_unnamed);
 
   return (

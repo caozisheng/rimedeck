@@ -53,15 +53,41 @@ function redactTimelineItems(items: TimelineItem[]): TimelineItem[] {
 export function buildTimeline(msgs: TaskMessagePayload[]): TimelineItem[] {
   const items: TimelineItem[] = [];
   for (const msg of msgs) {
+    const content = msg.content;
+    const type = normalizeTaskMessageType(msg.type, content);
+    if (type == null) continue;
     items.push({
       seq: msg.seq,
-      type: msg.type,
+      type,
       tool: msg.tool,
-      content: msg.content,
+      content,
       input: msg.input,
       output: msg.output,
       created_at: msg.created_at,
     });
   }
   return redactTimelineItems(coalesceTimelineItems(items));
+}
+
+function normalizeTaskMessageType(
+  type: TaskMessagePayload["type"],
+  content: string | undefined,
+): TimelineItem["type"] | null {
+  if (type === "progress") {
+    return null;
+  }
+  if (type === "thinking" && isLegacyPublicProgress(content)) {
+    return null;
+  }
+  return type;
+}
+
+function isLegacyPublicProgress(content: string | undefined): boolean {
+  const text = content?.trim() ?? "";
+  if (text === "") return false;
+  return (
+    /^Running [^:.\n]+(?::|\.)(?:\s|$)/.test(text) ||
+    /^[^.\n]+ result received; reviewing output\./.test(text) ||
+    /^[^.\n]+ finished with no output\./.test(text)
+  );
 }

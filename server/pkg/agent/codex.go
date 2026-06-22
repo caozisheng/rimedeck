@@ -1154,9 +1154,10 @@ type codexClient struct {
 	onSemanticActivity func(description string)
 	onTurnDone         func(aborted bool)
 
-	notificationProtocol string // "unknown", "legacy", "raw"
-	turnStarted          bool
-	completedTurnIDs     map[string]bool
+	notificationProtocol  string // "unknown", "legacy", "raw"
+	turnStarted           bool
+	completedTurnIDs      map[string]bool
+	rawAgentMessageDeltas map[string]string
 
 	usageMu sync.Mutex
 	usage   TokenUsage // accumulated from turn events
@@ -1414,6 +1415,11 @@ func (c *codexClient) handleEvent(msg map[string]any) {
 		if text != "" && c.onMessage != nil {
 			c.onMessage(Message{Type: MessageText, Content: text})
 		}
+	case "agent_reasoning":
+		text, _ := msg["text"].(string)
+		if text != "" && c.onMessage != nil {
+			c.onMessage(Message{Type: MessageThinking, Content: text})
+		}
 	case "exec_command_begin":
 		callID, _ := msg["call_id"].(string)
 		command, _ := msg["command"].(string)
@@ -1621,10 +1627,19 @@ func (c *codexClient) handleItemNotification(method string, params map[string]an
 			})
 		}
 
+	case method == "item/agentMessage/delta" && itemType == "agentMessage":
+		delta, _ := params["delta"].(string)
+		if delta != "" && c.onMessage != nil {
+			c.recordRawAgentMessageDelta(itemID, delta)
+			c.onMessage(Message{Type: MessageText, Content: delta})
+		}
+
 	case method == "item/completed" && itemType == "agentMessage":
 		text, _ := item["text"].(string)
-		if text != "" && c.onMessage != nil {
-			c.onMessage(Message{Type: MessageText, Content: text})
+		if c.onMessage != nil {
+			if remaining := c.completedRawAgentMessageText(itemID, text); remaining != "" {
+				c.onMessage(Message{Type: MessageText, Content: remaining})
+			}
 		}
 		phase, _ := item["phase"].(string)
 		if phase == "final_answer" && c.turnStarted {
@@ -1633,6 +1648,34 @@ func (c *codexClient) handleItemNotification(method string, params map[string]an
 			}
 		}
 	}
+}
+
+func (c *codexClient) recordRawAgentMessageDelta(itemID string, delta string) {
+	if itemID == "" || delta == "" {
+		return
+	}
+	if c.rawAgentMessageDeltas == nil {
+		c.rawAgentMessageDeltas = map[string]string{}
+	}
+	c.rawAgentMessageDeltas[itemID] += delta
+}
+
+func (c *codexClient) completedRawAgentMessageText(itemID string, text string) string {
+	if text == "" || itemID == "" || c.rawAgentMessageDeltas == nil {
+		return text
+	}
+	streamed := c.rawAgentMessageDeltas[itemID]
+	delete(c.rawAgentMessageDeltas, itemID)
+	if streamed == "" {
+		return text
+	}
+	if text == streamed {
+		return ""
+	}
+	if strings.HasPrefix(text, streamed) {
+		return strings.TrimPrefix(text, streamed)
+	}
+	return text
 }
 
 func isCodexItemProgressActivity(method string) bool {
