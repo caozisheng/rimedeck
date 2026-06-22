@@ -1,6 +1,6 @@
 {
   "name": "@rimedeck/mobile",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
