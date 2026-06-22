@@ -2,12 +2,23 @@ name: Upload PG Binaries
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: "Which PG binaries to (re)build and upload"
+        type: choice
+        default: all
+        options:
+          - all
+          - macos
+          - windows
+          - linux
 
 permissions:
   contents: write
 
 jobs:
   upload-macos:
+    if: ${{ inputs.platform == 'all' || inputs.platform == 'macos' }}
     runs-on: macos-latest
     steps:
       # Build PostgreSQL from source with a SINGLE common --prefix so that
@@ -127,6 +138,7 @@ jobs:
           gh release upload pg-binaries "$RUNNER_TEMP/pg-17-darwin-arm64.tar.gz" --clobber --repo "$GITHUB_REPOSITORY"
 
   upload-windows:
+    if: ${{ inputs.platform == 'all' || inputs.platform == 'windows' }}
     runs-on: windows-latest
     steps:
       - name: Install PostgreSQL via Chocolatey
@@ -150,6 +162,7 @@ jobs:
           gh release upload pg-binaries pg-17-windows-x64.zip --clobber --repo ${{ github.repository }}
 
   upload-linux:
+    if: ${{ inputs.platform == 'all' || inputs.platform == 'linux' }}
     runs-on: ubuntu-latest
     steps:
       - name: Install PostgreSQL via apt
