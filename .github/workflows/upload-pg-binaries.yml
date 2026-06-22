@@ -10,66 +10,121 @@ jobs:
   upload-macos:
     runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      # Build a RELOCATABLE PostgreSQL bundle from EDB's prebuilt osx-arm64
-      # binaries using the same script the desktop dev/build flow already uses
-      # (apps/desktop/scripts/bundle-pg.mjs). The script downloads the archive,
-      # rewrites dylib load paths to @executable_path-relative, and ad-hoc
-      # codesigns. EDB binaries use a single install prefix
-      # (bindir=<p>/bin, sharedir=<p>/share, FLAT share/ with postgres.bki),
-      # so PostgreSQL's exec-relative path resolution (src/port/path.c
-      # make_relative_path) finds share/ next to the bundled bin/ at runtime.
+      # Build PostgreSQL from source with a SINGLE common --prefix so that
+      # bindir=<p>/bin and sharedir=<p>/share (FLAT — postgres.bki sits directly
+      # under share/). PostgreSQL resolves share/lib relative to the running
+      # executable (src/port/path.c make_relative_path): with one prefix the bin
+      # tail is just "bin", so a relocated <bundle>/bin/postgres finds
+      # <bundle>/share at runtime. Both `initdb -L <bundle>/share` AND the running
+      # server then work on a user's machine.
       #
-      # Homebrew's postgresql@17 was previously used here but is fundamentally
-      # non-relocatable: it compiles PGSHAREDIR=$HOMEBREW_PREFIX/share/postgresql@17
-      # (an "opt" path) while PGBINDIR resolves under .../Cellar/<ver>/bin. The two
-      # share only the trivial /opt/homebrew/ prefix, so make_relative_path() can
-      # never relocate a flat <bundle>/bin layout and falls back to the absolute
-      # compiled path — which does not exist on a user's Mac. It also physically
-      # installs share files under share/postgresql/ (unversioned), so the runtime
-      # `initdb -L <bundle>/share` could not find postgres.bki. Both broke launch.
-      - name: Build relocatable PG bundle (EDB osx-arm64)
-        run: node apps/desktop/scripts/bundle-pg.mjs --target-platform darwin --target-arch arm64 --force
-
-      - name: Verify bundle layout + relocatability
+      # Every optional dependency is disabled so the binaries link only against
+      # macOS system libraries — no Homebrew/EDB dylibs to bundle or rewrite, and
+      # nothing absolute to break when relocated. RimeDeck initializes the cluster
+      # with --locale=C --encoding=UTF8 and connects over loopback, so ICU, SSL,
+      # readline, compression, XML and LDAP are all unused.
+      #
+      # This replaces two broken approaches: EDB prebuilt binaries (get.enterprisedb.com
+      # now returns HTTP 403 to CI runners) and Homebrew postgresql@17 (compiles
+      # PGSHAREDIR under $HOMEBREW_PREFIX/share/postgresql@17 while PGBINDIR resolves
+      # under .../Cellar/<ver>/bin, so make_relative_path falls back to an absolute
+      # path missing on user machines, and physically nests share under
+      # share/postgresql/ — which is why `initdb` reported "postgres.bki does not exist").
+      - name: Build PostgreSQL from source (relocatable, self-contained)
         run: |
-          PG=apps/desktop/resources/pgsql
-          # initdb reads bootstrap files from <bin>/../share — postgres.bki MUST be there.
-          if [ ! -f "$PG/share/postgres.bki" ]; then
-            echo "::error::postgres.bki missing from $PG/share — initdb would fail at runtime"
-            ls -la "$PG/share" 2>/dev/null || true
-            exit 1
-          fi
-          # No absolute build-host paths may survive in the shipped binaries.
+          set -eu
+          PGVER=17.5
+          BUILD="$RUNNER_TEMP/pgbuild"
+          SRC="$BUILD/src"
+          PREFIX="$BUILD/pgsql"
+          mkdir -p "$SRC"
+          # Modern bison/flex — Apple's /usr/bin/bison (2.3) is too old for PG 17.
+          brew install bison flex >/dev/null
+          export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
+          # Official source tarball ships a prebuilt ./configure (the git archive does not).
+          curl -fSL -o "$BUILD/pg-src.tar.gz" \
+            "https://ftp.postgresql.org/pub/source/v${PGVER}/postgresql-${PGVER}.tar.gz"
+          tar xzf "$BUILD/pg-src.tar.gz" -C "$SRC" --strip-components=1
+          cd "$SRC"
+          ./configure --prefix="$PREFIX" \
+            --without-icu --without-readline --without-zlib \
+            --without-lz4 --without-zstd --without-libxml --without-ldap
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+          echo "PG_PREFIX=$PREFIX" >> "$GITHUB_ENV"
+          echo "PG_BUILD=$BUILD" >> "$GITHUB_ENV"
+
+      - name: Stage bundle, make relocatable, ad-hoc codesign
+        run: |
+          set -eu
+          STAGE="$RUNNER_TEMP/stage/pgsql"
+          mkdir -p "$RUNNER_TEMP/stage"
+          cp -R "$PG_PREFIX" "$STAGE"
+          # Rewrite any absolute (build-prefix) dylib reference to @loader_path-relative.
+          rewrite() {
+            f="$1"; rel="$2"
+            deps="$(otool -L "$f" 2>/dev/null | awk 'NR>1{print $1}')"
+            printf '%s\n' "$deps" | while IFS= read -r dep; do
+              [ -n "$dep" ] || continue
+              case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
+              name="$(basename "$dep")"
+              if [ -f "$STAGE/lib/$name" ]; then
+                install_name_tool -change "$dep" "@loader_path/$rel/$name" "$f" 2>/dev/null || true
+              fi
+            done
+          }
+          for f in "$STAGE"/bin/*; do [ -f "$f" ] && rewrite "$f" "../lib"; done
+          for f in "$STAGE"/lib/*.dylib; do
+            [ -f "$f" ] || continue
+            install_name_tool -id "@loader_path/$(basename "$f")" "$f" 2>/dev/null || true
+            rewrite "$f" "."
+          done
+          # install_name_tool invalidates code signatures — re-sign ad-hoc.
+          # Mandatory on arm64: an unsigned/invalid Mach-O is killed on exec.
+          # (Explicit loop; macOS 15 `find -perm +111` is removed/illegal.)
+          for f in "$STAGE"/bin/* "$STAGE"/lib/*.dylib; do
+            [ -f "$f" ] && codesign -s - --force "$f" 2>/dev/null || true
+          done
+          # Delete the build prefix so the smoke test cannot accidentally load libs
+          # from the original location — proving the staged bundle is self-contained.
+          rm -rf "$PG_PREFIX"
+          echo "PG_STAGE=$STAGE" >> "$GITHUB_ENV"
+
+      - name: Smoke test (relocated initdb + server start + query)
+        run: |
+          set -eu
+          DATA="$RUNNER_TEMP/pgdata"
+          # Mirror the app's exact initdb invocation (postgres-manager.ts).
+          "$PG_STAGE/bin/initdb" --auth=trust --encoding=UTF8 --locale=C -L "$PG_STAGE/share" -D "$DATA"
+          "$PG_STAGE/bin/pg_ctl" -D "$DATA" \
+            -o "-p 54329 -c listen_addresses=127.0.0.1" -w -t 30 -l "$RUNNER_TEMP/pg.log" start
+          "$PG_STAGE/bin/psql" -h 127.0.0.1 -p 54329 -d postgres -c 'select version();'
+          "$PG_STAGE/bin/pg_ctl" -D "$DATA" -m fast stop
+          echo "Smoke test passed: initdb + server start + query OK from a relocated path."
+
+      - name: Verify layout + no absolute deps
+        run: |
+          set -eu
+          test -f "$PG_STAGE/share/postgres.bki" || { echo "::error::postgres.bki missing from share/"; exit 1; }
           BAD=0
-          for b in initdb postgres pg_ctl createdb psql pg_isready; do
-            bin="$PG/bin/$b"
-            [ -f "$bin" ] || continue
-            if otool -L "$bin" | grep -E '/opt/homebrew|/usr/local|/Library/PostgreSQL'; then
-              echo "::error::$b retains absolute dylib paths after rewrite"
-              BAD=1
+          for f in "$PG_STAGE"/bin/* "$PG_STAGE"/lib/*.dylib; do
+            [ -f "$f" ] || continue
+            deps="$(otool -L "$f" 2>/dev/null | awk 'NR>1{print $1}')"
+            if printf '%s\n' "$deps" | grep -qE "$PG_BUILD|/opt/homebrew|/Library/PostgreSQL"; then
+              echo "::error::absolute dependency survives in $f"; otool -L "$f"; BAD=1
             fi
           done
           [ "$BAD" = 0 ] || exit 1
-          echo "Bundle OK — bin: $(ls "$PG/bin" | tr '\n' ' ')"
+          echo "Bundle verified — bin: $(ls "$PG_STAGE/bin" | tr '\n' ' ')"
 
-      - name: Package
-        run: |
-          cd apps/desktop/resources
-          tar czf "$GITHUB_WORKSPACE/pg-17-darwin-arm64.tar.gz" pgsql
-
-      - name: Upload to release
+      - name: Package + upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload pg-binaries pg-17-darwin-arm64.tar.gz --clobber --repo ${{ github.repository }}
+          set -eu
+          cd "$(dirname "$PG_STAGE")"
+          tar czf "$RUNNER_TEMP/pg-17-darwin-arm64.tar.gz" pgsql
+          gh release upload pg-binaries "$RUNNER_TEMP/pg-17-darwin-arm64.tar.gz" --clobber --repo "$GITHUB_REPOSITORY"
 
   upload-windows:
     runs-on: windows-latest
