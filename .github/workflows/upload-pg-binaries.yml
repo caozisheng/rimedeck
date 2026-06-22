@@ -10,105 +10,60 @@ jobs:
   upload-macos:
     runs-on: macos-latest
     steps:
-      - name: Install PostgreSQL via Homebrew
-        run: brew install postgresql@17
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Build a RELOCATABLE PostgreSQL bundle from EDB's prebuilt osx-arm64
+      # binaries using the same script the desktop dev/build flow already uses
+      # (apps/desktop/scripts/bundle-pg.mjs). The script downloads the archive,
+      # rewrites dylib load paths to @executable_path-relative, and ad-hoc
+      # codesigns. EDB binaries use a single install prefix
+      # (bindir=<p>/bin, sharedir=<p>/share, FLAT share/ with postgres.bki),
+      # so PostgreSQL's exec-relative path resolution (src/port/path.c
+      # make_relative_path) finds share/ next to the bundled bin/ at runtime.
+      #
+      # Homebrew's postgresql@17 was previously used here but is fundamentally
+      # non-relocatable: it compiles PGSHAREDIR=$HOMEBREW_PREFIX/share/postgresql@17
+      # (an "opt" path) while PGBINDIR resolves under .../Cellar/<ver>/bin. The two
+      # share only the trivial /opt/homebrew/ prefix, so make_relative_path() can
+      # never relocate a flat <bundle>/bin layout and falls back to the absolute
+      # compiled path — which does not exist on a user's Mac. It also physically
+      # installs share files under share/postgresql/ (unversioned), so the runtime
+      # `initdb -L <bundle>/share` could not find postgres.bki. Both broke launch.
+      - name: Build relocatable PG bundle (EDB osx-arm64)
+        run: node apps/desktop/scripts/bundle-pg.mjs --target-platform darwin --target-arch arm64 --force
+
+      - name: Verify bundle layout + relocatability
+        run: |
+          PG=apps/desktop/resources/pgsql
+          # initdb reads bootstrap files from <bin>/../share — postgres.bki MUST be there.
+          if [ ! -f "$PG/share/postgres.bki" ]; then
+            echo "::error::postgres.bki missing from $PG/share — initdb would fail at runtime"
+            ls -la "$PG/share" 2>/dev/null || true
+            exit 1
+          fi
+          # No absolute build-host paths may survive in the shipped binaries.
+          BAD=0
+          for b in initdb postgres pg_ctl createdb psql pg_isready; do
+            bin="$PG/bin/$b"
+            [ -f "$bin" ] || continue
+            if otool -L "$bin" | grep -E '/opt/homebrew|/usr/local|/Library/PostgreSQL'; then
+              echo "::error::$b retains absolute dylib paths after rewrite"
+              BAD=1
+            fi
+          done
+          [ "$BAD" = 0 ] || exit 1
+          echo "Bundle OK — bin: $(ls "$PG/bin" | tr '\n' ' ')"
 
       - name: Package
         run: |
-          PG_PREFIX=$(brew --prefix postgresql@17)
-          mkdir -p pgsql
-          cp -RH "$PG_PREFIX"/* pgsql/
-
-          # Homebrew PG links against external dylibs (icu4c, openssl, zstd,
-          # lz4, krb5, readline, gettext). Copy them into pgsql/lib/ so the
-          # bundle is self-contained on machines without Homebrew.
-          DEPS=(
-            "$(brew --prefix icu4c@78)/lib/libicui18n.78.dylib"
-            "$(brew --prefix icu4c@78)/lib/libicuuc.78.dylib"
-            "$(brew --prefix icu4c@78)/lib/libicudata.78.dylib"
-            "$(brew --prefix openssl@3)/lib/libssl.3.dylib"
-            "$(brew --prefix openssl@3)/lib/libcrypto.3.dylib"
-            "$(brew --prefix zstd)/lib/libzstd.1.dylib"
-            "$(brew --prefix lz4)/lib/liblz4.1.dylib"
-            "$(brew --prefix krb5)/lib/libgssapi_krb5.2.2.dylib"
-            "$(brew --prefix krb5)/lib/libkrb5.3.3.dylib"
-            "$(brew --prefix krb5)/lib/libk5crypto.3.1.dylib"
-            "$(brew --prefix krb5)/lib/libkrb5support.0.1.dylib"
-            "$(brew --prefix krb5)/lib/libkrb5support.1.1.dylib"
-            "$(brew --prefix krb5)/lib/libcom_err.3.0.dylib"
-            "$(brew --prefix readline)/lib/libreadline.8.dylib"
-            "$(brew --prefix gettext)/lib/libintl.8.dylib"
-          )
-          for dep in "${DEPS[@]}"; do
-            [ -f "$dep" ] && cp -H "$dep" pgsql/lib/ && echo "copied $dep"
-          done
-
-          # Diagnostic: show unrewritten deps before rewrite
-          echo "=== Pre-rewrite: initdb deps ==="
-          otool -L pgsql/bin/initdb 2>/dev/null || true
-
-          # Rewrite dylib paths in ALL binaries (use -perm +111 for BSD find)
-          find pgsql/bin -type f -perm +111 -exec sh -c '
-            for binpath; do
-              otool -L "$binpath" 2>/dev/null | awk "NR>1{print \$1}" | while read dep; do
-                case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
-                libname=$(basename "$dep")
-                if [ -f "pgsql/lib/$libname" ]; then
-                  install_name_tool -change "$dep" "@loader_path/../lib/$libname" "$binpath"
-                elif [ -f "pgsql/lib/postgresql/$libname" ]; then
-                  install_name_tool -change "$dep" "@loader_path/../lib/postgresql/$libname" "$binpath"
-                fi
-              done
-            done
-          ' _ {} +
-
-          # Rewrite dylib paths in lib/*.dylib (top-level)
-          find pgsql/lib -maxdepth 1 -name '*.dylib' -exec sh -c '
-            for libpath; do
-              libfile=$(basename "$libpath")
-              install_name_tool -id "@loader_path/$libfile" "$libpath" 2>/dev/null || true
-              otool -L "$libpath" 2>/dev/null | awk "NR>1{print \$1}" | while read dep; do
-                case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
-                depname=$(basename "$dep")
-                if [ -f "pgsql/lib/$depname" ]; then
-                  install_name_tool -change "$dep" "@loader_path/$depname" "$libpath"
-                fi
-              done
-            done
-          ' _ {} +
-
-          # Rewrite dylib paths in lib/postgresql/ — refs to lib/ need ../
-          find pgsql/lib/postgresql -type f \( -name '*.dylib' -o -perm +111 \) -exec sh -c '
-            for libpath; do
-              libfile=$(basename "$libpath")
-              install_name_tool -id "@loader_path/$libfile" "$libpath" 2>/dev/null || true
-              otool -L "$libpath" 2>/dev/null | awk "NR>1{print \$1}" | while read dep; do
-                case "$dep" in @*|/usr/lib/*|/System/*) continue;; esac
-                depname=$(basename "$dep")
-                if [ -f "pgsql/lib/postgresql/$depname" ]; then
-                  install_name_tool -change "$dep" "@loader_path/$depname" "$libpath"
-                elif [ -f "pgsql/lib/$depname" ]; then
-                  install_name_tool -change "$dep" "@loader_path/../$depname" "$libpath"
-                fi
-              done
-            done
-          ' _ {} +
-
-          # Diagnostic: show deps after rewrite
-          echo "=== Post-rewrite: initdb deps ==="
-          otool -L pgsql/bin/initdb 2>/dev/null || true
-
-          # Verify no absolute Homebrew/Cellar paths remain
-          if otool -L pgsql/bin/initdb 2>/dev/null | grep -q '/opt/homebrew\|/usr/local/Cellar'; then
-            echo "::error::initdb still has absolute Homebrew paths after rewrite!"
-            otool -L pgsql/bin/initdb
-            exit 1
-          fi
-
-          # Re-codesign after modifying
-          find pgsql/bin pgsql/lib -type f \( -perm +111 -o -name '*.dylib' \) -exec codesign -s - --force {} \; 2>/dev/null || true
-
-          tar czf pg-17-darwin-arm64.tar.gz pgsql
+          cd apps/desktop/resources
+          tar czf "$GITHUB_WORKSPACE/pg-17-darwin-arm64.tar.gz" pgsql
 
       - name: Upload to release
         env:
