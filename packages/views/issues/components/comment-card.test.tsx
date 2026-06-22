@@ -135,7 +135,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("AttachmentList â€?standalone HTML attachment routes through AttachmentBlock", () => {
+describe("AttachmentList â€”standalone HTML attachment routes through AttachmentBlock", () => {
   // Regression pin for comment-card.tsx:152. This is the entry point
   // MUL-2330 originally regressed on: standalone HTML attachments (not
   // referenced inline in the markdown body) MUST render through
