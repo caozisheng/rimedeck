@@ -22,40 +22,25 @@ function RimedeckSvg({ className }: { className?: string }) {
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Back card */}
-      <rect x="22" y="10" width="56" height="68" rx="8" stroke="currentColor" strokeWidth="5" fill="none" />
-      {/* Middle card */}
-      <rect x="14" y="20" width="56" height="68" rx="8" stroke="currentColor" strokeWidth="5" fill="none" />
-      {/* Front card */}
-      <rect x="30" y="30" width="56" height="68" rx="8" stroke="currentColor" strokeWidth="4" fill="currentColor" fillOpacity="0.1" />
-      {/* Letter R */}
-      <text
-        x="58"
-        y="72"
-        textAnchor="middle"
-        dominantBaseline="central"
+      {/* Main shape: stacked cards + R */}
+      <path
         fill="currentColor"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="700"
-        fontSize="34"
-      >
-        R
-      </text>
-      {/* Arrow curving up-right */}
-      <path
-        d="M20 88 C20 78, 28 72, 38 72"
-        stroke="currentColor"
-        strokeWidth="4.5"
-        strokeLinecap="round"
-        fill="none"
+        d="M21.5,37.9 L22.5,42.0 L42.8,53.7 L66.8,36.3 L61.3,28.7 L69.3,29.3 L70.1,50.2 L58.8,58.6 L58.8,68.0 L66.8,79.5 L78.7,79.5 L67.0,62.7 L79.1,52.9 L78.7,19.9 L46.5,19.9 Z"
       />
+      {/* Top card */}
       <path
-        d="M34 66 L40 72 L34 78"
-        stroke="currentColor"
-        strokeWidth="4.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
+        fill="currentColor"
+        d="M63.5,34.6 L42.4,49.8 L25.0,39.6 L46.9,23.8 Z"
+      />
+      {/* Middle card */}
+      <path
+        fill="currentColor"
+        d="M67.4,40.8 L42.4,57.6 L21.1,45.1 L21.1,54.1 L42.4,66.6 L67.0,49.0 Z"
+      />
+      {/* Bottom card */}
+      <path
+        fill="currentColor"
+        d="M20.9,58.8 L21.3,67.4 L41.8,79.5 L55.9,69.9 L55.5,61.1 L42.2,70.7 Z"
       />
     </svg>
   );

@@ -1,12 +1,11 @@
 /**
- * RimeDeck wordmark / sigil. 1:1 vector copy of docs/assets/logo-light.svg —
- * keep this file and the SVG in sync.
+ * RimeDeck icon / sigil — stacked cards + R shape.
  *
  * react-native-svg does not resolve CSS `currentColor`, so callers must pass
  * `color` explicitly. For theme-aware usage, pair with `useColorScheme` +
  * `THEME` token from `@/lib/theme`.
  */
-import Svg, { Polygon } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
@@ -21,11 +20,22 @@ export function RimeDeckLogo({ size = 48, color }: RimeDeckLogoProps) {
     color ?? (isDarkColorScheme ? THEME.dark.foreground : THEME.light.foreground);
 
   return (
-    <Svg width={size} height={size} viewBox="0 0 80 80">
-      <Polygon
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Path
         fill={resolvedColor}
-        points="35,51.1 35,80 45,80 45,51.1 71.8,77.9 78.9,70.8 52.1,44 90,44 90,34 52.1,34 78.9,7.2 71.8,0.1 45,26.9 45,-11 35,-11 35,26.9 8.2,0.1 1.1,7.2 27.9,34 -10,34 -10,44 27.9,44 1.1,70.8 8.2,77.9"
-        transform="translate(5, 5.5) scale(0.87)"
+        d="M21.5,37.9 L22.5,42.0 L42.8,53.7 L66.8,36.3 L61.3,28.7 L69.3,29.3 L70.1,50.2 L58.8,58.6 L58.8,68.0 L66.8,79.5 L78.7,79.5 L67.0,62.7 L79.1,52.9 L78.7,19.9 L46.5,19.9 Z"
+      />
+      <Path
+        fill={resolvedColor}
+        d="M63.5,34.6 L42.4,49.8 L25.0,39.6 L46.9,23.8 Z"
+      />
+      <Path
+        fill={resolvedColor}
+        d="M67.4,40.8 L42.4,57.6 L21.1,45.1 L21.1,54.1 L42.4,66.6 L67.0,49.0 Z"
+      />
+      <Path
+        fill={resolvedColor}
+        d="M20.9,58.8 L21.3,67.4 L41.8,79.5 L55.9,69.9 L55.5,61.1 L42.2,70.7 Z"
       />
     </Svg>
   );

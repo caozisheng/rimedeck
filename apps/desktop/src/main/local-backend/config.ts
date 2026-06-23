@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
-import { findFreePort, isPortAvailable } from "./port-utils";
+import { isPortAvailable } from "./port-utils";
 
 export interface LocalConfig {
   [key: string]: unknown;
@@ -14,8 +14,8 @@ export interface LocalConfig {
 
 const DEFAULT_PG_PORT = 15432;
 const DEFAULT_BACKEND_PORT = 18080;
-const MIN_PORT = 1;
-const MAX_PORT = 65535;
+const MIN_PORT = 10_240;
+const MAX_PORT = 65_535;
 
 export function getRimedeckDir(): string {
   return process.env.RIMEDECK_HOME ?? join(homedir(), ".rimedeck");
@@ -43,6 +43,16 @@ function isValidPort(value: unknown): value is number {
   );
 }
 
+async function findFreeLocalBackendPort(preferred?: number): Promise<number> {
+  if (preferred && isValidPort(preferred) && await isPortAvailable(preferred)) {
+    return preferred;
+  }
+  for (let port = MIN_PORT; port <= MAX_PORT; port += 1) {
+    if (await isPortAvailable(port)) return port;
+  }
+  throw new Error("No local backend port available");
+}
+
 async function normalizeConfig(
   parsed: Record<string, unknown>,
 ): Promise<{ config: LocalConfig; changed: boolean }> {
@@ -50,23 +60,23 @@ async function normalizeConfig(
   let changed = false;
 
   if (!isValidPort(config.pgPort)) {
-    config.pgPort = await findFreePort(DEFAULT_PG_PORT);
+    config.pgPort = await findFreeLocalBackendPort(DEFAULT_PG_PORT);
     changed = true;
   } else if (!(await isPortAvailable(config.pgPort))) {
-    config.pgPort = await findFreePort(DEFAULT_PG_PORT);
+    config.pgPort = await findFreeLocalBackendPort(DEFAULT_PG_PORT);
     changed = true;
   }
 
   if (!isValidPort(config.backendPort) || config.backendPort === config.pgPort) {
-    config.backendPort = await findFreePort(DEFAULT_BACKEND_PORT);
+    config.backendPort = await findFreeLocalBackendPort(DEFAULT_BACKEND_PORT);
     changed = true;
   } else if (!(await isPortAvailable(config.backendPort))) {
-    config.backendPort = await findFreePort(DEFAULT_BACKEND_PORT);
+    config.backendPort = await findFreeLocalBackendPort(DEFAULT_BACKEND_PORT);
     changed = true;
   }
 
   if (config.backendPort === config.pgPort) {
-    config.backendPort = await findFreePort();
+    config.backendPort = await findFreeLocalBackendPort();
     changed = true;
   }
 
@@ -85,8 +95,8 @@ async function normalizeConfig(
 
 async function createConfig(): Promise<LocalConfig> {
   const config: LocalConfig = {
-    pgPort: await findFreePort(DEFAULT_PG_PORT),
-    backendPort: await findFreePort(DEFAULT_BACKEND_PORT),
+    pgPort: await findFreeLocalBackendPort(DEFAULT_PG_PORT),
+    backendPort: await findFreeLocalBackendPort(DEFAULT_BACKEND_PORT),
     jwtSecret: randomBytes(32).toString("hex"),
     firstRunAt: new Date().toISOString(),
   };

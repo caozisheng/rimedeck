@@ -51,19 +51,11 @@ function AppContent() {
   // finishes, so IndexRedirect gets a definitive workspace state on
   // first render.
   const [bootstrapping, setBootstrapping] = useState(false);
-  const autoLoginAttempted = useRef(false);
 
   const runtimeConfig = window.desktopAPI.runtimeConfig.ok
     ? window.desktopAPI.runtimeConfig.config
     : null;
 
-  // Auto-login for local mode — no login dialog needed.
-  // The Go server accepts the dev verification code (MULTICA_DEV_VERIFICATION_CODE)
-  // without a prior sendCode call, so we skip sendCode entirely to avoid the
-  // per-email rate limit that would block auto-login on rapid app restarts.
-  // Skip when connected to a remote server — the stored JWT from the invite
-  // redeem flow is the correct credential; auto-login would create a wrong
-  // user (`local@rimedeck.local`) on the remote server.
   const isRemote = runtimeConfig && !runtimeConfig.apiUrl.includes("127.0.0.1") && !runtimeConfig.apiUrl.includes("localhost");
 
   // When connected to a remote server, periodically ping it. On the first
@@ -107,26 +99,6 @@ function AppContent() {
     !!isRemote && !!user,
     healthCallbacks,
   );
-  useEffect(() => {
-    if (isLoading || bootstrapping || user || autoLoginAttempted.current) return;
-    if (isRemote) return;
-    autoLoginAttempted.current = true;
-    const LOCAL_EMAIL = "local@rimedeck.local";
-    const LOCAL_CODE = "000000";
-    (async () => {
-      setBootstrapping(true);
-      try {
-        const { verifyCode } = useAuthStore.getState();
-        await verifyCode(LOCAL_EMAIL, LOCAL_CODE);
-        const wsList = await api.listWorkspaces();
-        qc.setQueryData(workspaceKeys.list(), wsList);
-      } catch (err) {
-        console.error("[auto-login] failed:", err);
-      } finally {
-        setBootstrapping(false);
-      }
-    })();
-  }, [isLoading, bootstrapping, user, isRemote, qc]);
 
   // Tell the main process which backend URL we talk to, so daemon-manager
   // can pick the matching CLI profile (server_url from ~/.multica config).

@@ -52,6 +52,27 @@ describe("loadOrCreateConfig", () => {
     expect(config.firstRunAt).toBe(existing.firstRunAt);
   });
 
+  it("moves persisted local backend ports out of the reserved range", async () => {
+    await mkdir(rimedeckDir, { recursive: true });
+    await writeFile(
+      join(rimedeckDir, "config.json"),
+      JSON.stringify({
+        pgPort: 1814,
+        backendPort: 18080,
+        jwtSecret: "a".repeat(64),
+        firstRunAt: "2025-01-01T00:00:00.000Z",
+      }),
+      "utf-8",
+    );
+
+    const { loadOrCreateConfig } = await import("../config");
+    const config = await loadOrCreateConfig();
+
+    expect(config.pgPort).toBeGreaterThanOrEqual(1024 * 10);
+    expect(config.backendPort).toBeGreaterThanOrEqual(1024 * 10);
+    expect(config.pgPort).not.toBe(1814);
+  });
+
   it("fills missing local backend fields without dropping existing config keys", async () => {
     await mkdir(rimedeckDir, { recursive: true });
     await writeFile(

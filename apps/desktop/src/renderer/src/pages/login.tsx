@@ -8,6 +8,7 @@ export function DesktopLoginPage() {
       <DragStrip />
       <LoginPage
         logo={<RimeDeckIcon bordered size="lg" />}
+        skipCode
         onSuccess={() => {
           // Auth store update triggers AppContent re-render → shows DesktopShell.
           // Initial workspace navigation happens in routes.tsx via IndexRedirect.

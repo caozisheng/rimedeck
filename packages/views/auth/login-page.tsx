@@ -50,6 +50,9 @@ interface LoginPageProps {
    *  app?" prompt; desktop omits it (a download prompt inside the app
    *  would be absurd). */
   extra?: ReactNode;
+  /** Local-first mode: skip the verification code step and log in directly
+   *  with a dev code after the user enters their email. */
+  skipCode?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +95,7 @@ export function LoginPage({
   cliCallback,
   onTokenObtained,
   extra,
+  skipCode,
 }: LoginPageProps) {
   const { t } = useT("auth");
   const qc = useQueryClient();
@@ -159,10 +163,20 @@ export function LoginPage({
       setLoading(true);
       setError("");
       try {
-        await useAuthStore.getState().sendCode(email);
-        setStep("code");
-        setCode("");
-        setCooldown(60);
+        if (skipCode) {
+          // Local-first: skip sendCode + OTP, directly verify with dev code.
+          const DEV_CODE = "000000";
+          await useAuthStore.getState().verifyCode(email, DEV_CODE);
+          const wsList = await api.listWorkspaces();
+          qc.setQueryData(workspaceKeys.list(), wsList);
+          onTokenObtained?.();
+          onSuccess();
+        } else {
+          await useAuthStore.getState().sendCode(email);
+          setStep("code");
+          setCode("");
+          setCooldown(60);
+        }
       } catch (err) {
         setError(
           err instanceof Error
@@ -173,7 +187,7 @@ export function LoginPage({
         setLoading(false);
       }
     },
-    [email, t],
+    [email, t, skipCode, onSuccess, onTokenObtained, qc],
   );
 
   const handleVerify = useCallback(

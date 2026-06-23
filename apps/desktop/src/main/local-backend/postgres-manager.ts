@@ -17,6 +17,19 @@ interface PgPaths {
   psql: string;
 }
 
+export function pgIsReadyArgs(pgPort: number): string[] {
+  return [
+    "-h",
+    "127.0.0.1",
+    "-p",
+    String(pgPort),
+    "-d",
+    "postgres",
+    "-U",
+    "postgres",
+  ];
+}
+
 let pgPaths: PgPaths | null = null;
 let dataDir: string | null = null;
 
@@ -168,12 +181,7 @@ export async function startPostgres(pgPort: number): Promise<string> {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   while (Date.now() < deadline) {
     try {
-      await execAsync(pgPaths.pg_isready, [
-        "-h",
-        "127.0.0.1",
-        "-p",
-        String(pgPort),
-      ]);
+      await execAsync(pgPaths.pg_isready, pgIsReadyArgs(pgPort));
       pgReady = true;
       break;
     } catch {
