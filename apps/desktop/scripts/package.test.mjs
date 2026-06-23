@@ -7,6 +7,7 @@ import {
   parsePackageArgs,
   resolveBuildMatrix,
   stripLeadingSeparator,
+  verifyWindowsIconAsset,
 } from "./package.mjs";
 
 describe("normalizeGitVersion", () => {
@@ -237,6 +238,12 @@ describe("builderArgsForTarget", () => {
       "--publish",
       "never",
     ]);
+  });
+});
+
+describe("verifyWindowsIconAsset", () => {
+  it("accepts the committed Windows icon because it includes a 256x256 entry", () => {
+    expect(() => verifyWindowsIconAsset()).not.toThrow();
   });
 });
 

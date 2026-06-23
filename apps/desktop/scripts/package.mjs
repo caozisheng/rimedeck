@@ -25,6 +25,7 @@
 // version-derivation logic without shelling out.
 
 import { execFileSync, spawnSync, execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -33,6 +34,7 @@ const desktopRoot = resolve(here, "..");
 const bundleCliScript = resolve(here, "bundle-cli.mjs");
 const bundlePgScript = resolve(here, "bundle-pg.mjs");
 
+const windowsIconPath = resolve(desktopRoot, "build", "icon.ico");
 const PLATFORM_CONFIG = {
   mac: {
     aliases: new Set(["--mac", "--macos", "-m"]),
@@ -317,6 +319,51 @@ export function builderArgsForTarget(
   return builderArgs;
 }
 
+export function readIcoEntries(iconPath = windowsIconPath) {
+  const icon = readFileSync(iconPath);
+  if (icon.length < 6) {
+    throw new Error(`${iconPath} is not a valid ICO file: header is truncated`);
+  }
+
+  const reserved = icon.readUInt16LE(0);
+  const type = icon.readUInt16LE(2);
+  const count = icon.readUInt16LE(4);
+  if (reserved !== 0 || type !== 1 || count === 0) {
+    throw new Error(`${iconPath} is not a valid ICO file`);
+  }
+
+  const directorySize = 6 + count * 16;
+  if (icon.length < directorySize) {
+    throw new Error(`${iconPath} is not a valid ICO file: directory is truncated`);
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    const offset = 6 + index * 16;
+    const widthByte = icon.readUInt8(offset);
+    const heightByte = icon.readUInt8(offset + 1);
+    return {
+      width: widthByte === 0 ? 256 : widthByte,
+      height: heightByte === 0 ? 256 : heightByte,
+      bitCount: icon.readUInt16LE(offset + 6),
+      bytesInRes: icon.readUInt32LE(offset + 8),
+      imageOffset: icon.readUInt32LE(offset + 12),
+    };
+  });
+}
+
+export function verifyWindowsIconAsset(iconPath = windowsIconPath) {
+  const entries = readIcoEntries(iconPath);
+  const hasRequiredSize = entries.some(
+    ({ width, height }) => width >= 256 && height >= 256,
+  );
+  if (!hasRequiredSize) {
+    const sizes = entries.map(({ width, height }) => `${width}x${height}`).join(", ");
+    throw new Error(
+      `${iconPath} must include a 256x256 icon for electron-builder; found ${sizes}`,
+    );
+  }
+}
+
 function main() {
   const passthrough = stripLeadingSeparator(process.argv.slice(2));
   const parsed = parsePackageArgs(passthrough);
@@ -379,6 +426,10 @@ function main() {
   // Step 3: for each requested target, build the matching CLI and PG into
   // resources/ and package that target in isolation.
   for (const target of buildMatrix) {
+    if (target.platform === "win") {
+      verifyWindowsIconAsset();
+    }
+
     console.log(`[package] bundling CLI → ${formatTarget(target)}`);
     execFileSync(
       "node",
