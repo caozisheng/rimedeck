@@ -68,6 +68,7 @@ function AppContent() {
       try { await window.daemonAPI.removeRemoteServer(currentUrl); } catch { /* best effort */ }
     }
     await window.desktopAPI.disconnectRuntimeConfig();
+    localStorage.removeItem("rimedeck_token");
     localStorage.removeItem("multica_token");
     localStorage.removeItem("rimedeck_remote_server");
     window.location.reload();
@@ -144,7 +145,7 @@ function AppContent() {
   // Sync token and start the daemon whenever the user logs in.
   useEffect(() => {
     if (!user) return;
-    const token = localStorage.getItem("multica_token");
+    const token = localStorage.getItem("rimedeck_token") ?? localStorage.getItem("multica_token");
     if (!token) return;
     const userId = user.id;
     (async () => {

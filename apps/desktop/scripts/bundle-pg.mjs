@@ -78,7 +78,13 @@ try {
 
   // Extract to workDir — EDB archive produces a `pgsql/` subdirectory
   console.log("[bundle-pg] extracting...");
-  execFileSync("tar", ["-xf", archivePath, "-C", workDir], { stdio: "inherit" });
+  if (ext === "zip") {
+    // Use unzip for .zip archives — tar -xf on Windows (Git Bash)
+    // cannot reliably extract ZIP files (fails with "Cannot connect to C:").
+    execFileSync("unzip", ["-q", "-o", archivePath, "-d", workDir], { stdio: "inherit" });
+  } else {
+    execFileSync("tar", ["-xf", archivePath, "-C", workDir], { stdio: "inherit" });
+  }
 
   const extractedPgsql = join(workDir, "pgsql");
   if (!existsSync(extractedPgsql)) {
