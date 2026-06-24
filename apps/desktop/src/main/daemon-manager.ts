@@ -1353,6 +1353,15 @@ async function startDaemon(): Promise<{ success: boolean; error?: string }> {
     return { success: true };
   }
 
+  // Refuse to start if the profile has no auth token — the daemon will
+  // exit immediately with "not authenticated" and the 45 s startup poll
+  // makes the failure look like it hung. Wait for the renderer to call
+  // syncToken first (triggered by the [user] effect in App.tsx).
+  const config = await readProfileConfig(active.name);
+  if (typeof config.token !== "string" || config.token.length === 0) {
+    return { success: false, error: "daemon profile has no auth token — sync token before starting" };
+  }
+
   currentState = "starting";
   // Begin a fresh auth-probe window for this attempt.
   startingSince = Date.now();
@@ -1665,6 +1674,13 @@ export function setupDaemonManager(
       // Daemon is up but may be running an older CLI than the one we just
       // bundled. Restart it so the new binary actually takes effect.
       await ensureRunningDaemonVersionMatches();
+      return;
+    }
+    // Don't start if no token is configured — the renderer will call
+    // syncToken after login, which triggers autoStart again.
+    const active = await ensureActiveProfile();
+    const config = await readProfileConfig(active.name);
+    if (typeof config.token !== "string" || config.token.length === 0) {
       return;
     }
     await startDaemon();
