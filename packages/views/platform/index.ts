@@ -16,3 +16,13 @@ export {
   useLocalDaemonStatus,
   type LocalDaemonStatus,
 } from "./use-local-daemon-status";
+export {
+  hasSkillScanner,
+  scanSkillFolder,
+  scanSkillZip,
+  readSkillBundle,
+  type ScannedSkillEntry,
+  type SkillBundleContent,
+  type ScanResult,
+  type ReadBundleResult,
+} from "./skill-scanner";

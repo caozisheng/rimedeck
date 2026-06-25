@@ -3,9 +3,11 @@
 import { useRef, useState } from "react";
 import {
   AlertCircle,
+  Archive,
   ArrowLeft,
   ChevronRight,
   Download,
+  FolderOpen,
   HardDrive,
   Loader2,
   Pencil,
@@ -40,10 +42,12 @@ import { useScrollFade } from "@rimedeck/ui/hooks/use-scroll-fade";
 import { cn } from "@rimedeck/ui/lib/utils";
 import { openExternal } from "../../platform";
 import { RuntimeLocalSkillImportPanel } from "./runtime-local-skill-import-panel";
+import { FolderZipImportPanel } from "./folder-zip-import-panel";
+import { hasSkillScanner } from "../../platform";
 import { useT } from "../../i18n";
 import { isNameConflictError } from "../lib/utils";
 
-type Method = "chooser" | "manual" | "url" | "runtime";
+type Method = "chooser" | "manual" | "url" | "runtime" | "folder" | "zip";
 
 function seedAfterCreate(
   qc: ReturnType<typeof useQueryClient>,
@@ -61,38 +65,44 @@ function seedAfterCreate(
 
 function MethodChooser({ onChoose }: { onChoose: (m: Method) => void }) {
   const { t } = useT("skills");
+  const showFileImport = hasSkillScanner();
   const methods: {
     key: Method;
     icon: typeof Plus;
-    titleKey: "manual" | "url" | "runtime";
+    titleKey: "manual" | "url" | "runtime" | "folder" | "zip";
+    desktopOnly?: boolean;
   }[] = [
     { key: "manual", icon: Plus, titleKey: "manual" },
     { key: "url", icon: Download, titleKey: "url" },
     { key: "runtime", icon: HardDrive, titleKey: "runtime" },
+    { key: "folder", icon: FolderOpen, titleKey: "folder", desktopOnly: true },
+    { key: "zip", icon: Archive, titleKey: "zip", desktopOnly: true },
   ];
   return (
     <div className="grid gap-2 p-5">
-      {methods.map(({ key, icon: Icon, titleKey }) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => onChoose(key)}
-          className="group flex items-start gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
-            <Icon className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">
-              {t(($) => $.create.method_card[`${titleKey}_title`])}
+      {methods
+        .filter((m) => !m.desktopOnly || showFileImport)
+        .map(({ key, icon: Icon, titleKey }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChoose(key)}
+            className="group flex items-start gap-3 rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:text-foreground">
+              <Icon className="h-4 w-4" />
             </div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              {t(($) => $.create.method_card[`${titleKey}_desc`])}
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">
+                {t(($) => $.create.method_card[`${titleKey}_title`])}
+              </div>
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                {t(($) => $.create.method_card[`${titleKey}_desc`])}
+              </div>
             </div>
-          </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
-        </button>
-      ))}
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
+          </button>
+        ))}
     </div>
   );
 }
@@ -439,7 +449,7 @@ export function CreateSkillDialog({
     onClose();
   };
 
-  const wide = method === "runtime";
+  const wide = method === "runtime" || method === "folder" || method === "zip";
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -515,6 +525,20 @@ export function CreateSkillDialog({
         )}
         {method === "runtime" && (
           <RuntimeLocalSkillImportPanel
+            onImported={handleCreated}
+            onBulkDone={onClose}
+          />
+        )}
+        {method === "folder" && (
+          <FolderZipImportPanel
+            mode="folder"
+            onImported={handleCreated}
+            onBulkDone={onClose}
+          />
+        )}
+        {method === "zip" && (
+          <FolderZipImportPanel
+            mode="zip"
             onImported={handleCreated}
             onBulkDone={onClose}
           />

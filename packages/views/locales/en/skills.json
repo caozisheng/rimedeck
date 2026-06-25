@@ -162,6 +162,14 @@
       "runtime": {
         "title": "Copy from runtime",
         "desc": "Scan a local runtime and promote one of its on-disk skills into this workspace."
+      },
+      "folder": {
+        "title": "Import from folder",
+        "desc": "Scan a local folder for skill packages containing SKILL.md."
+      },
+      "zip": {
+        "title": "Import from ZIP",
+        "desc": "Scan a .zip archive for skill packages containing SKILL.md."
       }
     },
     "method_card": {
@@ -170,7 +178,11 @@
       "url_title": "Import from URL",
       "url_desc": "Pull a published skill from ClawHub or Skills.sh.",
       "runtime_title": "Copy from runtime",
-      "runtime_desc": "Promote a skill already installed on your local runtime."
+      "runtime_desc": "Promote a skill already installed on your local runtime.",
+      "folder_title": "Import from folder",
+      "folder_desc": "Scan a local folder for subdirectories containing SKILL.md and batch import.",
+      "zip_title": "Import from ZIP",
+      "zip_desc": "Scan a .zip archive for skill packages containing SKILL.md and batch import."
     },
     "manual": {
       "name_label": "Name",
@@ -198,6 +210,20 @@
       "cancel": "Cancel",
       "toast_imported": "Skill imported"
     }
+  },
+  "folder_import": {
+    "browse_folder_title": "Select a folder to scan",
+    "browse_zip_title": "Select a ZIP file to scan",
+    "browse_hint": "All subdirectories containing a SKILL.md file will be discovered.",
+    "browse_folder_button": "Browse Folder",
+    "browse_zip_button": "Browse ZIP File",
+    "scanning": "Scanning for skills…",
+    "scan_failed": "Failed to scan for skills",
+    "no_skills_title": "No skills found",
+    "no_skills_hint": "No subdirectories containing SKILL.md were found in the selected source.",
+    "rescan_button": "Try another source",
+    "found_count_one": "{{count}} skill found",
+    "found_count_other": "{{count}} skills found"
   },
   "runtime_import": {
     "runtime_label": "Runtime",

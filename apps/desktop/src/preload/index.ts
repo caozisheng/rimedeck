@@ -191,6 +191,14 @@ const desktopAPI = {
   /** Validate that a path is an existing readable+writable directory. */
   validateLocalDirectory: (path: string) =>
     ipcRenderer.invoke("local-directory:validate", path),
+  /** Scan a folder for subdirectories containing SKILL.md */
+  scanSkillFolder: (defaultPath?: string) =>
+    ipcRenderer.invoke("skill-scan:pick-folder", defaultPath),
+  /** Scan a .zip file for directories containing SKILL.md */
+  scanSkillZip: () => ipcRenderer.invoke("skill-scan:pick-zip"),
+  /** Read the full bundle content for a scanned skill */
+  readSkillBundle: (source: string, key: string) =>
+    ipcRenderer.invoke("skill-scan:read-bundle", source, key),
 };
 
 interface DaemonStatus {

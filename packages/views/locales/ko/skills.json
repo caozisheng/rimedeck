@@ -162,6 +162,14 @@
       "runtime": {
         "title": "런타임에서 복사",
         "desc": "로컬 런타임을 스캔해 디스크에 있는 스킬을 이 워크스페이스로 승격합니다."
+      },
+      "folder": {
+        "title": "폴더에서 가져오기",
+        "desc": "로컬 폴더를 스캔해 SKILL.md가 포함된 스킬 패키지를 찾습니다."
+      },
+      "zip": {
+        "title": "ZIP에서 가져오기",
+        "desc": ".zip 아카이브를 스캔해 SKILL.md가 포함된 스킬 패키지를 찾습니다."
       }
     },
     "method_card": {
@@ -170,7 +178,11 @@
       "url_title": "URL에서 가져오기",
       "url_desc": "ClawHub 또는 Skills.sh의 공개 스킬을 가져옵니다.",
       "runtime_title": "런타임에서 복사",
-      "runtime_desc": "로컬 런타임에 이미 설치된 스킬을 워크스페이스로 가져옵니다."
+      "runtime_desc": "로컬 런타임에 이미 설치된 스킬을 워크스페이스로 가져옵니다.",
+      "folder_title": "폴더에서 가져오기",
+      "folder_desc": "로컬 폴더에서 SKILL.md를 포함하는 하위 디렉토리를 스캔해 일괄 가져옵니다.",
+      "zip_title": "ZIP에서 가져오기",
+      "zip_desc": ".zip 아카이브에서 SKILL.md를 포함하는 스킬 패키지를 스캔해 일괄 가져옵니다."
     },
     "manual": {
       "name_label": "이름",
@@ -198,6 +210,20 @@
       "cancel": "취소",
       "toast_imported": "스킬을 가져왔습니다"
     }
+  },
+  "folder_import": {
+    "browse_folder_title": "스캔할 폴더 선택",
+    "browse_zip_title": "스캔할 ZIP 파일 선택",
+    "browse_hint": "SKILL.md 파일을 포함하는 모든 하위 디렉토리가 발견됩니다.",
+    "browse_folder_button": "폴더 찾아보기",
+    "browse_zip_button": "ZIP 파일 찾아보기",
+    "scanning": "스킬 패키지 스캔 중…",
+    "scan_failed": "스킬 패키지 스캔에 실패했습니다",
+    "no_skills_title": "스킬을 찾을 수 없습니다",
+    "no_skills_hint": "선택한 소스에서 SKILL.md를 포함하는 하위 디렉토리를 찾지 못했습니다.",
+    "rescan_button": "다른 소스 시도",
+    "found_count_one": "{{count}}개 스킬 발견",
+    "found_count_other": "{{count}}개 스킬 발견"
   },
   "runtime_import": {
     "runtime_label": "런타임",

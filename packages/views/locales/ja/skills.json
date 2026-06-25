@@ -160,6 +160,14 @@
       "runtime": {
         "title": "ランタイムからコピー",
         "desc": "ローカルランタイムをスキャンし、ディスク上のスキルの 1 つをこのワークスペースに昇格します。"
+      },
+      "folder": {
+        "title": "フォルダからインポート",
+        "desc": "ローカルフォルダをスキャンし、SKILL.md を含むスキルパッケージを検索します。"
+      },
+      "zip": {
+        "title": "ZIP からインポート",
+        "desc": ".zip アーカイブをスキャンし、SKILL.md を含むスキルパッケージを検索します。"
       }
     },
     "method_card": {
@@ -168,7 +176,11 @@
       "url_title": "URL からインポート",
       "url_desc": "ClawHub または Skills.sh の公開スキルを取得します。",
       "runtime_title": "ランタイムからコピー",
-      "runtime_desc": "ローカルランタイムにすでにインストールされているスキルを昇格します。"
+      "runtime_desc": "ローカルランタイムにすでにインストールされているスキルを昇格します。",
+      "folder_title": "フォルダからインポート",
+      "folder_desc": "ローカルフォルダ内の SKILL.md を含むサブディレクトリをスキャンし、一括インポートします。",
+      "zip_title": "ZIP からインポート",
+      "zip_desc": ".zip アーカイブ内の SKILL.md を含むスキルパッケージをスキャンし、一括インポートします。"
     },
     "manual": {
       "name_label": "名前",
@@ -196,6 +208,20 @@
       "cancel": "キャンセル",
       "toast_imported": "スキルをインポートしました"
     }
+  },
+  "folder_import": {
+    "browse_folder_title": "スキャンするフォルダを選択",
+    "browse_zip_title": "スキャンする ZIP ファイルを選択",
+    "browse_hint": "SKILL.md ファイルを含むすべてのサブディレクトリが検出されます。",
+    "browse_folder_button": "フォルダを参照",
+    "browse_zip_button": "ZIP ファイルを参照",
+    "scanning": "スキルパッケージをスキャン中…",
+    "scan_failed": "スキルパッケージのスキャンに失敗しました",
+    "no_skills_title": "スキルが見つかりません",
+    "no_skills_hint": "選択したソースに SKILL.md を含むサブディレクトリが見つかりませんでした。",
+    "rescan_button": "別のソースを試す",
+    "found_count_one": "{{count}} 個のスキルが見つかりました",
+    "found_count_other": "{{count}} 個のスキルが見つかりました"
   },
   "runtime_import": {
     "runtime_label": "ランタイム",
