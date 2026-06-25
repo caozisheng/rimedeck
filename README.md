@@ -29,6 +29,26 @@ Local-first AI agent workbench — manage issues, orchestrate AI coding agents, 
 
 **Remote collaboration.** Invite team members to your workspace with full UI access — issues, agents, runtimes, settings — authenticated via JWT, exactly like a cloud app but running on your own machine.
 
+### RimeDeck vs Multica
+
+RimeDeck is forked from [Multica](https://github.com/multica-ai/multica). The table below highlights where RimeDeck diverges:
+
+| Dimension | Multica | RimeDeck |
+|-----------|---------|----------|
+| **Deployment** | Docker Compose / Cloud SaaS | Zero Docker — Electron bundles PostgreSQL + Go server as child processes; double-click to launch |
+| **Cloud dependency** | Cloud-first; self-hosting via Docker | Fully offline, zero cloud requirement |
+| **Database** | External PostgreSQL (Docker or managed) | Embedded PostgreSQL, auto-migrated on startup |
+| **Frontend** | Next.js (App Router) web app | Electron desktop app with headless core + shadcn UI |
+| **Deterministic pipelines** | — | SOP-as-MCP: RuleGo DAG engine (HTTP → LLM → filter → doc gen); non-LLM nodes run at zero token cost |
+| **SOP injection** | — | Dual-path: runtime config file + MCP tool; agent decides autonomously when to trigger |
+| **Compute sharing** | Cloud runtimes + local daemon | LAN / Tailscale / VPN daemon tokens — remote machines contribute GPU/CPU without UI access |
+| **Remote collaboration** | Cloud workspace membership | Peer-to-peer JWT auth — collaborator's Electron UI points at your server's API directly |
+| **Supported runtimes** | 13 | 16 (adds CodeBuddy, Antigravity, Qwen Code) |
+| **Mobile client** | iOS app | — |
+| **Issue / Project views** | 4 views: Board, List, Gantt, Swimlane | 7 views: + Analytics, Calendar, DAG dependency graph |
+| **WSL runtime support** | — | Windows desktop auto-discovers WSL distros, bundles Linux CLI binaries, and manages WSL daemons (start/stop/status) from the Electron UI |
+| **Squad leader template** | Must pick an existing agent as leader | Built-in Agent Manager template — one-click creates a leader that routes tasks, coordinates members, and summarizes results |
+
 ### Agent = Person, Skill = Knowledge, SOP = Capability
 
 | Layer | What it is | How it's delivered |
