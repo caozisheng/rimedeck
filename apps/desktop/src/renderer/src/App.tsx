@@ -142,6 +142,12 @@ function AppContent() {
     });
   }, [qc]);
 
+  // Clear the remote-logout flag once the user logs in again so subsequent
+  // 401-driven session losses show RemoteReconnectPage as intended.
+  useEffect(() => {
+    if (user) pendingRemoteLogout = false;
+  }, [user]);
+
   // Sync token and start the daemon whenever the user logs in.
   useEffect(() => {
     if (!user) return;
@@ -308,7 +314,7 @@ function AppContent() {
       <PageviewTracker />
       {user ? (
         <DesktopShell />
-      ) : isRemote && runtimeConfig ? (
+      ) : isRemote && runtimeConfig && !pendingRemoteLogout ? (
         <RemoteReconnectPage apiUrl={runtimeConfig.apiUrl} />
       ) : (
         <DesktopLoginPage />
@@ -333,12 +339,35 @@ function BlockingRuntimeConfigError({ message }: { message: string }) {
   );
 }
 
+// Flag set synchronously in handleDaemonLogout (before the auth store's
+// `set({ user: null })` triggers a re-render) so that AppContent renders
+// DesktopLoginPage (email-only, skipCode) instead of RemoteReconnectPage
+// (invite-code flow) after an explicit logout from a remote server.
+// Reset when the user logs in again.
+let pendingRemoteLogout = false;
+
 // On logout, wipe desktop-only in-memory state and stop the daemon so that
 // a subsequent login as a different user never inherits the previous user's
 // tabs, overlay, or credentials. Zustand persist only writes to localStorage;
 // useLogout clears the storage key, but the live stores stay populated until
 // we explicitly reset them here.
+//
+// When connected to a remote server, the function also disconnects back to
+// the local backend so the next login goes through DesktopLoginPage (with
+// skipCode) instead of RemoteReconnectPage (invite-code flow).
 async function handleDaemonLogout() {
+  // Check remote before any async work — the flag must be set synchronously
+  // so the very next React render (triggered by `set({ user: null })` in
+  // the auth store) already sees it.
+  const rc = window.desktopAPI.runtimeConfig;
+  const isRemote = rc.ok &&
+    !rc.config.apiUrl.includes("127.0.0.1") &&
+    !rc.config.apiUrl.includes("localhost");
+
+  if (isRemote) {
+    pendingRemoteLogout = true;
+  }
+
   useTabStore.getState().reset();
   useWindowOverlayStore.getState().close();
   // Drop any post-onboarding welcome signal so user B logging in next
@@ -353,6 +382,21 @@ async function handleDaemonLogout() {
     await window.daemonAPI.stop();
   } catch {
     // Daemon may already be stopped.
+  }
+
+  // Disconnect from the remote server and reload so that CoreProvider
+  // reinitialises with the local backend URL and DesktopLoginPage's
+  // skipCode verifyCode call reaches the local server.
+  if (isRemote) {
+    try {
+      await window.daemonAPI.removeRemoteServer(rc.config.apiUrl);
+    } catch { /* best effort */ }
+    try {
+      await window.desktopAPI.disconnectRuntimeConfig();
+    } catch { /* best effort */ }
+    localStorage.removeItem("multica_token");
+    localStorage.removeItem("rimedeck_remote_server");
+    window.location.reload();
   }
 }
 
