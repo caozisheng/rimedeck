@@ -120,7 +120,7 @@ describe("LoginPage", () => {
       screen.getByText(/sign in to rimedeck/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/enter your email to get a login code/i),
+      screen.getByText(/postgresql database user account/i),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(
