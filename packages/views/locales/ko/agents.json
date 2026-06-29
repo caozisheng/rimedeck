@@ -335,6 +335,12 @@
     },
     "runtime_config": {
       "intro": "OpenClaw 런타임이 이 에이전트의 각 턴을 어떻게 실행할지 선택하세요. Local 모드는 에이전트를 daemon 프로세스 내부에서 실행합니다. Gateway 모드는 각 턴을 OpenClaw Gateway로 전달합니다 — daemon 호스트가 가벼운 조율기 역할을 하고 실제 작업은 더 강력한 머신에서 돌리고 싶을 때 유용합니다.",
+      "execution_intro": "이 에이전트의 실행 동작을 설정합니다. 비워두면 런타임 기본값을 사용합니다.",
+      "execution_legend": "실행",
+      "timeout_label": "작업 타임아웃",
+      "timeout_unit": "분",
+      "timeout_invalid": "0.1부터 1440 사이의 숫자를 입력하거나 비워두세요.",
+      "timeout_hint": "이 에이전트의 각 실행에 적용됩니다. 긴 문서를 작성하는 에이전트에는 45 또는 60처럼 더 큰 값을 사용하세요.",
       "mode_label": "라우팅 모드",
       "mode_local": "Local",
       "mode_gateway": "Gateway",

@@ -34,6 +34,7 @@ export function AgentWorkCard({ task, className }: AgentWorkCardProps) {
   const statusLabel = getStatusLabel(task.status, t);
   const showTranscript =
     task.status !== "queued" && task.status !== "waiting_local_directory";
+  const waitingLabel = getWaitingLabel(task.status, t);
 
   return (
     <Card
@@ -76,14 +77,37 @@ export function AgentWorkCard({ task, className }: AgentWorkCardProps) {
           taskId={task.id}
           className="mx-4 mb-3 border-info/20 bg-background/60"
           maxItems={10}
+          emptyFallback={
+            <div className="mx-4 mb-3 rounded-md border border-dashed border-info/20 bg-background/60 p-2 text-xs text-muted-foreground">
+              {waitingLabel}
+            </div>
+          }
         />
       ) : (
         <div className="mx-4 mb-3 rounded-md border border-dashed border-info/20 bg-background/60 p-2 text-xs text-muted-foreground">
-          Waiting for the first events...
+          {waitingLabel}
         </div>
       )}
     </Card>
   );
+}
+
+function getWaitingLabel(
+  status: AgentTask["status"],
+  t: TFunction<"issues">,
+): string {
+  switch (status) {
+    case "queued":
+      return t(($) => $.execution_log.status_queued);
+    case "dispatched":
+      return t(($) => $.execution_log.status_dispatched);
+    case "waiting_local_directory":
+      return t(($) => $.execution_log.status_waiting_local_directory);
+    case "running":
+      return t(($) => $.execution_log.status_running);
+    default:
+      return getStatusLabel(status, t);
+  }
 }
 
 function getStatusLabel(

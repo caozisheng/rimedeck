@@ -212,15 +212,16 @@ export function RuntimeConfigTab({
   return (
     <div className="flex h-full flex-col space-y-4">
       <p className="text-xs text-muted-foreground">
-        Configure execution behavior for this agent. Leave fields blank to use
-        the runtime default.
+        {t(($) => $.tab_body.runtime_config.execution_intro)}
       </p>
 
       <fieldset className="space-y-2 rounded-md border p-3">
-        <legend className="px-1 text-xs font-medium">Execution</legend>
+        <legend className="px-1 text-xs font-medium">
+          {t(($) => $.tab_body.runtime_config.execution_legend)}
+        </legend>
         <div className="max-w-xs space-y-1.5">
           <Label htmlFor="agent-timeout-minutes" className="text-xs">
-            Task timeout
+            {t(($) => $.tab_body.runtime_config.timeout_label)}
           </Label>
           <div className="flex items-center gap-2">
             <Input
@@ -235,18 +236,17 @@ export function RuntimeConfigTab({
               className="font-mono text-xs"
             />
             <span className="shrink-0 text-xs text-muted-foreground">
-              minutes
+              {t(($) => $.tab_body.runtime_config.timeout_unit)}
             </span>
           </div>
           {!timeoutValid && (
             <p className="text-xs text-destructive">
-              Enter a number from 0.1 to 1440, or leave it blank.
+              {t(($) => $.tab_body.runtime_config.timeout_invalid)}
             </p>
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Applies to each run of this agent. For long document-writing agents,
-          use a larger value such as 45 or 60.
+          {t(($) => $.tab_body.runtime_config.timeout_hint)}
         </p>
       </fieldset>
 

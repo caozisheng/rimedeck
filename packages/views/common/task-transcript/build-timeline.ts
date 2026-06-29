@@ -74,12 +74,22 @@ function normalizeTaskMessageType(
   content: string | undefined,
 ): TimelineItem["type"] | null {
   if (type === "progress") {
-    return null;
+    return isVisibleLifecycleProgress(content) ? "log" : null;
   }
   if (type === "thinking" && isLegacyPublicProgress(content)) {
     return null;
   }
   return type;
+}
+
+function isVisibleLifecycleProgress(content: string | undefined): boolean {
+  const text = content?.trim() ?? "";
+  return (
+    text === "Task queued" ||
+    text === "Task dispatched to runtime" ||
+    text === "Runtime started task" ||
+    text === "Waiting for local directory"
+  );
 }
 
 function isLegacyPublicProgress(content: string | undefined): boolean {

@@ -320,6 +320,12 @@
     },
     "runtime_config": {
       "intro": "OpenClaw ランタイムがこのエージェントの各ターンをどのように実行するかを選択します。Local モードはエージェントを daemon プロセス内で実行します。Gateway モードは各ターンを OpenClaw Gateway に転送します — daemon のホストが軽量な調整役で、エージェントの実作業はより強力なマシンで動かしたい場合に有用です。",
+      "execution_intro": "このエージェントの実行動作を設定します。空欄のままにするとランタイムのデフォルトを使用します。",
+      "execution_legend": "実行",
+      "timeout_label": "タスクのタイムアウト",
+      "timeout_unit": "分",
+      "timeout_invalid": "0.1 から 1440 までの数値を入力するか、空欄のままにしてください。",
+      "timeout_hint": "このエージェントの各実行に適用されます。長いドキュメントを書くエージェントには、45 や 60 など大きめの値を使用してください。",
       "mode_label": "ルーティングモード",
       "mode_local": "Local",
       "mode_gateway": "Gateway",

@@ -122,6 +122,19 @@ describe("task transcript timeline", () => {
     ]);
   });
 
+  it("keeps task lifecycle progress rows visible in previews", () => {
+    const items = buildTimeline([
+      message(0, "progress", "Task queued"),
+      message(1, "progress", "Runtime started task"),
+      message(2, "progress", "Running Bash: pnpm test"),
+    ]);
+
+    expect(items).toEqual([
+      expect.objectContaining({ seq: 0, type: "log", content: "Task queued" }),
+      expect.objectContaining({ seq: 1, type: "log", content: "Runtime started task" }),
+    ]);
+  });
+
   it("falls back to the previous created_at when the merged fragment has none", () => {
     const items = coalesceTimelineItems([
       { seq: 1, type: "text", content: "hello ", created_at: "2026-06-09T09:00:00.000Z" },

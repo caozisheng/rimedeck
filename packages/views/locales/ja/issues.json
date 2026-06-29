@@ -369,6 +369,7 @@
     "retry_task_aria": "タスクを再試行",
     "retry_failed": "タスクを再試行できませんでした",
     "transcript_tooltip": "トランスクリプトを表示",
+    "waiting_first_events": "最初のイベントを待機中...",
     "cancel_failed": "タスクをキャンセルできませんでした",
     "trigger_retry": "再試行",
     "trigger_retry_attempt": "再試行 #{{attempt}}",

@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, CheckCircle2, ChevronRight, Clock3, ListChevronsDownUp, Copy, MoreHorizontal, Pencil, RotateCcw, ScrollText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import type { TFunction } from "i18next";
 import { Card } from "@rimedeck/ui/components/ui/card";
 import { Button } from "@rimedeck/ui/components/ui/button";
 import {
@@ -655,6 +656,7 @@ function PendingAgentReplyRow({
   const showTranscript =
     task.status !== "queued" && task.status !== "waiting_local_directory";
   const [taskTimelineOpen, setTaskTimelineOpen] = useState(true);
+  const waitingLabel = getPendingTaskWaitingLabel(task.status, t);
 
   return (
     <div
@@ -717,19 +719,41 @@ function PendingAgentReplyRow({
               collapsedMaxItems={3}
               emptyFallback={
                 <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
-                  Waiting for the first events...
+                  {waitingLabel}
                 </div>
               }
             />
           ) : (
             <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
-              Waiting for the first events...
+              {waitingLabel}
             </div>
           )}
         </div>
       )}
     </div>
   );
+}
+
+function getPendingTaskWaitingLabel(
+  status: PendingAgentReply["task"]["status"],
+  t: TFunction<"issues">,
+): string {
+  switch (status) {
+    case "queued":
+      return t(($) => $.execution_log.status_queued);
+    case "dispatched":
+      return t(($) => $.execution_log.status_dispatched);
+    case "waiting_local_directory":
+      return t(($) => $.execution_log.status_waiting_local_directory);
+    case "running":
+      return t(($) => $.execution_log.status_running);
+    case "completed":
+      return t(($) => $.execution_log.status_completed);
+    case "failed":
+      return t(($) => $.execution_log.status_failed);
+    case "cancelled":
+      return t(($) => $.execution_log.status_cancelled);
+  }
 }
 
 // ---------------------------------------------------------------------------
