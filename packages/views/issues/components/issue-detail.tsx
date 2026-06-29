@@ -7,6 +7,7 @@ import { AppLink } from "../../navigation";
 import { useNavigation } from "../../navigation";
 import {
   Archive,
+  ArrowDownToLine,
   Calendar,
   CalendarClock,
   CalendarDays,
@@ -14,6 +15,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleCheck,
+  ListCollapse,
+  ListRestart,
   MoreHorizontal,
   PanelRight,
   Pin,
@@ -72,7 +75,7 @@ import { projectDetailOptions } from "@rimedeck/core/projects/queries";
 import { ProjectIcon } from "../../projects/components/project-icon";
 import { issueLabelsOptions } from "@rimedeck/core/labels";
 import { memberListOptions, agentListOptions } from "@rimedeck/core/workspace/queries";
-import { useRecentIssuesStore } from "@rimedeck/core/issues/stores";
+import { useCommentCollapseStore, useRecentIssuesStore } from "@rimedeck/core/issues/stores";
 import { useIssueSelectionStore } from "@rimedeck/core/issues/stores/selection-store";
 import { BatchActionToolbar } from "./batch-action-toolbar";
 import { useIssueTimeline } from "../hooks/use-issue-timeline";
@@ -776,6 +779,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // "show all" choice, and so the choice survives the block losing its
   // trailing position when a new comment lands after it.
   const [showOlderActivityIds, setShowOlderActivityIds] = useState<Set<string>>(() => new Set());
+  const [statusTimelineCollapsed, setStatusTimelineCollapsed] = useState(false);
   const toggleActivityBlock = useCallback((id: string, currentlyExpanded: boolean) => {
     if (currentlyExpanded) {
       setCollapsedActivityIds((prev) => {
@@ -811,6 +815,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       return next;
     });
   }, []);
+  const setManyCommentsCollapsed = useCommentCollapseStore((s) => s.setMany);
   const didHighlightRef = useRef<string | null>(null);
 
   // Issue data from TQ —uses detail query, seeded from list cache if available.
@@ -1019,6 +1024,45 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     () => flattenGroups(timelineView.groups, expandedResolved, pendingAgentReplyPlacement.unplacedTasks),
     [timelineView.groups, expandedResolved, pendingAgentReplyPlacement.unplacedTasks],
   );
+
+  const rootCommentIds = useMemo(
+    () =>
+      timelineView.groups
+        .filter((group) => group.type === "comment")
+        .map((group) => group.entries[0]!.id),
+    [timelineView.groups],
+  );
+
+  const activityGroupIds = useMemo(
+    () => items
+      .filter((item): item is Extract<TimelineItem, { kind: "activity-group" }> => item.kind === "activity-group")
+      .map((item) => item.id),
+    [items],
+  );
+
+  const handleCollapseTimeline = useCallback(() => {
+    setManyCommentsCollapsed(id, rootCommentIds, true);
+    setCollapsedActivityIds(new Set(activityGroupIds));
+    setExpandedActivityIds(new Set());
+    setExpandedResolved(new Set());
+    setStatusTimelineCollapsed(true);
+  }, [activityGroupIds, id, rootCommentIds, setManyCommentsCollapsed]);
+
+  const handleExpandTimeline = useCallback(() => {
+    setManyCommentsCollapsed(id, rootCommentIds, false);
+    setExpandedActivityIds(new Set(activityGroupIds));
+    setCollapsedActivityIds(new Set());
+    setStatusTimelineCollapsed(false);
+  }, [activityGroupIds, id, rootCommentIds, setManyCommentsCollapsed]);
+
+  const handleJumpToBottom = useCallback(() => {
+    const container = scrollContainerEl;
+    if (!container) return;
+    container.scrollTo?.({ top: container.scrollHeight, behavior: "smooth" });
+    if (!container.scrollTo) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [scrollContainerEl]);
 
   // ID of the trailing activity block —the only one expanded by default.
   const lastActivityGroupId = useMemo(() => {
@@ -1869,6 +1913,68 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           className="relative flex-1 min-w-0 overflow-y-auto"
         >
         <div className="mx-auto w-full max-w-4xl px-8 py-8">
+          <div className="sticky top-3 z-30 mb-4 flex justify-end pointer-events-none">
+            <div className="pointer-events-auto flex items-center gap-1 rounded-md border bg-background/95 p-1 shadow-sm backdrop-blur">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      onClick={handleCollapseTimeline}
+                      aria-label={t(($) => $.detail.collapse_timeline_tooltip)}
+                    >
+                      <ListCollapse />
+                    </Button>
+                  }
+                />
+                <TooltipContent side="bottom">
+                  {t(($) => $.detail.collapse_timeline_tooltip)}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      onClick={handleExpandTimeline}
+                      aria-label={t(($) => $.detail.expand_timeline_tooltip)}
+                    >
+                      <ListRestart />
+                    </Button>
+                  }
+                />
+                <TooltipContent side="bottom">
+                  {t(($) => $.detail.expand_timeline_tooltip)}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground"
+                      onClick={handleJumpToBottom}
+                      aria-label={t(($) => $.detail.jump_to_bottom_tooltip)}
+                    >
+                      <ArrowDownToLine />
+                    </Button>
+                  }
+                />
+                <TooltipContent side="bottom">
+                  {t(($) => $.detail.jump_to_bottom_tooltip)}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
           <TitleEditor
             key={`title-${id}`}
             defaultValue={issue.title}
@@ -2047,10 +2153,30 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
           <div className="my-8 border-t" />
 
-          <h2 className="text-base font-semibold mb-4">{t(($) => $.dag_view.timeline_title)}</h2>
+          <div className="mb-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStatusTimelineCollapsed((value) => !value)}
+              className="flex items-center gap-1.5 text-base font-semibold text-foreground transition-colors hover:text-foreground/80"
+              aria-expanded={!statusTimelineCollapsed}
+              aria-label={
+                statusTimelineCollapsed
+                  ? t(($) => $.detail.expand_status_timeline_tooltip)
+                  : t(($) => $.detail.collapse_status_timeline_tooltip)
+              }
+            >
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform",
+                  statusTimelineCollapsed && "-rotate-90",
+                )}
+              />
+              <span>{t(($) => $.dag_view.timeline_title)}</span>
+            </button>
+          </div>
 
           {/* Unified status flow + activity timeline */}
-          <IssueSequence issue={issue} timeline={timeline} />
+          {!statusTimelineCollapsed && <IssueSequence issue={issue} timeline={timeline} />}
 
           <div className="mt-6" />
           {/* Activity / Comments */}

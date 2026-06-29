@@ -583,7 +583,12 @@ function CommentRow({
       ) : (
         <>
           {taskId && taskTimelineOpen && (
-            <TaskTimelinePreview taskId={taskId} className="mb-2 ml-12 mr-4" maxItems={12} />
+            <TaskTimelinePreview
+              taskId={taskId}
+              className="mb-2 ml-12 mr-4"
+              maxItems={12}
+              collapsedMaxItems={3}
+            />
           )}
           <div className="pl-12 pr-4 pt-1 text-sm leading-relaxed text-foreground/85">
             <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />
@@ -649,6 +654,7 @@ function PendingAgentReplyRow({
   );
   const showTranscript =
     task.status !== "queued" && task.status !== "waiting_local_directory";
+  const [taskTimelineOpen, setTaskTimelineOpen] = useState(true);
 
   return (
     <div
@@ -678,25 +684,50 @@ function PendingAgentReplyRow({
           <Clock3 className="h-3 w-3" />
           {elapsed}
         </span>
+        <div className="ml-auto">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  aria-pressed={taskTimelineOpen}
+                  aria-label={t(($) => $.execution_log.transcript_tooltip)}
+                  onClick={() => setTaskTimelineOpen((value) => !value)}
+                >
+                  <ScrollText className="h-4 w-4" />
+                </Button>
+              }
+            />
+            <TooltipContent>
+              {t(($) => $.execution_log.transcript_tooltip)}
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </StickyHeaderShell>
-      <div className="pl-12 pr-4 pt-1 pb-1">
-        {showTranscript ? (
-          <TaskTimelinePreview
-            taskId={task.id}
-            className="border-info/20 bg-muted/20"
-            maxItems={12}
-            emptyFallback={
-              <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
-                Waiting for the first events...
-              </div>
-            }
-          />
-        ) : (
-          <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
-            Waiting for the first events...
-          </div>
-        )}
-      </div>
+      {taskTimelineOpen && (
+        <div className="pl-12 pr-4 pt-1 pb-1">
+          {showTranscript ? (
+            <TaskTimelinePreview
+              taskId={task.id}
+              className="border-info/20 bg-muted/20"
+              maxItems={12}
+              collapsedMaxItems={3}
+              emptyFallback={
+                <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
+                  Waiting for the first events...
+                </div>
+              }
+            />
+          ) : (
+            <div className="rounded-md border border-dashed border-info/20 bg-muted/20 p-2 text-xs text-muted-foreground">
+              Waiting for the first events...
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -990,7 +1021,12 @@ function CommentCardImpl({
             ) : (
               <>
                 {rootTaskId && taskTimelineOpen && (
-                  <TaskTimelinePreview taskId={rootTaskId} className="mb-2 ml-10" maxItems={12} />
+                  <TaskTimelinePreview
+                    taskId={rootTaskId}
+                    className="mb-2 ml-10"
+                    maxItems={12}
+                    collapsedMaxItems={3}
+                  />
                 )}
                 <div className="pl-10 text-sm leading-relaxed text-foreground/85">
                   <ReadonlyContent content={entry.content ?? ""} attachments={entry.attachments} />

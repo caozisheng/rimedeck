@@ -18,42 +18,30 @@ import { Switch } from "@rimedeck/ui/components/ui/switch";
 import { toast } from "sonner";
 import { useT } from "../../../i18n";
 
-// Form state mirrors OpenclawRuntimeConfig, but always carries a defined
-// mode value so the radio group is fully controlled. Empty-string mode
-// shouldn't be reachable in this form because the field defaults to "local"
-// the first time an openclaw agent's tab opens — equivalent to the daemon's
-// fail-soft default — but the union accepts it as a defensive belt.
 interface FormState {
+  timeoutMinutes: string;
   mode: OpenclawRoutingMode;
   host: string;
   port: string;
   token: string;
   tls: boolean;
-  // tokenWasMasked records whether the form opened against a persisted token
-  // (server responded with the mask sentinel). It tracks "the user has not
-  // touched the token field since open" so submit can replay the sentinel
-  // back to the server, which the matching preserve hook treats as "keep
-  // the persisted value". Any user keystroke clears the flag, at which
-  // point token is taken at face value.
   tokenWasMasked: boolean;
 }
 
-function configToForm(cfg: OpenclawRuntimeConfig): FormState {
-  const masked = cfg.gateway?.token === OPENCLAW_GATEWAY_TOKEN_MASK;
+function configToForm(raw: unknown, openclaw: OpenclawRuntimeConfig): FormState {
+  const masked = openclaw.gateway?.token === OPENCLAW_GATEWAY_TOKEN_MASK;
   return {
-    mode: cfg.mode ?? "local",
-    host: cfg.gateway?.host ?? "",
-    port: cfg.gateway?.port ? String(cfg.gateway.port) : "",
-    // Never display the mask sentinel in the input — that would let users
-    // accidentally edit it. Show an empty field with a placeholder hint
-    // instead, and remember the masked state separately.
-    token: masked ? "" : (cfg.gateway?.token ?? ""),
-    tls: cfg.gateway?.tls === true,
+    timeoutMinutes: parseExecutionTimeoutMinutes(raw),
+    mode: openclaw.mode ?? "local",
+    host: openclaw.gateway?.host ?? "",
+    port: openclaw.gateway?.port ? String(openclaw.gateway.port) : "",
+    token: masked ? "" : (openclaw.gateway?.token ?? ""),
+    tls: openclaw.gateway?.tls === true,
     tokenWasMasked: masked,
   };
 }
 
-function formToConfig(state: FormState): OpenclawRuntimeConfig {
+function formToOpenclawConfig(state: FormState): OpenclawRuntimeConfig {
   const cfg: OpenclawRuntimeConfig = { mode: state.mode };
   if (state.mode === "gateway") {
     const gw: NonNullable<OpenclawRuntimeConfig["gateway"]> = {};
@@ -62,11 +50,6 @@ function formToConfig(state: FormState): OpenclawRuntimeConfig {
     if (Number.isFinite(portNum) && portNum > 0) gw.port = portNum;
     if (state.tls) gw.tls = true;
     if (state.tokenWasMasked && state.token === "") {
-      // User opened a saved token and never touched the field — replay
-      // the mask sentinel so the server's preserve hook keeps the
-      // persisted value. The matching client-side serializer drops the
-      // sentinel before it hits the wire, but we need it on the typed
-      // object so the equality check sees an unchanged config.
       gw.token = OPENCLAW_GATEWAY_TOKEN_MASK;
     } else if (state.token !== "") {
       gw.token = state.token;
@@ -76,29 +59,106 @@ function formToConfig(state: FormState): OpenclawRuntimeConfig {
   return cfg;
 }
 
+function formToRuntimeConfig(
+  raw: unknown,
+  state: FormState,
+  includeOpenclaw: boolean,
+): Record<string, unknown> {
+  const out = objectRecord(raw);
+  const execution = objectRecord(out.execution);
+  const timeoutText = state.timeoutMinutes.trim();
+
+  if (timeoutText === "") {
+    delete execution.timeout_minutes;
+  } else {
+    const timeout = Number.parseFloat(timeoutText);
+    if (Number.isFinite(timeout) && timeout > 0) {
+      execution.timeout_minutes = timeout;
+    }
+  }
+  if (Object.keys(execution).length > 0) {
+    out.execution = execution;
+  } else {
+    delete out.execution;
+  }
+
+  if (includeOpenclaw) {
+    delete out.mode;
+    delete out.gateway;
+    Object.assign(out, serializeOpenclawRuntimeConfig(formToOpenclawConfig(state)));
+  }
+
+  return out;
+}
+
+function parseExecutionTimeoutMinutes(raw: unknown): string {
+  const root = objectRecord(raw);
+  const execution = objectRecord(root.execution);
+  const value = execution.timeout_minutes;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "";
+  return String(value);
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return { ...(value as Record<string, unknown>) };
+}
+
+function stableJson(value: unknown): string {
+  if (!value || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(obj[key])}`)
+    .join(",")}}`;
+}
+
+function canonicalizeRuntimeConfig(raw: unknown): Record<string, unknown> {
+  const out = objectRecord(raw);
+  const execution = objectRecord(out.execution);
+  if (Object.keys(execution).length === 0) {
+    delete out.execution;
+  } else {
+    out.execution = execution;
+  }
+
+  const openclaw = parseOpenclawRuntimeConfig(out);
+  const hasGateway = !!openclaw.gateway && Object.keys(openclaw.gateway).length > 0;
+  if ((openclaw.mode ?? "local") === "local" && !hasGateway) {
+    delete out.mode;
+    delete out.gateway;
+  }
+
+  return out;
+}
+
 export function RuntimeConfigTab({
   agent,
+  runtimeProvider,
   onSave,
   onDirtyChange,
 }: {
   agent: Agent;
+  runtimeProvider?: string;
   onSave: (updates: { runtime_config: Record<string, unknown> }) => Promise<void>;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { t } = useT("agents");
+  const showOpenclaw = runtimeProvider === "openclaw";
 
-  const original = useMemo<OpenclawRuntimeConfig>(
+  const originalOpenclaw = useMemo<OpenclawRuntimeConfig>(
     () => parseOpenclawRuntimeConfig(agent.runtime_config),
     [agent.runtime_config],
   );
-  const originalForm = useMemo(() => configToForm(original), [original]);
+  const originalForm = useMemo(
+    () => configToForm(agent.runtime_config, originalOpenclaw),
+    [agent.runtime_config, originalOpenclaw],
+  );
 
   const [state, setState] = useState<FormState>(originalForm);
   const [saving, setSaving] = useState(false);
 
-  // Sync local draft when the agent prop changes — same pattern as
-  // McpConfigTab. Only adopt the new server value when the user has no
-  // in-flight edits relative to the *previous* original.
   const previousFormRef = useRef(originalForm);
   useEffect(() => {
     setState((current) =>
@@ -107,23 +167,36 @@ export function RuntimeConfigTab({
     previousFormRef.current = originalForm;
   }, [originalForm]);
 
-  const currentCfg = useMemo(() => formToConfig(state), [state]);
-  const dirty = !openclawRuntimeConfigEquals(original, currentCfg);
+  const currentOpenclaw = useMemo(() => formToOpenclawConfig(state), [state]);
+  const currentRuntimeConfig = useMemo(
+    () => formToRuntimeConfig(agent.runtime_config, state, showOpenclaw),
+    [agent.runtime_config, showOpenclaw, state],
+  );
+  const dirty =
+    stableJson(canonicalizeRuntimeConfig(agent.runtime_config)) !==
+      stableJson(canonicalizeRuntimeConfig(currentRuntimeConfig)) ||
+    (showOpenclaw && !openclawRuntimeConfigEquals(originalOpenclaw, currentOpenclaw));
 
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
 
   const portValid = state.port === "" || /^\d+$/.test(state.port);
-  const canSave = portValid && !saving;
+  const timeoutValue = Number.parseFloat(state.timeoutMinutes);
+  const timeoutValid =
+    state.timeoutMinutes.trim() === "" ||
+    (/^\d+(\.\d+)?$/.test(state.timeoutMinutes.trim()) &&
+      Number.isFinite(timeoutValue) &&
+      timeoutValue > 0 &&
+      timeoutValue <= 24 * 60);
+  const canSave = portValid && timeoutValid && !saving;
+  const isGateway = state.mode === "gateway";
 
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
     try {
-      await onSave({
-        runtime_config: serializeOpenclawRuntimeConfig(currentCfg),
-      });
+      await onSave({ runtime_config: currentRuntimeConfig });
       toast.success(t(($) => $.tab_body.runtime_config.saved_toast));
     } catch (err) {
       toast.error(
@@ -136,145 +209,173 @@ export function RuntimeConfigTab({
     }
   };
 
-  const isGateway = state.mode === "gateway";
-
   return (
     <div className="flex h-full flex-col space-y-4">
       <p className="text-xs text-muted-foreground">
-        {t(($) => $.tab_body.runtime_config.intro)}
+        Configure execution behavior for this agent. Leave fields blank to use
+        the runtime default.
       </p>
 
-      <fieldset className="space-y-2">
-        <Label className="text-xs font-medium">
-          {t(($) => $.tab_body.runtime_config.mode_label)}
-        </Label>
-        <div className="flex gap-2">
-          {(["local", "gateway"] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() =>
-                setState((s) => {
-                  if (s.mode === mode) return s;
-                  // Switching modes clears `tokenWasMasked`. Without this
-                  // a user who flips gateway → local → gateway would
-                  // re-arm the "replay the mask sentinel back to the
-                  // server" branch in formToConfig, silently restoring
-                  // a token they had no intent of keeping (see CR for
-                  // issue #3260).
-                  return { ...s, mode, tokenWasMasked: false };
-                })
+      <fieldset className="space-y-2 rounded-md border p-3">
+        <legend className="px-1 text-xs font-medium">Execution</legend>
+        <div className="max-w-xs space-y-1.5">
+          <Label htmlFor="agent-timeout-minutes" className="text-xs">
+            Task timeout
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="agent-timeout-minutes"
+              value={state.timeoutMinutes}
+              onChange={(e) =>
+                setState((s) => ({ ...s, timeoutMinutes: e.target.value }))
               }
-              className={`rounded-md border px-3 py-1.5 text-xs ${
-                state.mode === mode
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border bg-background text-foreground hover:bg-muted"
-              }`}
-            >
-              {t(($) => $.tab_body.runtime_config[`mode_${mode}`])}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {isGateway
-            ? t(($) => $.tab_body.runtime_config.mode_gateway_hint)
-            : t(($) => $.tab_body.runtime_config.mode_local_hint)}
-        </p>
-      </fieldset>
-
-      <fieldset
-        className={`space-y-3 rounded-md border p-3 ${isGateway ? "" : "opacity-50"}`}
-        disabled={!isGateway}
-      >
-        <legend className="px-1 text-xs font-medium">
-          {t(($) => $.tab_body.runtime_config.gateway_legend)}
-        </legend>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="openclaw-gw-host" className="text-xs">
-            {t(($) => $.tab_body.runtime_config.host_label)}
-          </Label>
-          <Input
-            id="openclaw-gw-host"
-            value={state.host}
-            onChange={(e) => setState((s) => ({ ...s, host: e.target.value }))}
-            placeholder={t(($) => $.tab_body.runtime_config.host_placeholder)}
-            className="font-mono text-xs"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="openclaw-gw-port" className="text-xs">
-            {t(($) => $.tab_body.runtime_config.port_label)}
-          </Label>
-          <Input
-            id="openclaw-gw-port"
-            value={state.port}
-            onChange={(e) => setState((s) => ({ ...s, port: e.target.value }))}
-            placeholder="18789"
-            inputMode="numeric"
-            aria-invalid={!portValid || undefined}
-            className="font-mono text-xs"
-          />
-          {!portValid && (
+              placeholder="Default"
+              inputMode="decimal"
+              aria-invalid={!timeoutValid || undefined}
+              className="font-mono text-xs"
+            />
+            <span className="shrink-0 text-xs text-muted-foreground">
+              minutes
+            </span>
+          </div>
+          {!timeoutValid && (
             <p className="text-xs text-destructive">
-              {t(($) => $.tab_body.runtime_config.port_invalid)}
+              Enter a number from 0.1 to 1440, or leave it blank.
             </p>
           )}
         </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="openclaw-gw-token" className="text-xs">
-            {t(($) => $.tab_body.runtime_config.token_label)}
-          </Label>
-          <Input
-            id="openclaw-gw-token"
-            type="password"
-            value={state.token}
-            onChange={(e) =>
-              setState((s) => ({
-                ...s,
-                token: e.target.value,
-                // The user touched the field — drop the masked-replay
-                // flag so a subsequent empty input genuinely clears the
-                // persisted token instead of preserving it.
-                tokenWasMasked: false,
-              }))
-            }
-            placeholder={
-              state.tokenWasMasked
-                ? t(($) => $.tab_body.runtime_config.token_masked_placeholder)
-                : t(($) => $.tab_body.runtime_config.token_placeholder)
-            }
-            autoComplete="off"
-            className="font-mono text-xs"
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <div>
-            <Label htmlFor="openclaw-gw-tls" className="text-xs">
-              {t(($) => $.tab_body.runtime_config.tls_label)}
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              {t(($) => $.tab_body.runtime_config.tls_hint)}
-            </p>
-          </div>
-          <Switch
-            id="openclaw-gw-tls"
-            checked={state.tls}
-            // Explicit `disabled` mirrors the surrounding fieldset's state.
-            // The native `<fieldset disabled>` attribute only deactivates
-            // built-in form controls; @base-ui's Switch is an ARIA component
-            // and stays interactive unless we tell it otherwise. Without
-            // this guard users could flip TLS on while still in Local mode.
-            disabled={!isGateway}
-            onCheckedChange={(checked: boolean) =>
-              setState((s) => ({ ...s, tls: checked }))
-            }
-          />
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Applies to each run of this agent. For long document-writing agents,
+          use a larger value such as 45 or 60.
+        </p>
       </fieldset>
+
+      {showOpenclaw && (
+        <>
+          <fieldset className="space-y-2">
+            <Label className="text-xs font-medium">
+              {t(($) => $.tab_body.runtime_config.mode_label)}
+            </Label>
+            <div className="flex gap-2">
+              {(["local", "gateway"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() =>
+                    setState((s) =>
+                      s.mode === mode
+                        ? s
+                        : { ...s, mode, tokenWasMasked: false },
+                    )
+                  }
+                  className={`rounded-md border px-3 py-1.5 text-xs ${
+                    state.mode === mode
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-background text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {t(($) => $.tab_body.runtime_config[`mode_${mode}`])}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isGateway
+                ? t(($) => $.tab_body.runtime_config.mode_gateway_hint)
+                : t(($) => $.tab_body.runtime_config.mode_local_hint)}
+            </p>
+          </fieldset>
+
+          <fieldset
+            className={`space-y-3 rounded-md border p-3 ${isGateway ? "" : "opacity-50"}`}
+            disabled={!isGateway}
+          >
+            <legend className="px-1 text-xs font-medium">
+              {t(($) => $.tab_body.runtime_config.gateway_legend)}
+            </legend>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="openclaw-gw-host" className="text-xs">
+                {t(($) => $.tab_body.runtime_config.host_label)}
+              </Label>
+              <Input
+                id="openclaw-gw-host"
+                value={state.host}
+                onChange={(e) =>
+                  setState((s) => ({ ...s, host: e.target.value }))
+                }
+                placeholder={t(($) => $.tab_body.runtime_config.host_placeholder)}
+                className="font-mono text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="openclaw-gw-port" className="text-xs">
+                {t(($) => $.tab_body.runtime_config.port_label)}
+              </Label>
+              <Input
+                id="openclaw-gw-port"
+                value={state.port}
+                onChange={(e) =>
+                  setState((s) => ({ ...s, port: e.target.value }))
+                }
+                placeholder="18789"
+                inputMode="numeric"
+                aria-invalid={!portValid || undefined}
+                className="font-mono text-xs"
+              />
+              {!portValid && (
+                <p className="text-xs text-destructive">
+                  {t(($) => $.tab_body.runtime_config.port_invalid)}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="openclaw-gw-token" className="text-xs">
+                {t(($) => $.tab_body.runtime_config.token_label)}
+              </Label>
+              <Input
+                id="openclaw-gw-token"
+                type="password"
+                value={state.token}
+                onChange={(e) =>
+                  setState((s) => ({
+                    ...s,
+                    token: e.target.value,
+                    tokenWasMasked: false,
+                  }))
+                }
+                placeholder={
+                  state.tokenWasMasked
+                    ? t(($) => $.tab_body.runtime_config.token_masked_placeholder)
+                    : t(($) => $.tab_body.runtime_config.token_placeholder)
+                }
+                autoComplete="off"
+                className="font-mono text-xs"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <div>
+                <Label htmlFor="openclaw-gw-tls" className="text-xs">
+                  {t(($) => $.tab_body.runtime_config.tls_label)}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t(($) => $.tab_body.runtime_config.tls_hint)}
+                </p>
+              </div>
+              <Switch
+                id="openclaw-gw-tls"
+                checked={state.tls}
+                disabled={!isGateway}
+                onCheckedChange={(checked: boolean) =>
+                  setState((s) => ({ ...s, tls: checked }))
+                }
+              />
+            </div>
+          </fieldset>
+        </>
+      )}
 
       <div className="flex items-center justify-end gap-3 pt-2">
         {dirty && (
@@ -297,6 +398,7 @@ export function RuntimeConfigTab({
 
 function formEquals(a: FormState, b: FormState): boolean {
   return (
+    a.timeoutMinutes === b.timeoutMinutes &&
     a.mode === b.mode &&
     a.host === b.host &&
     a.port === b.port &&

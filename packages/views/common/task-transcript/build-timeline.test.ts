@@ -45,6 +45,22 @@ describe("task transcript timeline", () => {
     ]);
   });
 
+  it("keeps runtime log events in the timeline", () => {
+    const items = buildTimeline([
+      message(1, "log", "[warn] connection dropped; retrying"),
+      message(2, "text", "Recovered."),
+    ]);
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        seq: 1,
+        type: "log",
+        content: "[warn] connection dropped; retrying",
+      }),
+      expect.objectContaining({ seq: 2, type: "text", content: "Recovered." }),
+    ]);
+  });
+
   it("coalesces newly appended live text with the previous text item", () => {
     const existing: TimelineItem[] = [{ seq: 1, type: "text", content: "hello" }];
     const items = appendTimelineItem(existing, { seq: 2, type: "text", content: " world" });

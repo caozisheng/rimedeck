@@ -1164,6 +1164,69 @@ func TestExecuteAndDrain_ReportsToolMessagesWithoutSyntheticProgress(t *testing.
 	}
 }
 
+func TestExecuteAndDrain_ReportsAgentLogMessages(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var reported []TaskMessageData
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/daemon/tasks/task-log/messages" {
+			http.NotFound(w, r)
+			return
+		}
+		var body struct {
+			Messages []TaskMessageData `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode task messages: %v", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		reported = append(reported, body.Messages...)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	d := &Daemon{
+		client: NewClient(srv.URL),
+		logger: slog.Default(),
+	}
+
+	backend := messageBackend{
+		messages: []agent.Message{
+			{Type: agent.MessageLog, Level: "warn", Content: "connection dropped; retrying"},
+		},
+		result: agent.Result{Status: "completed"},
+	}
+	result, _, err := d.executeAndDrain(context.Background(), backend, "prompt", agent.ExecOptions{}, slog.Default(), "task-log")
+	if err != nil {
+		t.Fatalf("executeAndDrain: %v", err)
+	}
+	if result.Status != "completed" {
+		t.Fatalf("status = %q, want completed", result.Status)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	deadline := time.Now().Add(2 * time.Second)
+	for len(reported) == 0 && time.Now().Before(deadline) {
+		mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+		mu.Lock()
+	}
+	if len(reported) != 1 {
+		t.Fatalf("reported messages = %d, want 1: %+v", len(reported), reported)
+	}
+	if reported[0].Type != "log" {
+		t.Fatalf("type = %q, want log", reported[0].Type)
+	}
+	if reported[0].Content != "[warn] connection dropped; retrying" {
+		t.Fatalf("content = %q", reported[0].Content)
+	}
+}
+
 func TestExecuteAndDrain_CodexInactivityReportsToolResultTranscript(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell-script fixture is POSIX-only")

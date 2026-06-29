@@ -92,6 +92,75 @@ describe("TaskTimelinePreview", () => {
     expect(screen.getByText(/Preparing the smallest safe change/)).toBeInTheDocument();
   });
 
+  it("can collapse the preview to fewer recent rows and expand it inline", () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const messages: TaskMessagePayload[] = [
+      {
+        task_id: "00000000-0000-0000-0000-000000000001",
+        issue_id: "issue-1",
+        seq: 1,
+        type: "thinking",
+        content: "event-1",
+      },
+      {
+        task_id: "00000000-0000-0000-0000-000000000001",
+        issue_id: "issue-1",
+        seq: 2,
+        type: "tool_use",
+        tool: "Read",
+        input: { file_path: "event-2" },
+      },
+      {
+        task_id: "00000000-0000-0000-0000-000000000001",
+        issue_id: "issue-1",
+        seq: 3,
+        type: "tool_result",
+        tool: "Read",
+        output: "event-3",
+      },
+      {
+        task_id: "00000000-0000-0000-0000-000000000001",
+        issue_id: "issue-1",
+        seq: 4,
+        type: "log",
+        content: "event-4",
+      },
+      {
+        task_id: "00000000-0000-0000-0000-000000000001",
+        issue_id: "issue-1",
+        seq: 5,
+        type: "text",
+        content: "event-5",
+      },
+    ];
+    qc.setQueryData(["task-messages", "00000000-0000-0000-0000-000000000001"], messages);
+
+    render(
+      <QueryClientProvider client={qc}>
+        <TaskTimelinePreview
+          taskId="00000000-0000-0000-0000-000000000001"
+          maxItems={5}
+          collapsedMaxItems={2}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.queryByText("event-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("event-2")).not.toBeInTheDocument();
+    expect(screen.queryByText("event-3")).not.toBeInTheDocument();
+    expect(screen.getByText("event-4")).toBeInTheDocument();
+    expect(screen.getByText("event-5")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 3 more" }));
+
+    expect(screen.getByText("event-1")).toBeInTheDocument();
+    expect(screen.getByText("event-2")).toBeInTheDocument();
+    expect(screen.getByText("event-3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+  });
+
   it("renders transcript content on its own full-width line", () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false } },

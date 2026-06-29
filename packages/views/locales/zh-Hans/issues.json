@@ -245,6 +245,11 @@
     "workdir_path_copied": "已复制本地 workdir 路径",
     "workdir_path_copy_failed": "复制本地 workdir 路径失败",
     "workdir_path_unavailable": "暂无本地 workdir — 这个 issue 还没被本地 agent 运行过",
+    "collapse_timeline_tooltip": "折叠评论和动态",
+    "expand_timeline_tooltip": "展开评论和动态",
+    "collapse_status_timeline_tooltip": "折叠状态时间线",
+    "expand_status_timeline_tooltip": "展开状态时间线",
+    "jump_to_bottom_tooltip": "跳到底部",
     "export_success": "Markdown 已导出",
     "export_failed": "导出失败"
   },

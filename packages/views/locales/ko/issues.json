@@ -247,6 +247,11 @@
     "workdir_path_copied": "작업 디렉터리 경로를 복사했습니다",
     "workdir_path_copy_failed": "작업 디렉터리 경로를 복사하지 못했습니다",
     "workdir_path_unavailable": "아직 로컬 작업 디렉터리가 없습니다. 로컬 에이전트가 이 이슈를 실행하지 않았습니다",
+    "collapse_timeline_tooltip": "댓글과 활동 접기",
+    "expand_timeline_tooltip": "댓글과 활동 펼치기",
+    "collapse_status_timeline_tooltip": "상태 타임라인 접기",
+    "expand_status_timeline_tooltip": "상태 타임라인 펼치기",
+    "jump_to_bottom_tooltip": "맨 아래로 이동",
     "export_success": "Markdown 내보내기 완료",
     "export_failed": "내보내기 실패"
   },

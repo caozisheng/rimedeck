@@ -244,6 +244,11 @@
     "workdir_path_copied": "作業ディレクトリのパスをコピーしました",
     "workdir_path_copy_failed": "作業ディレクトリのパスをコピーできませんでした",
     "workdir_path_unavailable": "まだローカルの作業ディレクトリがありません。ローカルエージェントがこのイシューを実行していません",
+    "collapse_timeline_tooltip": "コメントとアクティビティを折りたたむ",
+    "expand_timeline_tooltip": "コメントとアクティビティを展開",
+    "collapse_status_timeline_tooltip": "ステータスタイムラインを折りたたむ",
+    "expand_status_timeline_tooltip": "ステータスタイムラインを展開",
+    "jump_to_bottom_tooltip": "一番下へ移動",
     "export_success": "Markdownをエクスポートしました",
     "export_failed": "エクスポートに失敗しました"
   },

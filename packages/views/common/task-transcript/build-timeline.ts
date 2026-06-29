@@ -1,10 +1,10 @@
 import type { TaskMessagePayload } from "@rimedeck/core/types/events";
 import { redactSecrets } from "./redact";
 
-/** A unified timeline entry: tool calls, thinking, text, and errors in chronological order. */
+/** A unified timeline entry: tool calls, thinking, text, logs, and errors in chronological order. */
 export interface TimelineItem {
   seq: number;
-  type: "tool_use" | "tool_result" | "thinking" | "text" | "error";
+  type: "tool_use" | "tool_result" | "thinking" | "text" | "log" | "error";
   tool?: string;
   content?: string;
   input?: Record<string, unknown>;

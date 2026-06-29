@@ -140,10 +140,8 @@ export function AgentOverviewPane({
   // their runtime ignores — same anti-footgun rationale as the MCP gate.
   const visibleTabs = useMemo(() => {
     const showMcp = runtime ? providerSupportsMcpConfig(runtime.provider) : true;
-    const showRuntimeConfig = runtime ? runtime.provider === "openclaw" : false;
     return detailTabs.filter((tab) => {
       if (tab.id === "mcp_config") return showMcp;
-      if (tab.id === "runtime_config") return showRuntimeConfig;
       return true;
     });
   }, [runtime]);
@@ -268,6 +266,7 @@ export function AgentOverviewPane({
           <TabContent>
             <RuntimeConfigTab
               agent={agent}
+              runtimeProvider={runtime?.provider}
               onSave={(updates) => onUpdate(agent.id, updates)}
               onDirtyChange={setActiveDirty}
             />
