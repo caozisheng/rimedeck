@@ -328,6 +328,12 @@
     },
     "runtime_config": {
       "intro": "选择 OpenClaw 运行时执行该智能体每一回合的方式。Local 模式让智能体直接在 daemon 进程内运行；Gateway 模式则把每一回合转发到一个 OpenClaw Gateway —— 适合 daemon 宿主只是轻量协调机、希望真正算力落在更强的远端机器上的场景。",
+      "execution_intro": "配置该智能体的执行行为。留空则使用运行时默认值。",
+      "execution_legend": "执行",
+      "timeout_label": "Task 超时",
+      "timeout_unit": "分钟",
+      "timeout_invalid": "请输入 0.1 到 1440 之间的数字，或留空。",
+      "timeout_hint": "应用于该智能体的每次运行。长文档编写类智能体可设置更大的值，例如 45 或 60。",
       "mode_label": "路由模式",
       "mode_local": "Local",
       "mode_gateway": "Gateway",

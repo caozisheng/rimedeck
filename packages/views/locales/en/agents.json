@@ -335,6 +335,12 @@
     },
     "runtime_config": {
       "intro": "Choose how the OpenClaw runtime executes this agent's turns. Local mode runs the agent inside the daemon process. Gateway mode forwards each turn to an OpenClaw Gateway — useful when the daemon host is a lightweight coordinator and the agent should run on a more powerful machine.",
+      "execution_intro": "Configure execution behavior for this agent. Leave fields blank to use the runtime default.",
+      "execution_legend": "Execution",
+      "timeout_label": "Task timeout",
+      "timeout_unit": "minutes",
+      "timeout_invalid": "Enter a number from 0.1 to 1440, or leave it blank.",
+      "timeout_hint": "Applies to each run of this agent. For long document-writing agents, use a larger value such as 45 or 60.",
       "mode_label": "Routing mode",
       "mode_local": "Local",
       "mode_gateway": "Gateway",

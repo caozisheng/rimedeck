@@ -95,6 +95,47 @@ export function invalidateChatMessageQueries(
   qc.invalidateQueries({ queryKey: chatKeys.messages(sessionId) });
 }
 
+type TaskLifecyclePayload =
+  | TaskQueuedPayload
+  | TaskDispatchPayload
+  | TaskRunningPayload
+  | TaskWaitingLocalDirectoryPayload;
+
+function appendTaskLifecycleMessage(
+  qc: QueryClient,
+  payload: TaskLifecyclePayload,
+  seq: number,
+  content: string,
+) {
+  qc.setQueryData<TaskMessagePayload[]>(
+    chatKeys.taskMessages(payload.task_id),
+    (old = []) => {
+      if (
+        old.some(
+          (m) =>
+            m.seq === seq &&
+            m.type === "progress" &&
+            m.content === content,
+        )
+      ) {
+        return old;
+      }
+      const message: TaskMessagePayload = {
+        task_id: payload.task_id,
+        issue_id: payload.issue_id,
+        chat_session_id: payload.chat_session_id,
+        seq,
+        type: "progress",
+        content,
+      };
+      return [
+        ...old,
+        message,
+      ].sort((a, b) => a.seq - b.seq);
+    },
+  );
+}
+
 export function applyChatDoneToCache(
   qc: QueryClient,
   payload: ChatDonePayload,
@@ -864,6 +905,7 @@ export function useRealtimeSync(
     // when reconnect replays the event for an already-running task).
     const unsubTaskQueued = ws.on("task:queued", (p) => {
       const payload = p as TaskQueuedPayload;
+      appendTaskLifecycleMessage(qc, payload, 0, "Task queued");
       if (!payload.chat_session_id) return;
       qc.setQueryData<ChatPendingTask>(
         chatKeys.pendingTask(payload.chat_session_id),
@@ -884,6 +926,7 @@ export function useRealtimeSync(
     // taskMessages → "Thinking · Ns".
     const unsubTaskDispatch = ws.on("task:dispatch", (p) => {
       const payload = p as TaskDispatchPayload;
+      appendTaskLifecycleMessage(qc, payload, 1, "Task dispatched to runtime");
       if (!payload.chat_session_id) return;
       qc.setQueryData<ChatPendingTask>(
         chatKeys.pendingTask(payload.chat_session_id),
@@ -901,6 +944,7 @@ export function useRealtimeSync(
     // would stay parked even after the daemon resumed work.
     const unsubTaskRunning = ws.on("task:running", (p) => {
       const payload = p as TaskRunningPayload;
+      appendTaskLifecycleMessage(qc, payload, 2, "Runtime started task");
       if (!payload.chat_session_id) return;
       qc.setQueryData<ChatPendingTask>(
         chatKeys.pendingTask(payload.chat_session_id),
@@ -920,6 +964,7 @@ export function useRealtimeSync(
       "task:waiting_local_directory",
       (p) => {
         const payload = p as TaskWaitingLocalDirectoryPayload;
+        appendTaskLifecycleMessage(qc, payload, 2, "Waiting for local directory");
         if (!payload.chat_session_id) return;
         qc.setQueryData<ChatPendingTask>(
           chatKeys.pendingTask(payload.chat_session_id),

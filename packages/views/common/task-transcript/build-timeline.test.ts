@@ -45,6 +45,22 @@ describe("task transcript timeline", () => {
     ]);
   });
 
+  it("keeps runtime log events in the timeline", () => {
+    const items = buildTimeline([
+      message(1, "log", "[warn] connection dropped; retrying"),
+      message(2, "text", "Recovered."),
+    ]);
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        seq: 1,
+        type: "log",
+        content: "[warn] connection dropped; retrying",
+      }),
+      expect.objectContaining({ seq: 2, type: "text", content: "Recovered." }),
+    ]);
+  });
+
   it("coalesces newly appended live text with the previous text item", () => {
     const existing: TimelineItem[] = [{ seq: 1, type: "text", content: "hello" }];
     const items = appendTimelineItem(existing, { seq: 2, type: "text", content: " world" });
@@ -103,6 +119,19 @@ describe("task transcript timeline", () => {
 
     expect(items).toEqual([
       expect.objectContaining({ seq: 3, type: "thinking", content: "Checking the requested issue." }),
+    ]);
+  });
+
+  it("keeps task lifecycle progress rows visible in previews", () => {
+    const items = buildTimeline([
+      message(0, "progress", "Task queued"),
+      message(1, "progress", "Runtime started task"),
+      message(2, "progress", "Running Bash: pnpm test"),
+    ]);
+
+    expect(items).toEqual([
+      expect.objectContaining({ seq: 0, type: "log", content: "Task queued" }),
+      expect.objectContaining({ seq: 1, type: "log", content: "Runtime started task" }),
     ]);
   });
 

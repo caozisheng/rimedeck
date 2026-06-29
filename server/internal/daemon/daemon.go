@@ -3000,11 +3000,15 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			thinkingLevel = ""
 		}
 	}
+	executionTimeout := d.cfg.AgentTimeout
+	if task.Agent != nil {
+		executionTimeout = decodeAgentExecutionTimeout(task.Agent.RuntimeConfig, executionTimeout, taskLog)
+	}
 	execOpts := agent.ExecOptions{
 		Cwd:                       env.WorkDir,
 		Model:                     model,
 		ThreadName:                deriveTaskThreadName(task),
-		Timeout:                   d.cfg.AgentTimeout,
+		Timeout:                   executionTimeout,
 		SemanticInactivityTimeout: d.cfg.CodexSemanticInactivityTimeout,
 		ResumeSessionID:           task.PriorSessionID,
 		ExtraArgs:                 extraArgs,
@@ -3464,6 +3468,24 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 						Seq:     int(s),
 						Type:    "error",
 						Content: msg.Content,
+					})
+					mu.Unlock()
+				case agent.MessageLog:
+					content := strings.TrimSpace(msg.Content)
+					if content == "" {
+						continue
+					}
+					level := strings.TrimSpace(msg.Level)
+					if level != "" {
+						content = fmt.Sprintf("[%s] %s", level, content)
+					}
+					taskLog.Info("agent log", "level", msg.Level, "content", truncateLog(msg.Content, 200))
+					s := seq.Add(1)
+					mu.Lock()
+					batch = append(batch, TaskMessageData{
+						Seq:     int(s),
+						Type:    "log",
+						Content: content,
 					})
 					mu.Unlock()
 				}

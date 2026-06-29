@@ -1,10 +1,10 @@
 import type { TaskMessagePayload } from "@rimedeck/core/types/events";
 import { redactSecrets } from "./redact";
 
-/** A unified timeline entry: tool calls, thinking, text, and errors in chronological order. */
+/** A unified timeline entry: tool calls, thinking, text, logs, and errors in chronological order. */
 export interface TimelineItem {
   seq: number;
-  type: "tool_use" | "tool_result" | "thinking" | "text" | "error";
+  type: "tool_use" | "tool_result" | "thinking" | "text" | "log" | "error";
   tool?: string;
   content?: string;
   input?: Record<string, unknown>;
@@ -74,12 +74,22 @@ function normalizeTaskMessageType(
   content: string | undefined,
 ): TimelineItem["type"] | null {
   if (type === "progress") {
-    return null;
+    return isVisibleLifecycleProgress(content) ? "log" : null;
   }
   if (type === "thinking" && isLegacyPublicProgress(content)) {
     return null;
   }
   return type;
+}
+
+function isVisibleLifecycleProgress(content: string | undefined): boolean {
+  const text = content?.trim() ?? "";
+  return (
+    text === "Task queued" ||
+    text === "Task dispatched to runtime" ||
+    text === "Runtime started task" ||
+    text === "Waiting for local directory"
+  );
 }
 
 function isLegacyPublicProgress(content: string | undefined): boolean {

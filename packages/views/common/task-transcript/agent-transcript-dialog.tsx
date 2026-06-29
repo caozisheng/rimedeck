@@ -20,6 +20,7 @@ import {
   Folder,
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
+  Info,
 } from "lucide-react";
 import { cn } from "@rimedeck/ui/lib/utils";
 import { copyText } from "@rimedeck/ui/lib/clipboard";
@@ -60,7 +61,7 @@ interface AgentTranscriptDialogProps {
 
 // ─── Color mapping for timeline segments ────────────────────────────────────
 
-type EventColor = "agent" | "thinking" | "tool" | "result" | "error";
+type EventColor = "agent" | "thinking" | "tool" | "result" | "log" | "error";
 
 function getEventColor(item: TimelineItem): EventColor {
   switch (item.type) {
@@ -72,6 +73,8 @@ function getEventColor(item: TimelineItem): EventColor {
       return "tool";
     case "tool_result":
       return "result";
+    case "log":
+      return "log";
     case "error":
       return "error";
     default:
@@ -84,6 +87,7 @@ const colorClasses: Record<EventColor, { bg: string; bgActive: string; label: st
   thinking: { bg: "bg-violet-400/60", bgActive: "bg-violet-500", label: "bg-violet-500/20 text-violet-700 dark:text-violet-300" },
   tool: { bg: "bg-blue-400/60", bgActive: "bg-blue-500", label: "bg-blue-500/20 text-blue-700 dark:text-blue-300" },
   result: { bg: "bg-slate-300/60 dark:bg-slate-600/60", bgActive: "bg-slate-400 dark:bg-slate-500", label: "bg-muted text-muted-foreground" },
+  log: { bg: "bg-warning/60", bgActive: "bg-warning", label: "bg-warning/15 text-warning" },
   error: { bg: "bg-red-400/60", bgActive: "bg-red-500", label: "bg-red-500/20 text-red-700 dark:text-red-300" },
 };
 
@@ -99,6 +103,8 @@ function getEventLabel(item: TimelineItem): string {
       return getToolDisplayName(item.tool) ?? "Tool";
     case "tool_result":
       return getToolDisplayName(item.tool) ?? "Result";
+    case "log":
+      return "Log";
     case "error":
       return "Error";
     default:
@@ -136,6 +142,8 @@ function getEventSummary(item: TimelineItem): string {
     }
     case "tool_result":
       return item.output?.slice(0, 200) ?? "";
+    case "log":
+      return item.content ?? "";
     case "error":
       return item.content ?? "";
     default:
@@ -740,6 +748,7 @@ const TranscriptEventRow = ({
     (item.type === "tool_result" && item.output && item.output.length > 0) ||
     (item.type === "thinking" && item.content && item.content.length > 0) ||
     (item.type === "text" && item.content && item.content.length > 0) ||
+    (item.type === "log" && item.content && item.content.length > 0) ||
     (item.type === "error" && item.content && item.content.length > 0);
 
   return (
@@ -760,6 +769,7 @@ const TranscriptEventRow = ({
             )}
           >
             {item.type === "thinking" && <Brain className="h-3 w-3 mr-1 shrink-0" />}
+            {item.type === "log" && <Info className="h-3 w-3 mr-1 shrink-0" />}
             {item.type === "error" && <AlertCircle className="h-3 w-3 mr-1 shrink-0" />}
             {label}
           </span>
@@ -845,6 +855,12 @@ function EventDetailContent({ item }: { item: TimelineItem }) {
         </pre>
       );
     case "text":
+      return (
+        <pre className="max-h-60 overflow-auto p-3 text-[11px] text-muted-foreground whitespace-pre-wrap break-words">
+          {item.content ?? ""}
+        </pre>
+      );
+    case "log":
       return (
         <pre className="max-h-60 overflow-auto p-3 text-[11px] text-muted-foreground whitespace-pre-wrap break-words">
           {item.content ?? ""}

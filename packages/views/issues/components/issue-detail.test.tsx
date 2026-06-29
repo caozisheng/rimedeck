@@ -10,6 +10,10 @@ import enIssues from "../../locales/en/issues.json";
 const TEST_RESOURCES = { en: { common: enCommon, issues: enIssues } };
 
 const mockViewport = vi.hoisted(() => ({ isMobile: false }));
+const mockCommentCollapse = vi.hoisted(() => ({
+  setMany: vi.fn(),
+  clearIssue: vi.fn(),
+}));
 
 vi.mock("@rimedeck/ui/hooks/use-mobile", () => ({
   useIsMobile: () => mockViewport.isMobile,
@@ -276,6 +280,8 @@ vi.mock("@rimedeck/core/issues/stores", () => ({
       collapsedByIssue: {},
       isCollapsed: () => false,
       toggle: () => {},
+      setMany: mockCommentCollapse.setMany,
+      clearIssue: mockCommentCollapse.clearIssue,
     };
     return selector ? selector(state) : state;
   },
@@ -313,6 +319,7 @@ vi.mock("@rimedeck/core/issues/stores", () => ({
 // other components doesn't throw; deep-link tests assert the highlight ring
 // instead, which is mechanism-independent and observable without layout.
 const scrollIntoViewSpy = vi.hoisted(() => vi.fn());
+const scrollToSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("react-virtuoso", () => ({
   Virtuoso: forwardRef(function MockVirtuoso(
@@ -340,10 +347,16 @@ vi.mock("react-virtuoso", () => ({
 // with a spy so the deep-link effect's call can be observed.
 beforeEach(() => {
   scrollIntoViewSpy.mockClear();
+  scrollToSpy.mockClear();
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,
     writable: true,
     value: scrollIntoViewSpy,
+  });
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    configurable: true,
+    writable: true,
+    value: scrollToSpy,
   });
 });
 
@@ -534,6 +547,31 @@ describe("IssueDetail (shared)", () => {
     });
 
     expect(screen.getByDisplayValue("Add JWT auth to the backend")).toBeInTheDocument();
+  });
+
+  it("collapses, expands, and jumps to the bottom of the issue timeline", async () => {
+    renderIssueDetail();
+
+    await screen.findByText("Activity");
+
+    fireEvent.click(screen.getByLabelText("Collapse comments and activity"));
+    expect(mockCommentCollapse.setMany).toHaveBeenCalledWith(
+      "issue-1",
+      ["comment-1", "comment-2"],
+      true,
+    );
+    expect(screen.getByLabelText("Expand status timeline")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Expand comments and activity"));
+    expect(mockCommentCollapse.setMany).toHaveBeenCalledWith(
+      "issue-1",
+      ["comment-1", "comment-2"],
+      false,
+    );
+    expect(screen.getByLabelText("Collapse status timeline")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Jump to bottom"));
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: expect.any(Number), behavior: "smooth" });
   });
 
   it("opts the description editor into the unmount flush", async () => {

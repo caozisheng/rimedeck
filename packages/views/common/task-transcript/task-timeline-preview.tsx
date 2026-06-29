@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Brain, ChevronDown, ChevronRight, FileText, TerminalSquare } from "lucide-react";
+import { AlertCircle, Brain, ChevronDown, ChevronRight, FileText, Info, TerminalSquare } from "lucide-react";
 import { taskMessagesOptions } from "@rimedeck/core/chat/queries";
 import { cn } from "@rimedeck/ui/lib/utils";
 import { buildTimeline, type TimelineItem } from "./build-timeline";
@@ -12,6 +12,7 @@ interface TaskTimelinePreviewProps {
   taskId: string;
   className?: string;
   maxItems?: number;
+  collapsedMaxItems?: number;
   emptyFallback?: ReactNode;
 }
 
@@ -19,11 +20,20 @@ export function TaskTimelinePreview({
   taskId,
   className,
   maxItems = 6,
+  collapsedMaxItems,
   emptyFallback,
 }: TaskTimelinePreviewProps) {
+  const [showMore, setShowMore] = useState(false);
   const { data: messages } = useQuery(taskMessagesOptions(taskId));
   const items = useMemo(() => buildTimeline(messages ?? []), [messages]);
-  const visibleItems = items.slice(Math.max(0, items.length - maxItems));
+  const hasCollapsedLimit =
+    typeof collapsedMaxItems === "number" &&
+    collapsedMaxItems > 0 &&
+    collapsedMaxItems < maxItems &&
+    items.length > collapsedMaxItems;
+  const itemLimit = hasCollapsedLimit && !showMore ? collapsedMaxItems : maxItems;
+  const visibleItems = items.slice(Math.max(0, items.length - itemLimit));
+  const hiddenCount = Math.max(0, Math.min(items.length, maxItems) - visibleItems.length);
 
   if (visibleItems.length === 0) return emptyFallback ? <>{emptyFallback}</> : null;
 
@@ -38,6 +48,21 @@ export function TaskTimelinePreview({
       {visibleItems.map((item) => (
         <TaskTimelinePreviewRow key={item.seq} item={item} />
       ))}
+      {hasCollapsedLimit && (
+        <button
+          type="button"
+          className="mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-expanded={showMore}
+          onClick={() => setShowMore((value) => !value)}
+        >
+          {showMore ? (
+            <ChevronDown className="h-3 w-3" />
+          ) : (
+            <ChevronRight className="h-3 w-3" />
+          )}
+          {showMore ? "Show less" : `Show ${hiddenCount} more`}
+        </button>
+      )}
     </div>
   );
 }
@@ -103,6 +128,8 @@ function getPreviewIcon(item: TimelineItem) {
       return <TerminalSquare className="h-3.5 w-3.5" />;
     case "error":
       return <AlertCircle className="h-3.5 w-3.5" />;
+    case "log":
+      return <Info className="h-3.5 w-3.5" />;
     default:
       return <FileText className="h-3.5 w-3.5" />;
   }
@@ -117,6 +144,8 @@ function getPreviewTone(item: TimelineItem): string {
       return "text-info";
     case "error":
       return "text-destructive";
+    case "log":
+      return "text-warning";
     default:
       return "text-success";
   }
@@ -132,6 +161,8 @@ function getPreviewLabel(item: TimelineItem): string {
       return getToolResultDisplayName(item.tool);
     case "error":
       return "Error";
+    case "log":
+      return "Log";
     default:
       return "Agent";
   }
