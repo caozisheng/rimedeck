@@ -4,6 +4,7 @@
 
 Local-first AI agent workbench — manage issues, orchestrate AI coding agents, and run deterministic SOPs (Standard Operating Procedures), all in one desktop app. Zero Docker, zero cloud dependency. Forked from [Multica](https://github.com/multica-ai/multica).
 
+<details open>
 <details>
 <summary>📸 Screenshot 1</summary>
 <img width="630" height="427" alt="image" src="https://github.com/user-attachments/assets/e8f5227a-eaff-443e-a611-799f8722a0fa" />
