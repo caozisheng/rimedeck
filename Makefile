@@ -26,8 +26,6 @@ export
 
 MULTICA_ARGS ?= $(ARGS)
 
-COMPOSE := docker compose
-
 define REQUIRE_ENV
 	@if [ ! -f "$(ENV_FILE)" ]; then \
 		echo "Missing env file: $(ENV_FILE)"; \
@@ -56,7 +54,7 @@ setup: ## Prepare the current checkout from its env file: install deps, ensure D
 	@echo "==> Using env file: $(ENV_FILE)"
 	@echo "==> Installing dependencies..."
 	pnpm install
-	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 	@echo "==> Running migrations..."
 	cd server && go run ./cmd/migrate up
 	@echo ""
@@ -67,7 +65,7 @@ start: ## Start backend and frontend for the current checkout and run migrations
 	@echo "Using env file: $(ENV_FILE)"
 	@echo "Backend: http://localhost:$(PORT)"
 	@echo "Frontend: http://localhost:$(FRONTEND_PORT)"
-	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 	@echo "Running migrations..."
 	cd server && go run ./cmd/migrate up
 	@echo "Starting backend and frontend..."
@@ -83,7 +81,7 @@ stop: ## Stop backend and frontend processes for the current checkout
 	@-lsof -ti:$(FRONTEND_PORT) | xargs kill -9 2>/dev/null
 	@case "$(DATABASE_URL)" in \
 		""|*@localhost:*|*@localhost/*|*@127.0.0.1:*|*@127.0.0.1/*|*@\[::1\]:*|*@\[::1\]/*) \
-			echo "✓ App processes stopped. Shared PostgreSQL is still running on localhost:$(POSTGRES_PORT)." ;; \
+			echo "✓ App processes stopped. Local PostgreSQL is still running on localhost:$(POSTGRES_PORT)." ;; \
 		*) \
 			echo "✓ App processes stopped. Remote PostgreSQL was not affected." ;; \
 	esac
@@ -92,27 +90,23 @@ check: ## Run typecheck, TS tests, Go tests, and Playwright E2E for the current 
 	$(REQUIRE_ENV)
 	@ENV_FILE="$(ENV_FILE)" bash scripts/check.sh
 
-db-up: ## Start the shared PostgreSQL container used by main and worktrees
-	@$(COMPOSE) up -d postgres
+##@ Database
 
-db-down: ## Stop the shared PostgreSQL container without removing its Docker volume
-	@$(COMPOSE) down
+db-up: ## Ensure the shared local PostgreSQL is running (native, no Docker)
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 
-# Drop + recreate the current env's database, then run all migrations.
-# Use for a clean slate in local dev. Only affects the DB named in
-# ENV_FILE (POSTGRES_DB); the shared postgres container and other
-# worktree DBs are untouched. Refuses to run against a remote host.
+db-down: ## Stop the local PostgreSQL instance
+	@node scripts/db-stop.mjs
+
 db-reset: ## Drop and recreate the current env's database, then re-run all migrations
 	$(REQUIRE_ENV)
 	@case "$(DATABASE_URL)" in \
 		""|*@localhost:*|*@localhost/*|*@127.0.0.1:*|*@127.0.0.1/*|*@\[::1\]:*|*@\[::1\]/*) ;; \
 		*) echo "Refusing to reset: DATABASE_URL points at a remote host."; exit 1 ;; \
 	esac
-	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 	@echo "==> Dropping and recreating database '$(POSTGRES_DB)'..."
-	@$(COMPOSE) exec -T postgres psql -U $(POSTGRES_USER) -d postgres -v ON_ERROR_STOP=1 \
-		-c "DROP DATABASE IF EXISTS \"$(POSTGRES_DB)\" WITH (FORCE);" \
-		-c "CREATE DATABASE \"$(POSTGRES_DB)\";"
+	@node scripts/db-reset.mjs "$(ENV_FILE)" "$(POSTGRES_DB)"
 	@echo "==> Running migrations..."
 	cd server && go run ./cmd/migrate up
 	@echo ""
@@ -159,7 +153,7 @@ dev: ## Bootstrap this checkout end-to-end: create env if needed, ensure DB, mig
 
 server: ## Run only the Go server for the current checkout
 	$(REQUIRE_ENV)
-	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 	cd server && go run ./cmd/server
 
 daemon: ## Restart the local agent daemon using the CLI's stored auth/session
@@ -182,21 +176,18 @@ build: ## Build the server, CLI, and migrate binaries into server/bin
 
 test: ## Run Go tests after ensuring the target DB exists and migrations are applied
 	$(REQUIRE_ENV)
-	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 	cd server && go run ./cmd/migrate up
 	cd server && go test ./...
 
-# Database
-##@ Database
-
 migrate-up: ## Create the target DB if needed, then apply database migrations
 	$(REQUIRE_ENV)
-	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 	cd server && go run ./cmd/migrate up
 
 migrate-down: ## Create the target DB if needed, then roll back database migrations
 	$(REQUIRE_ENV)
-	@bash scripts/ensure-postgres.sh "$(ENV_FILE)"
+	@node scripts/ensure-postgres.mjs "$(ENV_FILE)"
 	cd server && go run ./cmd/migrate down
 
 sqlc: ## Regenerate sqlc code

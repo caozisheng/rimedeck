@@ -70,3 +70,5 @@ data/
 .idea
 /docs
 /.tmp
+.rimedeck-dev/
+apps/desktop/resources/pgsql/

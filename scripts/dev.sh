@@ -9,11 +9,10 @@ missing=()
 command -v node >/dev/null 2>&1 || missing+=("node")
 command -v pnpm >/dev/null 2>&1 || missing+=("pnpm")
 command -v go >/dev/null 2>&1 || missing+=("go")
-command -v docker >/dev/null 2>&1 || missing+=("docker")
 
 if [ ${#missing[@]} -gt 0 ]; then
   echo "✗ Missing prerequisites: ${missing[*]}"
-  echo "  Please install: Node.js v20+, pnpm v10.28+, Go v1.26+, Docker"
+  echo "  Please install: Node.js v20+, pnpm v10.28+, Go v1.26+"
   exit 1
 fi
 
@@ -50,7 +49,7 @@ if [ ! -d node_modules ]; then
 fi
 
 # ---------- Database ----------
-bash scripts/ensure-postgres.sh "$ENV_FILE"
+node scripts/ensure-postgres.mjs "$ENV_FILE"
 
 echo "==> Running migrations..."
 (cd server && go run ./cmd/migrate up)

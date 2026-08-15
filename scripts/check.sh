@@ -74,7 +74,7 @@ wait_for_port() {
 # --------------------------------------------------------------------------
 echo "==> Using env file: $ENV_FILE"
 echo "==> Checking PostgreSQL..."
-bash scripts/ensure-postgres.sh "$ENV_FILE"
+node scripts/ensure-postgres.mjs "$ENV_FILE"
 
 # --------------------------------------------------------------------------
 # Step 1: TypeScript typecheck
