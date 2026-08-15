@@ -1,3 +1,4 @@
+//go:build cloudfront_tests
 package handler
 
 import (

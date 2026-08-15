@@ -1,3 +1,4 @@
+//go:build workflow_trigger_tests
 package handler
 
 import (

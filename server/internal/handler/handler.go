@@ -107,6 +107,7 @@ type Handler struct {
 	WebhookRateLimiter    WebhookRateLimiter
 	WebhookIPRateLimiter  WebhookRateLimiter
 	PairingStore          *PairingStore
+	CFSigner              *auth.CloudFrontSigner
 	cfg                   Config
 }
 
