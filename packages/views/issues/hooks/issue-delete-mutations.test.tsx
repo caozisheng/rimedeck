@@ -64,6 +64,8 @@ const baseIssue: Issue = {
   start_date: null,
   due_date: null,
   metadata: {},
+    source_type: "local" as const,
+    sync_state: "local" as const,
   labels: [],
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",

@@ -9,6 +9,17 @@ export type IssueStatus =
   | "blocked"
   | "cancelled";
 
+export type IssueSource = "local" | "gitlab" | "detached";
+export type IssueSyncState = "local" | "pending" | "syncing" | "synced" | "failed" | "pending_delete" | "detached";
+
+export interface IssueExternalRef {
+  provider: "gitlab";
+  tracker_connection_id: string;
+  iid: number;
+  url: string | null;
+  author_name: string | null;
+}
+
 export type IssuePriority = "urgent" | "high" | "medium" | "low" | "none";
 
 export type IssueAssigneeType = "member" | "agent" | "squad";
@@ -55,6 +66,10 @@ export interface Issue {
   labels?: Label[];
   created_at: string;
   updated_at: string;
+  source_type: IssueSource;
+  sync_state: IssueSyncState;
+  tracker_connection_id?: string | null;
+  external?: IssueExternalRef | null;
 }
 
 export type IssueDependencyType = "blocks" | "relates_to" | "parent";

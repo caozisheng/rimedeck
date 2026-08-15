@@ -339,6 +339,8 @@ const issueDefaults = {
   project_id: null,
   position: 0,
   metadata: {},
+    source_type: "local" as const,
+    sync_state: "local" as const,
 };
 
 const mockIssues: Issue[] = [

@@ -443,6 +443,9 @@ export class ApiClient {
     if (params?.scheduled) search.set("scheduled", "true");
     if (params?.sort_by) search.set("sort", params.sort_by);
     if (params?.sort_direction) search.set("direction", params.sort_direction);
+    if (params?.source) search.set("source", params.source);
+    if (params?.tracker_id) search.set("tracker_id", params.tracker_id);
+    if (params?.sync_state) search.set("sync_state", params.sync_state);
     const path = `/api/issues?${search}`;
     const raw = await this.fetch<unknown>(path);
     return parseWithFallback(raw, ListIssuesResponseSchema, EMPTY_LIST_ISSUES_RESPONSE, {

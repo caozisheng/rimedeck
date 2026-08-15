@@ -1,4 +1,4 @@
-import type { Issue, IssueMetadata, IssueStatus, IssuePriority, IssueAssigneeType } from "./issue";
+import type { Issue, IssueMetadata, IssueStatus, IssuePriority, IssueAssigneeType, IssueSource } from "./issue";
 import type { MemberRole } from "./workspace";
 import type { Project } from "./project";
 
@@ -15,6 +15,8 @@ export interface CreateIssueRequest {
   start_date?: string;
   due_date?: string;
   attachment_ids?: string[];
+  source_type?: IssueSource;
+  tracker_connection_id?: string;
 }
 
 export interface UpdateIssueRequest {
@@ -66,6 +68,12 @@ export interface ListIssuesParams {
   scheduled?: boolean;
   sort_by?: "position" | "priority" | "title" | "created_at" | "start_date" | "due_date";
   sort_direction?: "asc" | "desc";
+  /** Filter by issue source: local, gitlab, or detached. */
+  source?: IssueSource;
+  /** Filter by specific tracker connection. */
+  tracker_id?: string;
+  /** Filter by sync state. */
+  sync_state?: string;
 }
 
 export interface IssueActorRef {

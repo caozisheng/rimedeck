@@ -37,6 +37,8 @@ function makeIssue(idx: number): Issue {
     due_date: null,
     labels: [],
     metadata: {},
+    source_type: "local" as const,
+    sync_state: "local" as const,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
   };

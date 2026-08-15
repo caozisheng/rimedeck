@@ -332,6 +332,8 @@ describe("AgentCreatePanel", () => {
         start_date: null,
         due_date: null,
         metadata: {},
+    source_type: "local" as const,
+    sync_state: "local" as const,
         created_at: "2026-06-05T00:00:00Z",
         updated_at: "2026-06-05T00:00:00Z",
       },

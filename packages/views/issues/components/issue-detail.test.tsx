@@ -419,6 +419,8 @@ const mockIssue: Issue = {
   start_date: null,
   due_date: "2026-06-01T00:00:00Z",
   metadata: {},
+    source_type: "local" as const,
+    sync_state: "local" as const,
   created_at: "2026-01-15T00:00:00Z",
   updated_at: "2026-01-20T00:00:00Z",
 };
@@ -753,7 +755,7 @@ describe("IssueDetail (shared)", () => {
   });
 
   it("hides the Metadata button entirely when the bag is empty", async () => {
-    // Default fixture already has metadata: {}, asserted explicitly here.
+    // Default fixture already has metadata: {},
     renderIssueDetail();
 
     await waitFor(() => {
