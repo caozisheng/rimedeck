@@ -72,7 +72,7 @@ SMTP_TLS=implicit              # 465 上可省略；在非标准 SMTPS 端口上
 RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-启动时 server 会打印当前选择的 provider 和协商出的 TLS 模式，比如 `EmailService: SMTP relay exchange.internal.example.com:25 (starttls) from=noreply@example.com` 或 `… smtp.qiye.aliyun.com:465 (implicit-tls) from=…`（或 `Resend API` / `DEV mode`），密码不会出现在日志里。重启后没看到 SMTP 这行，说明 `SMTP_HOST` 没进到进程，确认下容器环境（`docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP`）。
+启动时 server 会打印当前选择的 provider 和协商出的 TLS 模式，比如 `EmailService: SMTP relay exchange.internal.example.com:25 (starttls) from=noreply@example.com` 或 `… smtp.qiye.aliyun.com:465 (implicit-tls) from=…`（或 `Resend API` / `DEV mode`），密码不会出现在日志里。重启后没看到 SMTP 这行，说明 `SMTP_HOST` 没进到进程，检查服务器日志并确认环境变量设置正确。
 
 **两种都不配**：server 不报错，但所有本该发出去的邮件**只打到 server 的 stdout**。本地开发方便（你从日志抄验证码），生产环境等于黑洞。
 
@@ -93,7 +93,7 @@ MULTICA_DEV_VERIFICATION_CODE=888888
 `APP_ENV=production` 时这个快捷码会被忽略。
 </Callout>
 
-生产部署应保持 `MULTICA_DEV_VERIFICATION_CODE` 为空，并设置 `APP_ENV=production`。如果你用 `make selfhost` / `docker-compose.selfhost.yml` 自部署，`APP_ENV` 默认就是 `production`。
+生产部署应保持 `MULTICA_DEV_VERIFICATION_CODE` 为空，并设置 `APP_ENV=production`。
 
 ## 怎么配 Google OAuth
 

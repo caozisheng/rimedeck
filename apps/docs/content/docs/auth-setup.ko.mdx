@@ -61,7 +61,7 @@ SMTP_TLS_INSECURE=false        # set true only for self-signed / private CA
 RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-시작 시 서버는 선택한 제공자를 출력합니다. 예를 들어 `EmailService: SMTP relay exchange.internal.example.com:25 from=noreply@example.com`(또는 `Resend API` / `DEV mode`)와 같이 표시됩니다. 비밀번호는 절대 로그에 기록되지 않습니다. 재시작 후 SMTP 줄이 보이지 않는다면 `SMTP_HOST`가 프로세스에 도달하지 못한 것이므로, 컨테이너 환경(`docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP`)을 확인하세요.
+시작 시 서버는 선택한 제공자를 출력합니다. 예를 들어 `EmailService: SMTP relay exchange.internal.example.com:25 from=noreply@example.com`(또는 `Resend API` / `DEV mode`)와 같이 표시됩니다. 비밀번호는 절대 로그에 기록되지 않습니다. 재시작 후 SMTP 줄이 보이지 않는다면 `SMTP_HOST`가 프로세스에 도달하지 못한 것이므로, 서버 로그를 확인하고 환경 변수가 올바르게 설정되었는지 확인하세요.
 
 **둘 다 설정하지 않으면**: 서버는 오류를 내지 않지만, **전송되어야 했던 모든 이메일이 서버의 stdout에만 기록됩니다**. 로컬 개발에는 편리하지만(로그에서 코드를 복사하면 됩니다), 프로덕션에서는 블랙홀이 됩니다.
 
@@ -82,7 +82,7 @@ MULTICA_DEV_VERIFICATION_CODE=888888
 이 단축키는 `APP_ENV=production`일 때 무시됩니다.
 </Callout>
 
-프로덕션 배포에서는 `MULTICA_DEV_VERIFICATION_CODE`를 비워 두고 `APP_ENV=production`으로 설정해야 합니다. `make selfhost` / `docker-compose.selfhost.yml`로 배포하는 경우 `APP_ENV`는 기본적으로 `production`입니다.
+프로덕션 배포에서는 `MULTICA_DEV_VERIFICATION_CODE`를 비워 두고 `APP_ENV=production`으로 설정해야 합니다.
 
 ## Google OAuth 구성
 

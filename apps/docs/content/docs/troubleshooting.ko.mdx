@@ -96,10 +96,11 @@ multica issue show <issue-id>             # inspect task history
 - `EmailService: DEV mode — codes printed to stdout …` — 제공자가 구성되지 않음
 
 ```bash
-docker compose -f docker-compose.selfhost.yml logs backend | grep "EmailService:"
+grep "EmailService:" <서버-로그-경로>
+# 또는 서버가 포그라운드에서 실행 중이라면 stdout을 직접 확인하세요
 ```
 
-기대했던 줄이 보이지 않는다면 환경 변수가 프로세스에 도달하지 않은 것입니다 — `.env`와 `docker compose -f docker-compose.selfhost.yml exec backend env | grep -E 'RESEND_|SMTP_'`를 확인하세요. 이 시작 로그 줄에는 자격 증명이 절대 기록되지 않습니다.
+기대했던 줄이 보이지 않는다면 환경 변수가 프로세스에 도달하지 않은 것입니다 — `.env`를 확인하고 서버 시작 시 `EmailService:` 줄이 로그에 표시되는지 확인하세요. 이 시작 로그 줄에는 자격 증명이 절대 기록되지 않습니다.
 
 ### Resend가 활성 제공자일 때
 
@@ -128,7 +129,7 @@ SMTP 경로는 모든 실패를 실패한 단계와 함께 감싸므로, 서버 
 
 | 기록된 오류 | 의미 | 해결 방법 |
 |---|---|---|
-| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | 백엔드 컨테이너가 relay에 도달할 수 없음 — 잘못된 host, 잘못된 port, 방화벽, 또는 relay가 수신 대기 중이 아님 | 컨테이너 내부에서 `SMTP_HOST` / `SMTP_PORT`가 해석되는지 확인하세요(`docker compose -f docker-compose.selfhost.yml exec backend nslookup <host>` 및 `nc -vz <host> <port>`). Multica를 실행하는 호스트에서 relay로 향하는 방화벽을 여세요 |
+| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | 백엔드가 relay에 도달할 수 없음 — 잘못된 host, 잘못된 port, 방화벽, 또는 relay가 수신 대기 중이 아님 | 서버 호스트에서 `SMTP_HOST` / `SMTP_PORT`가 해석되는지 확인하세요(`nslookup <host>` 및 `nc -vz <host> <port>`). Multica를 실행하는 호스트에서 relay로 향하는 방화벽을 여세요 |
 | `smtp starttls: x509: certificate signed by unknown authority`(또는 `certificate is not valid for any names`) | relay가 사설 CA / 자체 서명 인증서를 사용하며, 컨테이너의 신뢰 저장소가 이를 거부함 | CA를 컨테이너에 설치하거나, relay가 신뢰할 수 있는 네트워크 구간에서 도달 가능함을 확인한 후에만 `SMTP_TLS_INSECURE=true`를 설정하세요 |
 | `smtp auth: 535 5.7.8 Authentication credentials invalid`(또는 `534`/`530`) | `SMTP_USERNAME` / `SMTP_PASSWORD`가 잘못되었거나, relay가 `PLAIN`이 아닌 다른 인증 방식을 요구함 | 메일 관리자에게 서비스 계정 자격 증명을 다시 확인하세요. Exchange 익명 내부 relay의 경우 둘 다 비워 두세요(`SMTP_USERNAME=`, `SMTP_PASSWORD=`) |
 | `smtp MAIL FROM: 550 5.7.1 Client does not have permissions to send as this sender` | relay가 `RESEND_FROM_EMAIL`을 봉투 발신자로 수락하지 않음 — 전형적인 Exchange "anonymous users not allowed" 또는 DMARC 정렬 문제 | `RESEND_FROM_EMAIL`을 relay가 수락하는 도메인으로 설정하세요. Exchange에서는 receive connector에서 원본 IP에 `ms-Exch-SMTP-Accept-Any-Sender`를 부여하세요 |
@@ -140,8 +141,8 @@ SMTP 경로는 모든 실패를 실패한 단계와 함께 감싸므로, 서버 
 **진단 방법**:
 
 - 시작 시 `"EmailService: SMTP relay"`를 한 번 grep하고, 런타임 실패에 대해서는 `"failed to send"`를 grep하세요
-- 백엔드 컨테이너 내부에서 연결성을 점검하세요: `docker compose -f docker-compose.selfhost.yml exec backend sh -c 'nc -vz $SMTP_HOST $SMTP_PORT'`
-- 환경 변수가 프로세스에 도달했는지 확인하세요: `docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP_`(출력에 비밀번호가 포함되므로 신뢰할 수 있는 셸에서만 실행하세요)
+- 서버 호스트에서 연결성을 점검하세요: `nc -vz $SMTP_HOST $SMTP_PORT`
+- 서버 시작 시 `EmailService:` 로그 줄을 확인하여 환경 변수가 프로세스에 도달했는지 확인하세요
 
 **해결 방법**:
 
@@ -164,7 +165,7 @@ SMTP 경로는 모든 실패를 실패한 단계와 함께 감싸므로, 서버 
 
 ```bash
 cat .env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
-docker exec <container> env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
+# 또는 서버 로그에서 프로세스가 받은 값을 확인하세요
 ```
 
 인박스(스팸 포함)에서 실제 인증 코드를 확인하세요.
@@ -214,7 +215,7 @@ SELECT jobname, schedule, database, active FROM cron.job;
 - 적어도 하나의 백엔드 레플리카에서 스케줄러가 실제로 실행 중인지 확인하세요 — 30초마다 `sys_cron_executions`의 `rollup_task_usage_hourly`에 SUCCESS 행이 추가되어야 합니다.
 - SQL 경로를 검증하기 위해 rollup을 수동으로 한 번 호출하세요: `SELECT rollup_task_usage_hourly();` — 대시보드를 새로고침하세요. 숫자가 나타나면 SQL 함수는 정상이며, 문제는 스케줄러 클레임 경로에 있습니다.
 - migration `113_sys_cron_executions`가 아직 적용되지 않았다면 백엔드를 재시작해 마이그레이션을 실행하거나 수동으로 `migrate up`을 호출하세요.
-- 인프로세스 스케줄러 이전의 레거시 `pg_cron` 이력이 있어도 SQL 함수가 내부적으로 advisory lock 4246을 잡고 있어 두 경로가 이중 쓰기할 수 없습니다 — 선택적 `cron.unschedule` 정리는 [자체 호스팅 빠른 시작 → 사용량 롤업](/self-host-quickstart#7-usage-rollup-no-operator-action-required)을 참고하세요.
+- 인프로세스 스케줄러 이전의 레거시 `pg_cron` 이력이 있어도 SQL 함수가 내부적으로 advisory lock 4246을 잡고 있어 두 경로가 이중 쓰기할 수 없습니다 — 선택적 `cron.unschedule` 정리 방법은 서버 환경 변수 문서를 참고하세요.
 
 ## 마이그레이션 `103`이 `refusing to drop legacy daily rollups`로 실패함
 
@@ -237,17 +238,16 @@ MUL-2957부터 migrate 명령은 migration `103`을 적용하기 직전에 멱�
 1. MUL-2957 이전 바이너리를 사용 중이고 바이너리를 먼저 업그레이드할 수 없다면, 같은 데이터베이스에 대해 스탠드얼론 backfill을 실행하세요(멱등하며, 중단해도 안전하고, 다시 실행해도 안전합니다):
 
    ```bash
-   # Docker Compose
-   docker compose -f docker-compose.selfhost.yml exec backend \
-     ./backfill_task_usage_hourly --sleep-between-slices=2s
+   # 네이티브 바이너리
+   ./backfill_task_usage_hourly --sleep-between-slices=2s
 
    # Kubernetes
    kubectl -n multica exec deploy/multica-backend -- \
      ./backfill_task_usage_hourly --sleep-between-slices=2s
    ```
 
-2. 업그레이드를 다시 실행하세요 — 백엔드 컨테이너를 재시작하는 것으로 충분하며, 마이그레이션은 시작 시 실행됩니다. 이제 가드가 최신 워터마크를 확인하고 `103`을 적용하도록 허용합니다.
-3. 인프로세스 스케줄러가 이후 워터마크를 계속 진행시킵니다 — [자체 호스팅 빠른 시작 → 사용량 롤업](/self-host-quickstart#7-usage-rollup-no-operator-action-required)을 참고하세요.
+2. 업그레이드를 다시 실행하세요 — 백엔드를 재시작하면 마이그레이션이 실행됩니다. 이제 가드가 최신 워터마크를 확인하고 `103`을 적용하도록 허용합니다.
+3. 인프로세스 스케줄러가 이후 워터마크를 계속 진행시킵니다.
 
 `--sleep-between-slices=2s`는 수년 치 이력이 있는 프로덕션 데이터베이스에서 적절한 기본값입니다. 최근 N개월만 보관하고 더 오래된 버킷을 영구히 포기해도 괜찮다면 `--months-back N --force-partial`을 사용하세요.
 
@@ -279,8 +279,7 @@ netstat -ano | findstr :8080    # Windows
 | 구성 요소 | 위치 | 명령 |
 |---|---|---|
 | **데몬** | `~/.multica/daemon.log`(백그라운드 모드) 또는 포그라운드 stdout | `multica daemon logs -f --lines 100` |
-| **서버(Docker)** | 컨테이너 stdout | `docker logs -f <container>` |
-| **서버(systemd)** | journal | `journalctl -u multica-server -f` |
+| **서버** | 실행 방식에 따라 stdout 또는 journal | `journalctl -u multica-server -f` 또는 stdout 직접 확인 |
 | **프런트엔드(dev)** | `pnpm dev`를 실행 중인 터미널 | 직접 확인 |
 | **프런트엔드(브라우저)** | DevTools → Console | `F12`를 누르세요 |
 

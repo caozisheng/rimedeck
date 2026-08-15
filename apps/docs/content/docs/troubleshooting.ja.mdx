@@ -96,10 +96,11 @@ multica issue show <issue-id>             # inspect task history
 - `EmailService: DEV mode — codes printed to stdout …` — プロバイダーが構成されていない
 
 ```bash
-docker compose -f docker-compose.selfhost.yml logs backend | grep "EmailService:"
+grep "EmailService:" <サーバーログのパス>
+# またはフォアグラウンドで実行中の場合は stdout を直接確認してください
 ```
 
-期待していた行が見当たらない場合は、環境変数がプロセスに届いていません。`.env` と `docker compose -f docker-compose.selfhost.yml exec backend env | grep -E 'RESEND_|SMTP_'` を確認してください。この起動ログの行には認証情報は一切記録されません。
+期待していた行が見当たらない場合は、環境変数がプロセスに届いていません。`.env` を確認し、サーバー起動時に `EmailService:` 行がログに表示されるか確認してください。この起動ログの行には認証情報は一切記録されません。
 
 ### Resend がアクティブなプロバイダーの場合
 
@@ -128,7 +129,7 @@ SMTP の経路はすべての失敗を失敗した段階とともにラップす
 
 | 記録されたエラー | 意味 | 解決方法 |
 |---|---|---|
-| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | バックエンドコンテナが relay に到達できない — host が誤っている、port が誤っている、ファイアウォール、または relay が待ち受けていない | コンテナ内部から `SMTP_HOST` / `SMTP_PORT` が解決されるか確認してください（`docker compose -f docker-compose.selfhost.yml exec backend nslookup <host>` および `nc -vz <host> <port>`）。Multica を実行するホストから relay へのファイアウォールを開放してください |
+| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | バックエンドが relay に到達できない — host が誤っている、port が誤っている、ファイアウォール、または relay が待ち受けていない | サーバーホストから `SMTP_HOST` / `SMTP_PORT` が解決されるか確認してください（`nslookup <host>` および `nc -vz <host> <port>`）。Multica を実行するホストから relay へのファイアウォールを開放してください |
 | `smtp starttls: x509: certificate signed by unknown authority`（または `certificate is not valid for any names`） | relay がプライベート CA / 自己署名証明書を使用しており、コンテナの信頼ストアがそれを拒否している | CA をコンテナにインストールするか、relay が信頼できるネットワークセグメント上で到達可能であることを確認したうえでのみ `SMTP_TLS_INSECURE=true` を設定してください |
 | `smtp auth: 535 5.7.8 Authentication credentials invalid`（または `534`/`530`） | `SMTP_USERNAME` / `SMTP_PASSWORD` が誤っている、または relay が `PLAIN` 以外の認証方式を要求している | メール管理者にサービスアカウントの認証情報を再確認してください。Exchange の匿名内部 relay の場合は両方を空のままにします（`SMTP_USERNAME=`、`SMTP_PASSWORD=`） |
 | `smtp MAIL FROM: 550 5.7.1 Client does not have permissions to send as this sender` | relay が `RESEND_FROM_EMAIL` をエンベロープ送信者として受け入れない — 典型的な Exchange の「anonymous users not allowed」または DMARC アラインメントの問題 | `RESEND_FROM_EMAIL` を relay が受け入れるドメインに設定してください。Exchange では receive connector で送信元 IP に `ms-Exch-SMTP-Accept-Any-Sender` を付与してください |
@@ -140,8 +141,8 @@ SMTP の経路はすべての失敗を失敗した段階とともにラップす
 **診断方法**:
 
 - 起動時に `"EmailService: SMTP relay"` を一度 grep し、ランタイムの失敗については `"failed to send"` を grep してください
-- バックエンドコンテナ内部から接続性を点検してください: `docker compose -f docker-compose.selfhost.yml exec backend sh -c 'nc -vz $SMTP_HOST $SMTP_PORT'`
-- 環境変数がプロセスに届いたか確認してください: `docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP_`（出力にパスワードが含まれるため、信頼できるシェルでのみ実行してください）
+- サーバーホストから接続性を点検してください: `nc -vz $SMTP_HOST $SMTP_PORT`
+- サーバー起動時の `EmailService:` ログ行を確認して、環境変数がプロセスに届いたか確認してください
 
 **解決方法**:
 
@@ -164,7 +165,7 @@ SMTP の経路はすべての失敗を失敗した段階とともにラップす
 
 ```bash
 cat .env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
-docker exec <container> env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
+# またはサーバーログでプロセスが受け取った値を確認してください
 ```
 
 インボックス（スパムを含む）で実際の認証コードを確認してください。
@@ -214,7 +215,7 @@ SELECT jobname, schedule, database, active FROM cron.job;
 - 少なくとも 1 つのバックエンドレプリカでスケジューラーが実際に動作していることを確認してください — 30 秒ごとに `sys_cron_executions` の `rollup_task_usage_hourly` に SUCCESS 行が追加されているはずです。
 - SQL パスを検証するため、rollup を手動で一度呼び出してください: `SELECT rollup_task_usage_hourly();` — ダッシュボードを再読み込みしてください。数値が表示されれば SQL 関数は問題なく、スケジューラーのクレーム経路に問題があります。
 - migration `113_sys_cron_executions` がまだ適用されていない場合は、バックエンドを再起動してマイグレーションを実行するか、手動で `migrate up` を呼び出してください。
-- インプロセススケジューラー以前のレガシー `pg_cron` 履歴がある場合でも、SQL 関数は内部で advisory lock 4246 を保持するため二重書き込みは発生しません — オプションの `cron.unschedule` クリーンアップについては [セルフホストクイックスタート → 使用量ロールアップ](/self-host-quickstart#7-usage-rollup-no-operator-action-required) を参照してください。
+- インプロセススケジューラー以前のレガシー `pg_cron` 履歴がある場合でも、SQL 関数は内部で advisory lock 4246 を保持するため二重書き込みは発生しません — オプションの `cron.unschedule` クリーンアップについてはサーバーの環境変数ドキュメントを参照してください。
 
 ## マイグレーション `103` が `refusing to drop legacy daily rollups` で失敗する
 
@@ -237,17 +238,17 @@ MUL-2957 以降、migrate コマンドは migration `103` を適用する直前�
 1. MUL-2957 以前のバイナリを使用しており、まずバイナリをアップグレードできない場合は、同じデータベースに対してスタンドアロンの backfill を実行してください（冪等であり、中断しても安全で、再実行しても安全です）:
 
    ```bash
-   # Docker Compose
-   docker compose -f docker-compose.selfhost.yml exec backend \
-     ./backfill_task_usage_hourly --sleep-between-slices=2s
+   # ネイティブバイナリ
+   ./backfill_task_usage_hourly --sleep-between-slices=2s
+
 
    # Kubernetes
    kubectl -n multica exec deploy/multica-backend -- \
      ./backfill_task_usage_hourly --sleep-between-slices=2s
    ```
 
-2. アップグレードを再実行してください — バックエンドコンテナを再起動するだけで十分で、マイグレーションは起動時に実行されます。これでガードが最新のウォーターマークを確認し、`103` の適用を許可します。
-3. インプロセススケジューラーがウォーターマークを進め続けます — [セルフホストクイックスタート → 使用量ロールアップ](/self-host-quickstart#7-usage-rollup-no-operator-action-required) を参照してください。
+2. アップグレードを再実行してください — バックエンドを再起動するだけで十分で、マイグレーションは起動時に実行されます。これでガードが最新のウォーターマークを確認し、`103` の適用を許可します。
+3. インプロセススケジューラーがウォーターマークを進め続けます。
 
 `--sleep-between-slices=2s` は、数年分の履歴を持つプロダクションデータベースにとって控えめなデフォルト値です。直近 N か月のみを保持し、それより古いバケットを永久に放棄してもかまわない場合は `--months-back N --force-partial` を使用してください。
 
@@ -279,8 +280,7 @@ netstat -ano | findstr :8080    # Windows
 | 構成要素 | 場所 | コマンド |
 |---|---|---|
 | **デーモン** | `~/.multica/daemon.log`（バックグラウンドモード）またはフォアグラウンドの stdout | `multica daemon logs -f --lines 100` |
-| **サーバー（Docker）** | コンテナの stdout | `docker logs -f <container>` |
-| **サーバー（systemd）** | journal | `journalctl -u multica-server -f` |
+| **サーバー** | 実行方法によって stdout または journal | `journalctl -u multica-server -f` または stdout を直接確認 |
 | **フロントエンド（dev）** | `pnpm dev` を実行中のターミナル | 直接確認 |
 | **フロントエンド（ブラウザ）** | DevTools → Console | `F12` を押す |
 

@@ -23,17 +23,6 @@ After sign-up you're automatically placed in a default workspace (generated from
 brew install multica-ai/tap/multica
 ```
 
-**macOS / Linux (no Homebrew)**:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.sh | bash
-```
-
-**Windows (PowerShell)**:
-
-```powershell
-irm https://raw.githubusercontent.com/multica-ai/multica/main/scripts/install.ps1 | iex
-```
 
 Verify the install:
 
@@ -50,7 +39,6 @@ multica setup
 ```
 
 `multica setup` will:
-
 1. Configure the CLI to connect to Multica Cloud
 2. Open your browser for login (same email verification code / Google OAuth as the web)
 3. Store the generated PAT in `~/.multica/config.json`
@@ -116,4 +104,4 @@ The web UI updates in **real time** (via WebSocket) — no refresh needed.
 - [Tasks](/tasks) — task lifecycle and retry rules
 - [AI coding tools compared](/providers) — capability differences across the 12 tools
 - [Desktop app](/desktop-app) — if you'd rather not run the daemon yourself
-- [Self-host quickstart](/self-host-quickstart) — run your own backend
+- [Environment variables](/environment-variables) — configure your own backend

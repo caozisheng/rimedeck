@@ -72,7 +72,7 @@ SMTP_TLS=implicit              # optional on 465; required on a non-standard SMT
 RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-At startup the server prints which provider it picked, including the negotiated TLS mode — for example `EmailService: SMTP relay exchange.internal.example.com:25 (starttls) from=noreply@example.com` or `… smtp.qiye.aliyun.com:465 (implicit-tls) from=…` (or `Resend API` / `DEV mode`). The password is never logged. If you don't see the SMTP line after restart, `SMTP_HOST` didn't reach the process — check the container env (`docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP`).
+At startup the server prints which provider it picked, including the negotiated TLS mode — for example `EmailService: SMTP relay exchange.internal.example.com:25 (starttls) from=noreply@example.com` or `… smtp.qiye.aliyun.com:465 (implicit-tls) from=…` (or `Resend API` / `DEV mode`). The password is never logged. If you don't see the SMTP line after restart, `SMTP_HOST` didn't reach the process — check your server logs and verify the environment variables are set correctly.
 
 **What happens if you set neither**: the server doesn't error, but **every email that should have been sent is written to the server's stdout only**. Handy for local development (copy the code from the logs); in production it's a black hole.
 
@@ -93,7 +93,7 @@ MULTICA_DEV_VERIFICATION_CODE=888888
 This shortcut is ignored when `APP_ENV=production`.
 </Callout>
 
-Production deployments should leave `MULTICA_DEV_VERIFICATION_CODE` empty and set `APP_ENV=production`. If you deploy via `make selfhost` / `docker-compose.selfhost.yml`, `APP_ENV` defaults to `production`.
+Production deployments should leave `MULTICA_DEV_VERIFICATION_CODE` empty and set `APP_ENV=production`.
 
 ## Google OAuth configuration
 

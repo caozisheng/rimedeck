@@ -96,10 +96,11 @@ multica issue show <issue-id>             # 看 task 历史
 - `EmailService: DEV mode — codes printed to stdout …` —— 没配任何 provider
 
 ```bash
-docker compose -f docker-compose.selfhost.yml logs backend | grep "EmailService:"
+grep "EmailService:" <服务器日志路径>
+# 或者在前台运行时直接查看 stdout
 ```
 
-如果应该出现的那行没出现，说明环境变量没进到进程 —— 检查 `.env` 和 `docker compose -f docker-compose.selfhost.yml exec backend env | grep -E 'RESEND_|SMTP_'`。这行启动日志里**不会**打印任何密码。
+如果应该出现的那行没出现，说明环境变量没进到进程 —— 检查 `.env` 并查看服务器启动时的日志是否出现 `EmailService:` 这行。这行启动日志里**不会**打印任何密码。
 
 ### Resend 是当前 provider
 
@@ -128,7 +129,7 @@ SMTP 路径把每个失败都按阶段包装好，所以 server 日志已经告�
 
 | 错误日志 | 含义 | 怎么修 |
 |---|---|---|
-| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | backend 容器连不上 relay —— host / port 错、防火墙挡了、或者 relay 没开 | 在容器里确认能解析和连通：`docker compose -f docker-compose.selfhost.yml exec backend nslookup <host>` 以及 `nc -vz <host> <port>`；放行从 Multica 主机到 relay 的网络 |
+| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | backend 连不上 relay —— host / port 错、防火墙挡了、或者 relay 没开 | 从服务器主机上确认能解析和连通：`nslookup <host>` 以及 `nc -vz <host> <port>`；放行从 Multica 主机到 relay 的网络 |
 | `smtp starttls: x509: certificate signed by unknown authority`（或 `certificate is not valid for any names`） | relay 用了私有 CA / 自签证书，容器的信任库不接受 | 要么把 CA 装进容器，要么在确认 relay 走的是可信网段后设 `SMTP_TLS_INSECURE=true` |
 | `smtp auth: 535 5.7.8 Authentication credentials invalid`（或 `534`/`530`） | `SMTP_USERNAME` / `SMTP_PASSWORD` 不对，或 relay 不接受 `PLAIN` 认证 | 找邮件管理员复核 service account 凭据；Exchange 匿名内部 relay 应当把两者都留空 |
 | `smtp MAIL FROM: 550 5.7.1 Client does not have permissions to send as this sender` | relay 不接受 `RESEND_FROM_EMAIL` 作为信封发件人 —— Exchange 常见 "anonymous users not allowed" 或 DMARC 对齐问题 | 把 `RESEND_FROM_EMAIL` 改成 relay 接受的域名；Exchange 上给来源 IP 授 `ms-Exch-SMTP-Accept-Any-Sender` |
@@ -140,8 +141,8 @@ SMTP 路径把每个失败都按阶段包装好，所以 server 日志已经告�
 **怎么查**：
 
 - 启动时搜 `"EmailService: SMTP relay"` 一次，运行时搜 `"failed to send"` 看具体阶段
-- 在 backend 容器里测连通：`docker compose -f docker-compose.selfhost.yml exec backend sh -c 'nc -vz $SMTP_HOST $SMTP_PORT'`
-- 确认环境变量真进到了进程：`docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP_`（这条会带出密码，仅在可信终端运行）
+- 从服务器主机上测连通：`nc -vz $SMTP_HOST $SMTP_PORT`
+- 通过查看服务器启动日志中的 `EmailService:` 行确认环境变量真进到了进程
 
 **怎么修**：
 
@@ -164,7 +165,7 @@ SMTP 路径把每个失败都按阶段包装好，所以 server 日志已经告�
 
 ```bash
 cat .env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
-docker exec <container> env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
+# 或者查看服务器日志看进程收到了什么值
 ```
 
 检查邮箱（含 spam）看有没有收到真实验证码。
@@ -213,7 +214,7 @@ SELECT jobname, schedule, database, active FROM cron.job;
 - 确认至少一个后端副本里调度器真的在跑 —— 每 30 秒应该往 `sys_cron_executions` 的 `rollup_task_usage_hourly` 加一条 SUCCESS 行。
 - 手动跑一次 SQL 验证函数本身没问题：`SELECT rollup_task_usage_hourly();` —— 刷新看板；如果数字出来了，SQL 这层 OK，问题在调度器认领路径上。
 - 如果 migration `113_sys_cron_executions` 还没应用，重启后端让 migration 跑一遍，或手动 `migrate up`。
-- 历史里有遗留的 `pg_cron` 入口也没事 —— SQL 函数里还持有 advisory lock 4246，应用调度器和 `pg_cron` 不会双写；要清掉冗余项见 [Self-host 快速上手 → 用量汇总](/self-host-quickstart#7-usage-rollup-no-operator-action-required) 里的 `cron.unschedule`。
+- 历史里有遗留的 `pg_cron` 入口也没事 —— SQL 函数里还持有 advisory lock 4246，应用调度器和 `pg_cron` 不会双写；要清掉冗余项的方法见服务器环境变量文档。
 
 ## migration `103` 报 `refusing to drop legacy daily rollups`
 
@@ -236,17 +237,17 @@ ERROR: refusing to drop legacy daily rollups:
 1. 如果你跑的是 MUL-2957 之前的 binary，又没办法先升级 binary，就对同一个数据库手动跑一次独立 backfill（幂等，可以打断，可以重试）：
 
    ```bash
-   # Docker Compose
-   docker compose -f docker-compose.selfhost.yml exec backend \
-     ./backfill_task_usage_hourly --sleep-between-slices=2s
+   # 原生二进制
+   ./backfill_task_usage_hourly --sleep-between-slices=2s
+
 
    # Kubernetes
    kubectl -n multica exec deploy/multica-backend -- \
      ./backfill_task_usage_hourly --sleep-between-slices=2s
    ```
 
-2. 重新跑升级 —— 重启 backend 容器即可，启动时会自动跑 migration。Guard 看到新的 watermark，`103` 就会通过。
-3. 之后由进程内调度器持续推 watermark —— 见 [Self-host 快速上手 → 用量汇总](/self-host-quickstart#7-usage-rollup-no-operator-action-required)。
+2. 重新跑升级 —— 重启 backend 即可，启动时会自动跑 migration。Guard 看到新的 watermark，`103` 就会通过。
+3. 之后由进程内调度器持续推 watermark。
 
 `--sleep-between-slices=2s` 在有多年历史的生产库上是个比较克制的默认值。如果你只想保留最近 N 个月、可以接受永久丢掉更老的桶，用 `--months-back N --force-partial`。
 
@@ -278,8 +279,7 @@ netstat -ano | findstr :8080    # Windows
 | 组件 | 位置 | 命令 |
 |---|---|---|
 | **守护进程** | `~/.multica/daemon.log`（后台模式）或前台 stdout | `multica daemon logs -f --lines 100` |
-| **服务器（Docker）** | container stdout | `docker logs -f <container>` |
-| **服务器（systemd）** | journal | `journalctl -u multica-server -f` |
+| **服务器** | 根据运行方式，stdout 或 journal | `journalctl -u multica-server -f` 或直接查看 stdout |
 | **前端（dev）** | `pnpm dev` 所在终端 | 直接看 |
 | **前端（browser）** | DevTools → Console | 按 `F12` |
 

@@ -61,7 +61,7 @@ SMTP_TLS_INSECURE=false        # set true only for self-signed / private CA
 RESEND_FROM_EMAIL=noreply@yourdomain.com
 ```
 
-起動時に、サーバーは選択したプロバイダーを出力します。例えば `EmailService: SMTP relay exchange.internal.example.com:25 from=noreply@example.com`（または `Resend API` / `DEV mode`）のように表示されます。パスワードがログに記録されることは決してありません。再起動後に SMTP の行が見えない場合は `SMTP_HOST` がプロセスに届いていないので、コンテナ環境（`docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP`）を確認してください。
+起動時に、サーバーは選択したプロバイダーを出力します。例えば `EmailService: SMTP relay exchange.internal.example.com:25 from=noreply@example.com`（または `Resend API` / `DEV mode`）のように表示されます。パスワードがログに記録されることは決してありません。再起動後に SMTP の行が見えない場合は `SMTP_HOST` がプロセスに届いていないので、サーバーログを確認して環境変数が正しく設定されているか確認してください。
 
 **どちらも設定しない場合**: サーバーはエラーを出しませんが、**送信されるはずだったすべてのメールがサーバーの stdout にのみ書き出されます**。ローカル開発には便利ですが（ログからコードをコピーできます）、プロダクションではブラックホールになります。
 
@@ -82,7 +82,7 @@ MULTICA_DEV_VERIFICATION_CODE=888888
 このショートカットは `APP_ENV=production` のときは無視されます。
 </Callout>
 
-プロダクションのデプロイでは `MULTICA_DEV_VERIFICATION_CODE` を空のままにし、`APP_ENV=production` に設定してください。`make selfhost` / `docker-compose.selfhost.yml` でデプロイする場合、`APP_ENV` はデフォルトで `production` です。
+プロダクションのデプロイでは `MULTICA_DEV_VERIFICATION_CODE` を空のままにし、`APP_ENV=production` に設定してください。
 
 ## Google OAuth の構成
 

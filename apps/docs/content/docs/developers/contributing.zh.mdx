@@ -5,12 +5,12 @@ description: Local development workflow for contributors working on the Multica 
 
 ## Development Model
 
-Local development uses one shared PostgreSQL container and one database per checkout.
+Local development uses one shared PostgreSQL instance and one database per checkout.
 
 - The main checkout usually uses `.env` and `POSTGRES_DB=multica`
 - Each Git worktree uses its own `.env.worktree`
 - Every checkout connects to the same PostgreSQL host: `localhost:5432`
-- Isolation happens at the database level, not by starting a separate Docker Compose project
+- Isolation happens at the database level; each checkout gets its own database
 - Backend and frontend ports are still unique per worktree
 
 ## Prerequisites
@@ -18,7 +18,7 @@ Local development uses one shared PostgreSQL container and one database per chec
 - Node.js `v20+`
 - `pnpm` `v10.28+`
 - Go `v1.26+`
-- Docker
+- PostgreSQL
 
 ## First-Time Setup
 
@@ -32,7 +32,7 @@ make setup-main
 What `make setup-main` does:
 
 - Installs JavaScript dependencies with `pnpm install`
-- Ensures the shared PostgreSQL container is running
+- Ensures the shared PostgreSQL instance is running
 - Creates the application database if it does not exist
 - Runs all migrations against that database
 
@@ -87,7 +87,7 @@ make check-worktree
 
 ## Running Main and Worktree Simultaneously
 
-This is a first-class workflow. Both checkouts use the same PostgreSQL container but different databases and ports:
+This is a first-class workflow. Both checkouts use the same PostgreSQL instance but different databases and ports:
 
 | | Main | Worktree |
 |---|---|---|
@@ -157,7 +157,7 @@ Look for `POSTGRES_DB`, `DATABASE_URL`, `PORT`, `FRONTEND_PORT`.
 ### List All Local Databases
 
 ```bash
-docker compose exec -T postgres psql -U multica -d postgres \
+psql -U multica -d postgres \
   -At -c "select datname from pg_database order by datname;"
 ```
 
@@ -182,7 +182,8 @@ make start
 Wipe all local PostgreSQL data:
 
 ```bash
-docker compose down -v
+# Stop PostgreSQL and wipe all data
+# (method depends on how you installed PostgreSQL)
 ```
 
-> **Warning:** This deletes the shared Docker volume and all databases. After that you must run `make setup-main` or `make setup-worktree` again.
+> **Warning:** This deletes all databases. After that you must run `make setup-main` or `make setup-worktree` again.

@@ -96,10 +96,11 @@ On the server side (self-host), grep for `"no_tasks"` / `"no_capacity"` to see t
 - `EmailService: DEV mode — codes printed to stdout …` — no provider configured
 
 ```bash
-docker compose -f docker-compose.selfhost.yml logs backend | grep "EmailService:"
+grep "EmailService:" <path-to-server-log>
+# or check the server's stdout directly if running in the foreground
 ```
 
-If the line you expected isn't there, the environment didn't reach the process — check `.env` and `docker compose -f docker-compose.selfhost.yml exec backend env | grep -E 'RESEND_|SMTP_'`. Credentials are never logged on this startup line.
+If the line you expected isn't there, the environment didn't reach the process — check `.env` and verify the environment variables are set in the server process (check server logs at startup for the `EmailService:` line). Credentials are never logged on this startup line.
 
 ### When Resend is the active provider
 
@@ -128,7 +129,7 @@ The SMTP path wraps every failure with the stage it failed at, so the server log
 
 | Logged error | What it means | How to fix |
 |---|---|---|
-| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | The backend container can't reach the relay — wrong host, wrong port, firewall, or the relay isn't listening | Verify `SMTP_HOST` / `SMTP_PORT` resolve from inside the container (`docker compose -f docker-compose.selfhost.yml exec backend nslookup <host>` and `nc -vz <host> <port>`); open the firewall from the host running Multica to the relay |
+| `smtp dial <host>:<port>: dial tcp …: connect: connection refused` / `i/o timeout` | The backend can't reach the relay — wrong host, wrong port, firewall, or the relay isn't listening | Verify `SMTP_HOST` / `SMTP_PORT` resolve from the server host (`nslookup <host>` and `nc -vz <host> <port>`); open the firewall from the host running Multica to the relay |
 | `smtp starttls: x509: certificate signed by unknown authority` (or `certificate is not valid for any names`) | The relay uses a private CA / self-signed cert and the container's trust store rejects it | Either install the CA into the container, or set `SMTP_TLS_INSECURE=true` only after confirming the relay is reachable on a trusted segment |
 | `smtp auth: 535 5.7.8 Authentication credentials invalid` (or `534`/`530`) | `SMTP_USERNAME` / `SMTP_PASSWORD` are wrong, or the relay requires a different auth mechanism than `PLAIN` | Re-confirm the service-account credentials with your mail admin; for Exchange anonymous internal relay leave both empty (`SMTP_USERNAME=`, `SMTP_PASSWORD=`) |
 | `smtp MAIL FROM: 550 5.7.1 Client does not have permissions to send as this sender` | The relay won't accept `RESEND_FROM_EMAIL` as the envelope sender — typical Exchange "anonymous users not allowed" or DMARC alignment issue | Set `RESEND_FROM_EMAIL` to a domain the relay accepts; on Exchange, grant the source IP `ms-Exch-SMTP-Accept-Any-Sender` on the receive connector |
@@ -140,8 +141,8 @@ The SMTP path wraps every failure with the stage it failed at, so the server log
 **How to diagnose**:
 
 - Grep `"EmailService: SMTP relay"` once at startup, then `"failed to send"` for runtime failures
-- From inside the backend container, sanity-check connectivity: `docker compose -f docker-compose.selfhost.yml exec backend sh -c 'nc -vz $SMTP_HOST $SMTP_PORT'`
-- Confirm the env reached the process: `docker compose -f docker-compose.selfhost.yml exec backend env | grep SMTP_` (password will be in the output — only run on a trusted shell)
+- From the server host, sanity-check connectivity: `nc -vz $SMTP_HOST $SMTP_PORT`
+- Confirm the env reached the process by checking server logs at startup for the `EmailService:` line
 
 **How to fix**:
 
@@ -164,7 +165,7 @@ The SMTP path wraps every failure with the stage it failed at, so the server log
 
 ```bash
 cat .env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
-docker exec <container> env | grep -E 'APP_ENV|MULTICA_DEV_VERIFICATION_CODE'
+# or check server logs to see which values the process received
 ```
 
 Check your inbox (including spam) for the real verification code.
@@ -214,7 +215,7 @@ SELECT jobname, schedule, database, active FROM cron.job;
 - Confirm the scheduler is actually running on at least one backend replica — every 30 seconds it should add a SUCCESS row to `sys_cron_executions` for `rollup_task_usage_hourly`.
 - Call the rollup once by hand to verify the SQL path: `SELECT rollup_task_usage_hourly();` — refresh the dashboard; if numbers appear, the SQL function is fine and the issue is on the scheduler claim path.
 - If migration `113_sys_cron_executions` has not applied yet, restart the backend so migrations run, or invoke `migrate up` manually.
-- If you have legacy `pg_cron` history that pre-dates the in-process scheduler, the SQL function still holds advisory lock 4246 internally and the two paths cannot double-write — see [Self-host quickstart → Usage rollup](/self-host-quickstart#7-usage-rollup-no-operator-action-required) for the optional `cron.unschedule` cleanup.
+- If you have legacy `pg_cron` history that pre-dates the in-process scheduler, the SQL function still holds advisory lock 4246 internally and the two paths cannot double-write — the optional `cron.unschedule` cleanup is described in the server's environment variables documentation.
 
 ## Migration `103` fails with `refusing to drop legacy daily rollups`
 
@@ -237,17 +238,16 @@ Since MUL-2957 the migrate command runs an idempotent monthly-slice backfill (un
 1. If you are on a pre-MUL-2957 binary and cannot upgrade the binary first, run the standalone backfill against the same database (idempotent, safe to interrupt, safe to re-run):
 
    ```bash
-   # Docker Compose
-   docker compose -f docker-compose.selfhost.yml exec backend \
-     ./backfill_task_usage_hourly --sleep-between-slices=2s
+   # Native binary
+   ./backfill_task_usage_hourly --sleep-between-slices=2s
 
    # Kubernetes
    kubectl -n multica exec deploy/multica-backend -- \
      ./backfill_task_usage_hourly --sleep-between-slices=2s
    ```
 
-2. Re-run the upgrade — restarting the backend container is enough, migrations run on startup. The guard now sees a current watermark and lets `103` apply.
-3. The in-process scheduler then keeps the watermark advancing — see [Self-host quickstart → Usage rollup](/self-host-quickstart#7-usage-rollup-no-operator-action-required).
+2. Re-run the upgrade — restart the backend so migrations run. The guard now sees a current watermark and lets `103` apply.
+3. The in-process scheduler then keeps the watermark advancing.
 
 `--sleep-between-slices=2s` is a polite default on production databases with years of history. Use `--months-back N --force-partial` if you only want to keep the last N months and are willing to permanently abandon older buckets.
 
@@ -279,8 +279,7 @@ netstat -ano | findstr :8080    # Windows
 | Component | Location | Command |
 |---|---|---|
 | **Daemon** | `~/.multica/daemon.log` (background mode) or foreground stdout | `multica daemon logs -f --lines 100` |
-| **Server (Docker)** | Container stdout | `docker logs -f <container>` |
-| **Server (systemd)** | journal | `journalctl -u multica-server -f` |
+| **Server** | stdout / journal depending on how you run it | `journalctl -u multica-server -f` or check stdout directly |
 | **Frontend (dev)** | Terminal running `pnpm dev` | Read directly |
 | **Frontend (browser)** | DevTools → Console | Press `F12` |
 
