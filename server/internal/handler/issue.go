@@ -58,7 +58,10 @@ type IssueResponse struct {
 	// WS broadcast) emit no `labels` field at all — the client merge then
 	// preserves whatever labels are already in cache. nil pointer = "field
 	// absent, do not touch"; non-nil (incl. empty slice) = authoritative list.
-	Labels *[]LabelResponse `json:"labels,omitempty"`
+	Labels      *[]LabelResponse        `json:"labels,omitempty"`
+	SourceType  string                  `json:"source_type"`
+	SyncState   string                  `json:"sync_state"`
+	TrackerConnectionID *string         `json:"tracker_connection_id,omitempty"`
 }
 
 func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
@@ -84,6 +87,9 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		CreatedAt:     timestampToString(i.CreatedAt),
 		UpdatedAt:     timestampToString(i.UpdatedAt),
 		Metadata:      parseIssueMetadata(i.Metadata),
+		SourceType:    i.SourceType,
+		SyncState:     i.SyncState,
+		TrackerConnectionID: uuidToPtr(i.TrackerConnectionID),
 	}
 }
 
@@ -111,6 +117,9 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		CreatedAt:     timestampToString(i.CreatedAt),
 		UpdatedAt:     timestampToString(i.UpdatedAt),
 		Metadata:      parseIssueMetadata(i.Metadata),
+		SourceType:    i.SourceType,
+		SyncState:     i.SyncState,
+		TrackerConnectionID: uuidToPtr(i.TrackerConnectionID),
 	}
 }
 
@@ -168,6 +177,9 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		CreatedAt:     timestampToString(i.CreatedAt),
 		UpdatedAt:     timestampToString(i.UpdatedAt),
 		Metadata:      parseIssueMetadata(i.Metadata),
+		SourceType:    i.SourceType,
+		SyncState:     i.SyncState,
+		TrackerConnectionID: uuidToPtr(i.TrackerConnectionID),
 	}
 }
 
@@ -934,6 +946,27 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 )`, ref))
 	}
 
+	// GitLab source filters (Phase 1).
+	if s := r.URL.Query().Get("source"); s != "" {
+		switch s {
+		case "local", "gitlab", "detached":
+			where = append(where, fmt.Sprintf("i.source_type = %s", addArg(s)))
+		default:
+			writeError(w, http.StatusBadRequest, "invalid source value")
+			return
+		}
+	}
+	if tid := r.URL.Query().Get("tracker_id"); tid != "" {
+		tUUID, ok := parseUUIDOrBadRequest(w, tid, "tracker_id")
+		if !ok {
+			return
+		}
+		where = append(where, fmt.Sprintf("i.tracker_connection_id = %s::uuid", addArg(tUUID)))
+	}
+	if ss := r.URL.Query().Get("sync_state"); ss != "" {
+		where = append(where, fmt.Sprintf("i.sync_state = %s", addArg(ss)))
+	}
+
 	whereSql := strings.Join(where, " AND ")
 
 	// Build ORDER BY clause.
@@ -952,7 +985,8 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
-       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.metadata
+       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.metadata,
+       i.source_type, i.sync_state, i.tracker_connection_id
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -989,6 +1023,9 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.Number,
 			&row.ProjectID,
 			&row.Metadata,
+			&row.SourceType,
+			&row.SyncState,
+			&row.TrackerConnectionID,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")

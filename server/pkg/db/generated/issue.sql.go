@@ -788,7 +788,7 @@ func (q *Queries) ListChildrenByParents(ctx context.Context, arg ListChildrenByP
 const listIssues = `-- name: ListIssues :many
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
-       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.metadata
+       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.metadata, i.source_type, i.sync_state, i.tracker_connection_id
 FROM issue i
 WHERE i.workspace_id = $1
   AND ($4::text IS NULL OR i.status = $4)
@@ -859,25 +859,28 @@ type ListIssuesParams struct {
 }
 
 type ListIssuesRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
-	Title         string             `json:"title"`
-	Description   pgtype.Text        `json:"description"`
-	Status        string             `json:"status"`
-	Priority      string             `json:"priority"`
-	AssigneeType  pgtype.Text        `json:"assignee_type"`
-	AssigneeID    pgtype.UUID        `json:"assignee_id"`
-	CreatorType   string             `json:"creator_type"`
-	CreatorID     pgtype.UUID        `json:"creator_id"`
-	ParentIssueID pgtype.UUID        `json:"parent_issue_id"`
-	Position      float64            `json:"position"`
-	StartDate     pgtype.Date        `json:"start_date"`
-	DueDate       pgtype.Date        `json:"due_date"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	Number        int32              `json:"number"`
-	ProjectID     pgtype.UUID        `json:"project_id"`
-	Metadata      []byte             `json:"metadata"`
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	Title               string             `json:"title"`
+	Description         pgtype.Text        `json:"description"`
+	Status              string             `json:"status"`
+	Priority            string             `json:"priority"`
+	AssigneeType        pgtype.Text        `json:"assignee_type"`
+	AssigneeID          pgtype.UUID        `json:"assignee_id"`
+	CreatorType         string             `json:"creator_type"`
+	CreatorID           pgtype.UUID        `json:"creator_id"`
+	ParentIssueID       pgtype.UUID        `json:"parent_issue_id"`
+	Position            float64            `json:"position"`
+	StartDate           pgtype.Date        `json:"start_date"`
+	DueDate             pgtype.Date        `json:"due_date"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Number              int32              `json:"number"`
+	ProjectID           pgtype.UUID        `json:"project_id"`
+	Metadata            []byte             `json:"metadata"`
+	SourceType          string             `json:"source_type"`
+	SyncState           string             `json:"sync_state"`
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
 }
 
 // involves_user_id widens the assignee filter to surface issues where the user
@@ -928,6 +931,9 @@ func (q *Queries) ListIssues(ctx context.Context, arg ListIssuesParams) ([]ListI
 			&i.Number,
 			&i.ProjectID,
 			&i.Metadata,
+			&i.SourceType,
+			&i.SyncState,
+			&i.TrackerConnectionID,
 		); err != nil {
 			return nil, err
 		}
@@ -942,7 +948,7 @@ func (q *Queries) ListIssues(ctx context.Context, arg ListIssuesParams) ([]ListI
 const listOpenIssues = `-- name: ListOpenIssues :many
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
-       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.metadata
+       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.metadata, i.source_type, i.sync_state, i.tracker_connection_id
 FROM issue i
 WHERE i.workspace_id = $1
   AND i.status NOT IN ('done', 'cancelled')
@@ -999,25 +1005,28 @@ type ListOpenIssuesParams struct {
 }
 
 type ListOpenIssuesRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
-	Title         string             `json:"title"`
-	Description   pgtype.Text        `json:"description"`
-	Status        string             `json:"status"`
-	Priority      string             `json:"priority"`
-	AssigneeType  pgtype.Text        `json:"assignee_type"`
-	AssigneeID    pgtype.UUID        `json:"assignee_id"`
-	CreatorType   string             `json:"creator_type"`
-	CreatorID     pgtype.UUID        `json:"creator_id"`
-	ParentIssueID pgtype.UUID        `json:"parent_issue_id"`
-	Position      float64            `json:"position"`
-	StartDate     pgtype.Date        `json:"start_date"`
-	DueDate       pgtype.Date        `json:"due_date"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	Number        int32              `json:"number"`
-	ProjectID     pgtype.UUID        `json:"project_id"`
-	Metadata      []byte             `json:"metadata"`
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	Title               string             `json:"title"`
+	Description         pgtype.Text        `json:"description"`
+	Status              string             `json:"status"`
+	Priority            string             `json:"priority"`
+	AssigneeType        pgtype.Text        `json:"assignee_type"`
+	AssigneeID          pgtype.UUID        `json:"assignee_id"`
+	CreatorType         string             `json:"creator_type"`
+	CreatorID           pgtype.UUID        `json:"creator_id"`
+	ParentIssueID       pgtype.UUID        `json:"parent_issue_id"`
+	Position            float64            `json:"position"`
+	StartDate           pgtype.Date        `json:"start_date"`
+	DueDate             pgtype.Date        `json:"due_date"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Number              int32              `json:"number"`
+	ProjectID           pgtype.UUID        `json:"project_id"`
+	Metadata            []byte             `json:"metadata"`
+	SourceType          string             `json:"source_type"`
+	SyncState           string             `json:"sync_state"`
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
 }
 
 // See ListIssues for the semantics of involves_user_id (mirrors the 4-branch
@@ -1060,6 +1069,9 @@ func (q *Queries) ListOpenIssues(ctx context.Context, arg ListOpenIssuesParams) 
 			&i.Number,
 			&i.ProjectID,
 			&i.Metadata,
+			&i.SourceType,
+			&i.SyncState,
+			&i.TrackerConnectionID,
 		); err != nil {
 			return nil, err
 		}
