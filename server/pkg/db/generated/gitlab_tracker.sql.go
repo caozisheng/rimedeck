@@ -196,8 +196,8 @@ func (q *Queries) CreateGitlabTrackerConnection(ctx context.Context, arg CreateG
 const createTrackerOutbox = `-- name: CreateTrackerOutbox :one
 INSERT INTO tracker_sync_outbox (
   workspace_id, tracker_connection_id, issue_id, operation,
-  payload, idempotency_key, desired_revision
-) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, workspace_id, tracker_connection_id, issue_id, operation, payload, idempotency_key, status, attempts, available_at, desired_revision, last_error_code, last_error_message, created_at, updated_at
+  payload, idempotency_key, desired_revision, status
+) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING id, workspace_id, tracker_connection_id, issue_id, operation, payload, idempotency_key, status, attempts, available_at, desired_revision, last_error_code, last_error_message, created_at, updated_at
 `
 
 type CreateTrackerOutboxParams struct {

@@ -34,8 +34,8 @@ INSERT INTO gitlab_issue_link (
 -- name: CreateTrackerOutbox :one
 INSERT INTO tracker_sync_outbox (
   workspace_id, tracker_connection_id, issue_id, operation,
-  payload, idempotency_key, desired_revision
-) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *;
+  payload, idempotency_key, desired_revision, status
+) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING *;
 
 -- name: CountTrackerOutboxByStatus :many
 SELECT status, count(*)::bigint AS cnt

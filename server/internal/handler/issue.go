@@ -2106,15 +2106,12 @@ type CreateIssueRequest struct {
 	StartDate     *string  `json:"start_date"`
 	DueDate       *string  `json:"due_date"`
 	AttachmentIDs []string `json:"attachment_ids,omitempty"`
-	// OriginType / OriginID stamp the new issue with its provenance so
-	// platform-internal flows can deterministically locate it later. Only
-	// trusted callers should set these — currently the daemon CLI passes
-	// them through for quick-create tasks (origin_type=quick_create,
-	// origin_id=agent_task_queue.id).
 	OriginType *string `json:"origin_type,omitempty"`
 	OriginID   *string `json:"origin_id,omitempty"`
-
 	AllowDuplicate bool `json:"allow_duplicate,omitempty"`
+	// GitLab source fields (Phase 1).
+	SourceType          string  `json:"source_type,omitempty"`
+	TrackerConnectionID *string `json:"tracker_connection_id,omitempty"`
 }
 
 func duplicateIssueMessage(issue IssueResponse) string {
@@ -2130,6 +2127,44 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	if req.Title == "" {
 		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+
+	// --- GitLab source validation (Phase 1) ---
+	sourceType := req.SourceType
+	if sourceType == "" {
+		sourceType = "local"
+	}
+	var trackerConnUUID pgtype.UUID
+	switch sourceType {
+	case "local":
+		// Fast path: no tracker, no outbox. Original behavior.
+	case "gitlab":
+		if req.TrackerConnectionID == nil {
+			writeError(w, http.StatusBadRequest, "tracker_connection_id is required when source_type is gitlab")
+			return
+		}
+		tcID, ok := parseUUIDOrBadRequest(w, *req.TrackerConnectionID, "tracker_connection_id")
+		if !ok {
+			return
+		}
+		// Verify tracker belongs to the same project.
+		tc, err := h.Queries.GetGitlabTrackerConnection(r.Context(), tcID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "tracker_connection_id not found")
+			return
+		}
+		if req.ProjectID == nil || uuidToString(tc.ProjectID) != *req.ProjectID {
+			writeError(w, http.StatusBadRequest, "tracker_connection_id does not belong to this project")
+			return
+		}
+		if tc.State == "disabled" {
+			writeError(w, http.StatusBadRequest, "tracker connection is disabled")
+			return
+		}
+		trackerConnUUID = tcID
+	default:
+		writeError(w, http.StatusBadRequest, "invalid source_type; must be 'local' or 'gitlab'")
 		return
 	}
 
@@ -2340,6 +2375,36 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("create issue failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", workspaceID)...)
 		writeError(w, http.StatusInternalServerError, "failed to create issue: "+err.Error())
 		return
+	}
+
+	// --- GitLab source: set columns + enqueue outbox (inside the tx) ---
+	if sourceType == "gitlab" && trackerConnUUID.Valid {
+		if _, err := tx.Exec(r.Context(),
+			`UPDATE issue SET source_type = $1, tracker_connection_id = $2, sync_state = 'pending', sync_revision = 1 WHERE id = $3`,
+			sourceType, trackerConnUUID, issue.ID,
+		); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create issue")
+			return
+		}
+		// Enqueue create_issue outbox.
+		idempotencyKey := issue.ID // use issue UUID as idempotency key for creation
+		if _, err := qtx.CreateTrackerOutbox(r.Context(), db.CreateTrackerOutboxParams{
+			WorkspaceID:         wsUUID,
+			TrackerConnectionID: trackerConnUUID,
+			IssueID:             issue.ID,
+			Operation:           "create_issue",
+			Payload:             []byte(`{}`),
+			IdempotencyKey:      idempotencyKey,
+			DesiredRevision:     pgtype.Int8{Int64: 1, Valid: true},
+		}); err != nil {
+			slog.Warn("create tracker outbox failed", "error", err)
+			writeError(w, http.StatusInternalServerError, "failed to create issue")
+			return
+		}
+		// Update the in-memory issue struct so the response reflects the source.
+		issue.SourceType = sourceType
+		issue.SyncState = "pending"
+		issue.TrackerConnectionID = trackerConnUUID
 	}
 
 	if err := tx.Commit(r.Context()); err != nil {

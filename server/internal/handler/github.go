@@ -1190,6 +1190,12 @@ func (h *Handler) lookupIssueByIdentifier(ctx context.Context, workspaceID pgtyp
 }
 
 func (h *Handler) advanceIssueToDone(ctx context.Context, issue db.Issue, workspaceID string) {
+	// §12.3: GitLab-sourced issues must not be auto-advanced by GitHub PR
+	// merge — their close semantics live on the GitLab side and flow back
+	// via the tracker sync worker.
+	if issue.SourceType == "gitlab" {
+		return
+	}
 	updated, err := h.Queries.UpdateIssueStatus(ctx, db.UpdateIssueStatusParams{
 		ID:          issue.ID,
 		Status:      "done",
