@@ -322,6 +322,47 @@ type GithubPullRequestCheckSuite struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
+type GitlabIssueLink struct {
+	IssueID             pgtype.UUID        `json:"issue_id"`
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
+	RemoteIssueID       int64              `json:"remote_issue_id"`
+	RemoteIid           int32              `json:"remote_iid"`
+	RemoteWebUrl        string             `json:"remote_web_url"`
+	RemoteState         string             `json:"remote_state"`
+	RemoteUpdatedAt     pgtype.Timestamptz `json:"remote_updated_at"`
+	RemoteAuthorName    pgtype.Text        `json:"remote_author_name"`
+	RemoteAuthorUrl     pgtype.Text        `json:"remote_author_url"`
+	RemotePosition      pgtype.Int4        `json:"remote_position"`
+	LastRemoteSnapshot  []byte             `json:"last_remote_snapshot"`
+	LastPulledAt        pgtype.Timestamptz `json:"last_pulled_at"`
+	LastPushedAt        pgtype.Timestamptz `json:"last_pushed_at"`
+}
+
+type GitlabTrackerConnection struct {
+	ID                      pgtype.UUID        `json:"id"`
+	ProjectID               pgtype.UUID        `json:"project_id"`
+	WorkspaceID             pgtype.UUID        `json:"workspace_id"`
+	InstanceUrl             string             `json:"instance_url"`
+	RemoteProjectID         int64              `json:"remote_project_id"`
+	PathWithNamespace       string             `json:"path_with_namespace"`
+	WebUrl                  string             `json:"web_url"`
+	CloneUrl                string             `json:"clone_url"`
+	DefaultBranch           pgtype.Text        `json:"default_branch"`
+	TokenCiphertext         []byte             `json:"token_ciphertext"`
+	TokenKeyVersion         int16              `json:"token_key_version"`
+	WebhookSecretCiphertext []byte             `json:"webhook_secret_ciphertext"`
+	WebhookID               pgtype.Int8        `json:"webhook_id"`
+	WebhookState            string             `json:"webhook_state"`
+	State                   string             `json:"state"`
+	LastPullAt              pgtype.Timestamptz `json:"last_pull_at"`
+	LastFullReconcileAt     pgtype.Timestamptz `json:"last_full_reconcile_at"`
+	LastErrorCode           pgtype.Text        `json:"last_error_code"`
+	LastErrorAt             pgtype.Timestamptz `json:"last_error_at"`
+	CreatedBy               pgtype.UUID        `json:"created_by"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+}
+
 type InboxItem struct {
 	ID            pgtype.UUID        `json:"id"`
 	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
@@ -341,30 +382,35 @@ type InboxItem struct {
 }
 
 type Issue struct {
-	ID                 pgtype.UUID        `json:"id"`
-	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
-	Title              string             `json:"title"`
-	Description        pgtype.Text        `json:"description"`
-	Status             string             `json:"status"`
-	Priority           string             `json:"priority"`
-	AssigneeType       pgtype.Text        `json:"assignee_type"`
-	AssigneeID         pgtype.UUID        `json:"assignee_id"`
-	CreatorType        string             `json:"creator_type"`
-	CreatorID          pgtype.UUID        `json:"creator_id"`
-	ParentIssueID      pgtype.UUID        `json:"parent_issue_id"`
-	AcceptanceCriteria []byte             `json:"acceptance_criteria"`
-	ContextRefs        []byte             `json:"context_refs"`
-	Position           float64            `json:"position"`
-	DueDate            pgtype.Date        `json:"due_date"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	Number             int32              `json:"number"`
-	ProjectID          pgtype.UUID        `json:"project_id"`
-	OriginType         pgtype.Text        `json:"origin_type"`
-	OriginID           pgtype.UUID        `json:"origin_id"`
-	FirstExecutedAt    pgtype.Timestamptz `json:"first_executed_at"`
-	StartDate          pgtype.Date        `json:"start_date"`
-	Metadata           []byte             `json:"metadata"`
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	Title               string             `json:"title"`
+	Description         pgtype.Text        `json:"description"`
+	Status              string             `json:"status"`
+	Priority            string             `json:"priority"`
+	AssigneeType        pgtype.Text        `json:"assignee_type"`
+	AssigneeID          pgtype.UUID        `json:"assignee_id"`
+	CreatorType         string             `json:"creator_type"`
+	CreatorID           pgtype.UUID        `json:"creator_id"`
+	ParentIssueID       pgtype.UUID        `json:"parent_issue_id"`
+	AcceptanceCriteria  []byte             `json:"acceptance_criteria"`
+	ContextRefs         []byte             `json:"context_refs"`
+	Position            float64            `json:"position"`
+	DueDate             pgtype.Date        `json:"due_date"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Number              int32              `json:"number"`
+	ProjectID           pgtype.UUID        `json:"project_id"`
+	OriginType          pgtype.Text        `json:"origin_type"`
+	OriginID            pgtype.UUID        `json:"origin_id"`
+	FirstExecutedAt     pgtype.Timestamptz `json:"first_executed_at"`
+	StartDate           pgtype.Date        `json:"start_date"`
+	Metadata            []byte             `json:"metadata"`
+	SourceType          string             `json:"source_type"`
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
+	SyncState           string             `json:"sync_state"`
+	SyncRevision        int64              `json:"sync_revision"`
+	SyncedRevision      int64              `json:"synced_revision"`
 }
 
 type IssueDependency struct {
@@ -698,6 +744,24 @@ type TaskUsageHourlyRollupState struct {
 	LastRunFinishedAt pgtype.Timestamptz `json:"last_run_finished_at"`
 	LastRunRows       int64              `json:"last_run_rows"`
 	LastError         pgtype.Text        `json:"last_error"`
+}
+
+type TrackerSyncOutbox struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
+	IssueID             pgtype.UUID        `json:"issue_id"`
+	Operation           string             `json:"operation"`
+	Payload             []byte             `json:"payload"`
+	IdempotencyKey      pgtype.UUID        `json:"idempotency_key"`
+	Status              string             `json:"status"`
+	Attempts            int32              `json:"attempts"`
+	AvailableAt         pgtype.Timestamptz `json:"available_at"`
+	DesiredRevision     pgtype.Int8        `json:"desired_revision"`
+	LastErrorCode       pgtype.Text        `json:"last_error_code"`
+	LastErrorMessage    pgtype.Text        `json:"last_error_message"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 type User struct {
