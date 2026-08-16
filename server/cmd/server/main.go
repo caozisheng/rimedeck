@@ -14,6 +14,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/daemonws"
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/gitlabtracker"
 	"github.com/multica-ai/multica/server/internal/handler"
 	"github.com/multica-ai/multica/server/internal/logger"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
@@ -312,13 +313,28 @@ func main() {
 	if storeRedis != nil {
 		liveness = handler.NewRedisLivenessStore(storeRedis)
 	}
+	trackerImportCtx, trackerImportCancel := context.WithCancel(context.Background())
+	if cipher, cipherErr := trackerCipherFromEnv(); cipherErr != nil {
+		slog.Warn("GitLab tracker import worker disabled: GITLAB_TRACKER_KEYS is not configured or invalid", "error", cipherErr)
+	} else {
+		trackerTransport, transportErr := gitlabtracker.NewClient(gitlabtracker.Config{AllowedHosts: handler.GitlabTrackerAllowedHosts()})
+		if transportErr != nil {
+			slog.Warn("GitLab tracker import worker disabled: transport unavailable", "error", transportErr)
+		} else {
+			trackerFactory := func(instanceURL, token string) (*gitlabtracker.RestClient, error) {
+				return gitlabtracker.NewRestClient(trackerTransport, instanceURL, token), nil
+			}
+			go runTrackerImportWorker(trackerImportCtx, pool, queries, cipher, trackerFactory)
+		}
+	}
 
-	// Start background sweeper to mark stale runtimes as offline.
 	go runRuntimeSweeper(sweepCtx, queries, liveness, taskSvc, bus)
 	go heartbeatScheduler.Run(sweepCtx)
 	go runAutopilotScheduler(autopilotCtx, queries, autopilotSvc)
 	go runAutopilotFailureMonitor(autopilotCtx, queries, bus, envFailureMonitorConfig())
 	go runDBStatsLogger(sweepCtx, pool)
+
+	// Background workers are started above after their dependencies are wired.
 
 	// Fast-backfill: bypass the watermark mechanism and directly
 	// recompute task_usage_hourly from all raw task_usage data.
@@ -355,7 +371,6 @@ func main() {
 			_ = schedulerMgr.Run(sweepCtx)
 		}()
 	}
-
 
 	if metricsServer != nil {
 		go func() {
@@ -397,6 +412,7 @@ func main() {
 	// final batch of queued heartbeat bumps.
 	sweepCancel()
 	heartbeatScheduler.Stop()
+	trackerImportCancel()
 
 	if metricsServer != nil {
 		metricsShutdownCtx, metricsShutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)

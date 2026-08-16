@@ -42,6 +42,63 @@ func (q *Queries) CancelTrackerOutboxByIssue(ctx context.Context, issueID pgtype
 	return err
 }
 
+const claimReadyTrackerOutbox = `-- name: ClaimReadyTrackerOutbox :many
+WITH ready AS (
+  SELECT id FROM tracker_sync_outbox
+  WHERE status IN ('pending','retrying')
+    AND operation IN ('pull_labels','pull_issue','reconcile')
+    AND available_at <= now()
+  ORDER BY available_at, created_at
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE tracker_sync_outbox o
+SET status = 'running', attempts = attempts + 1, updated_at = now()
+FROM ready
+WHERE o.id = ready.id
+RETURNING o.id, o.workspace_id, o.tracker_connection_id, o.issue_id, o.operation, o.payload, o.idempotency_key, o.status, o.attempts, o.available_at, o.desired_revision, o.last_error_code, o.last_error_message, o.created_at, o.updated_at
+`
+
+// Selects up to $1 ready outbox rows and atomically flips them to
+// 'running' with an incremented attempt count. FOR UPDATE SKIP LOCKED
+// lets multiple workers coexist safely. Only rows in pending/retrying
+// with available_at <= now() are considered.
+func (q *Queries) ClaimReadyTrackerOutbox(ctx context.Context, limit int32) ([]TrackerSyncOutbox, error) {
+	rows, err := q.db.Query(ctx, claimReadyTrackerOutbox, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TrackerSyncOutbox{}
+	for rows.Next() {
+		var i TrackerSyncOutbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TrackerConnectionID,
+			&i.IssueID,
+			&i.Operation,
+			&i.Payload,
+			&i.IdempotencyKey,
+			&i.Status,
+			&i.Attempts,
+			&i.AvailableAt,
+			&i.DesiredRevision,
+			&i.LastErrorCode,
+			&i.LastErrorMessage,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countNonTerminalTrackerOutbox = `-- name: CountNonTerminalTrackerOutbox :one
 SELECT count(*) FROM tracker_sync_outbox
 WHERE tracker_connection_id = $1
@@ -529,6 +586,70 @@ func (q *Queries) ListGitlabTrackerConnectionsByProject(ctx context.Context, pro
 	return items, nil
 }
 
+const markTrackerOutboxFailed = `-- name: MarkTrackerOutboxFailed :exec
+UPDATE tracker_sync_outbox
+SET status = 'failed',
+    last_error_code = $2,
+    last_error_message = $3,
+    updated_at = now()
+WHERE id = $1
+`
+
+type MarkTrackerOutboxFailedParams struct {
+	ID               pgtype.UUID `json:"id"`
+	LastErrorCode    pgtype.Text `json:"last_error_code"`
+	LastErrorMessage pgtype.Text `json:"last_error_message"`
+}
+
+// Terminal failure: attempts exhausted or non-retryable error.
+func (q *Queries) MarkTrackerOutboxFailed(ctx context.Context, arg MarkTrackerOutboxFailedParams) error {
+	_, err := q.db.Exec(ctx, markTrackerOutboxFailed, arg.ID, arg.LastErrorCode, arg.LastErrorMessage)
+	return err
+}
+
+const markTrackerOutboxRetry = `-- name: MarkTrackerOutboxRetry :exec
+UPDATE tracker_sync_outbox
+SET status = 'retrying',
+    available_at = $2,
+    last_error_code = $3,
+    last_error_message = $4,
+    updated_at = now()
+WHERE id = $1
+`
+
+type MarkTrackerOutboxRetryParams struct {
+	ID               pgtype.UUID        `json:"id"`
+	AvailableAt      pgtype.Timestamptz `json:"available_at"`
+	LastErrorCode    pgtype.Text        `json:"last_error_code"`
+	LastErrorMessage pgtype.Text        `json:"last_error_message"`
+}
+
+// Pushes the row back into 'retrying' with a delayed available_at
+// (caller computes backoff based on attempts). Bumps error diagnostics.
+func (q *Queries) MarkTrackerOutboxRetry(ctx context.Context, arg MarkTrackerOutboxRetryParams) error {
+	_, err := q.db.Exec(ctx, markTrackerOutboxRetry,
+		arg.ID,
+		arg.AvailableAt,
+		arg.LastErrorCode,
+		arg.LastErrorMessage,
+	)
+	return err
+}
+
+const markTrackerOutboxSucceeded = `-- name: MarkTrackerOutboxSucceeded :exec
+UPDATE tracker_sync_outbox
+SET status = 'succeeded',
+    last_error_code = NULL,
+    last_error_message = NULL,
+    updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) MarkTrackerOutboxSucceeded(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markTrackerOutboxSucceeded, id)
+	return err
+}
+
 const resetFailedTrackerOutbox = `-- name: ResetFailedTrackerOutbox :execrows
 UPDATE tracker_sync_outbox
 SET status = 'pending',
@@ -545,6 +666,17 @@ func (q *Queries) ResetFailedTrackerOutbox(ctx context.Context, trackerConnectio
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const touchTrackerLastPull = `-- name: TouchTrackerLastPull :exec
+UPDATE gitlab_tracker_connection
+SET last_pull_at = now(), updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) TouchTrackerLastPull(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, touchTrackerLastPull, id)
+	return err
 }
 
 const updateGitlabTrackerToken = `-- name: UpdateGitlabTrackerToken :one

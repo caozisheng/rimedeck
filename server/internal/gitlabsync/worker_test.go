@@ -1,0 +1,157 @@
+package gitlabsync
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/gitlabtracker"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
+)
+
+type fakeQueries struct {
+	claim    []db.TrackerSyncOutbox
+	tracker  db.GitlabTrackerConnection
+	success  []pgtype.UUID
+	retries  []db.MarkTrackerOutboxRetryParams
+	failures []db.MarkTrackerOutboxFailedParams
+	touched  []pgtype.UUID
+	getErr   error
+}
+
+func (f *fakeQueries) ClaimReadyTrackerOutbox(context.Context, int32) ([]db.TrackerSyncOutbox, error) {
+	rows := f.claim
+	f.claim = nil
+	return rows, nil
+}
+func (f *fakeQueries) GetGitlabTrackerConnection(context.Context, pgtype.UUID) (db.GitlabTrackerConnection, error) {
+	return f.tracker, f.getErr
+}
+func (f *fakeQueries) MarkTrackerOutboxSucceeded(_ context.Context, id pgtype.UUID) error {
+	f.success = append(f.success, id)
+	return nil
+}
+func (f *fakeQueries) MarkTrackerOutboxRetry(_ context.Context, arg db.MarkTrackerOutboxRetryParams) error {
+	f.retries = append(f.retries, arg)
+	return nil
+}
+func (f *fakeQueries) MarkTrackerOutboxFailed(_ context.Context, arg db.MarkTrackerOutboxFailedParams) error {
+	f.failures = append(f.failures, arg)
+	return nil
+}
+func (f *fakeQueries) TouchTrackerLastPull(_ context.Context, id pgtype.UUID) error {
+	f.touched = append(f.touched, id)
+	return nil
+}
+
+func newCipher(t *testing.T) *gitlabtracker.Cipher {
+	t.Helper()
+	raw := make([]byte, 32)
+	for i := range raw {
+		raw[i] = byte(i + 1)
+	}
+	c, err := gitlabtracker.NewCipher(map[int16]string{1: base64.StdEncoding.EncodeToString(raw)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+func newTracker(t *testing.T, cipher *gitlabtracker.Cipher, baseURL string) db.GitlabTrackerConnection {
+	t.Helper()
+	ct, err := cipher.Encrypt([]byte("glpat-worker"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db.GitlabTrackerConnection{
+		ID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, InstanceUrl: baseURL,
+		RemoteProjectID: 42, TokenCiphertext: ct, TokenKeyVersion: cipher.LatestVersion(), State: "active",
+	}
+}
+func newOutboxRow(op string) db.TrackerSyncOutbox {
+	return db.TrackerSyncOutbox{ID: pgtype.UUID{Bytes: [16]byte{9}, Valid: true}, TrackerConnectionID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, Operation: op, Payload: []byte("{}")}
+}
+func testWorker(fq *fakeQueries, cipher *gitlabtracker.Cipher) *Worker {
+	return &Worker{
+		Queries: fq, Cipher: cipher,
+		LabelImporter: func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error { return nil },
+		IssueImporter: func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error { return nil },
+		ClientFactory: func(instanceURL, token string) (*gitlabtracker.RestClient, error) {
+			transport, err := gitlabtracker.NewClient(gitlabtracker.Config{AllowedHosts: []string{gitlabtracker.AllowLoopbackFlag}})
+			if err != nil {
+				return nil, err
+			}
+			return gitlabtracker.NewRestClient(transport, instanceURL, token), nil
+		},
+	}
+}
+
+func TestTick_PullLabelsHappyPath(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"id":1,"name":"bug","color":"#ff0000"}]`))
+	}))
+	defer upstream.Close()
+	cipher := newCipher(t)
+	fq := &fakeQueries{claim: []db.TrackerSyncOutbox{newOutboxRow("pull_labels")}, tracker: newTracker(t, cipher, upstream.URL)}
+	res, err := testWorker(fq, cipher).Tick(context.Background())
+	if err != nil || res.Success != 1 || len(fq.success) != 1 || len(fq.touched) != 1 {
+		t.Fatalf("res=%+v err=%v success=%d touched=%d", res, err, len(fq.success), len(fq.touched))
+	}
+}
+
+func TestTick_AuthErrorTerminates(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+	}))
+	defer upstream.Close()
+	cipher := newCipher(t)
+	fq := &fakeQueries{claim: []db.TrackerSyncOutbox{newOutboxRow("pull_labels")}, tracker: newTracker(t, cipher, upstream.URL)}
+	res, err := testWorker(fq, cipher).Tick(context.Background())
+	if err != nil || res.Failed != 1 || len(fq.failures) != 1 || fq.failures[0].LastErrorCode.String != "auth_revoked" {
+		t.Fatalf("res=%+v err=%v failures=%+v", res, err, fq.failures)
+	}
+}
+
+func TestTick_RateLimitBacksOff(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, `{"message":"rate limited"}`, http.StatusTooManyRequests)
+	}))
+	defer upstream.Close()
+	cipher := newCipher(t)
+	fq := &fakeQueries{claim: []db.TrackerSyncOutbox{newOutboxRow("pull_labels")}, tracker: newTracker(t, cipher, upstream.URL)}
+	res, err := testWorker(fq, cipher).Tick(context.Background())
+	if err != nil || res.Retried != 1 || len(fq.retries) != 1 || fq.retries[0].LastErrorCode.String != "transient" {
+		t.Fatalf("res=%+v err=%v retries=%+v", res, err, fq.retries)
+	}
+}
+
+func TestTick_DisabledTrackerTerminates(t *testing.T) {
+	cipher := newCipher(t)
+	tracker := newTracker(t, cipher, "http://ignored")
+	tracker.State = "disabled"
+	fq := &fakeQueries{claim: []db.TrackerSyncOutbox{newOutboxRow("pull_labels")}, tracker: tracker}
+	worker := testWorker(fq, cipher)
+	worker.ClientFactory = func(string, string) (*gitlabtracker.RestClient, error) { return nil, errors.New("must not call") }
+	res, err := worker.Tick(context.Background())
+	if err != nil || res.Failed != 1 || len(fq.failures) != 1 || fq.failures[0].LastErrorCode.String != "tracker_disabled" {
+		t.Fatalf("res=%+v err=%v failures=%+v", res, err, fq.failures)
+	}
+}
+
+func TestComputeBackoff(t *testing.T) {
+	cases := []struct {
+		attempts int
+		want     time.Duration
+	}{{0, time.Second}, {1, 2 * time.Second}, {4, 16 * time.Second}, {9, 300 * time.Second}}
+	for _, tc := range cases {
+		if got := computeBackoff(tc.attempts); got != tc.want {
+			t.Errorf("computeBackoff(%d)=%s want %s", tc.attempts, got, tc.want)
+		}
+	}
+}

@@ -103,3 +103,56 @@ WHERE tracker_connection_id = $1 AND status = 'failed';
 SELECT count(*) FROM tracker_sync_outbox
 WHERE tracker_connection_id = $1
   AND status IN ('pending','running','retrying');
+
+-- name: ClaimReadyTrackerOutbox :many
+-- Selects up to $1 ready outbox rows and atomically flips them to
+-- 'running' with an incremented attempt count. FOR UPDATE SKIP LOCKED
+-- lets multiple workers coexist safely. Only rows in pending/retrying
+-- with available_at <= now() are considered.
+WITH ready AS (
+  SELECT id FROM tracker_sync_outbox
+  WHERE status IN ('pending','retrying')
+    AND operation IN ('pull_labels','pull_issue','reconcile')
+    AND available_at <= now()
+  ORDER BY available_at, created_at
+  LIMIT $1
+  FOR UPDATE SKIP LOCKED
+)
+UPDATE tracker_sync_outbox o
+SET status = 'running', attempts = attempts + 1, updated_at = now()
+FROM ready
+WHERE o.id = ready.id
+RETURNING o.*;
+
+-- name: MarkTrackerOutboxSucceeded :exec
+UPDATE tracker_sync_outbox
+SET status = 'succeeded',
+    last_error_code = NULL,
+    last_error_message = NULL,
+    updated_at = now()
+WHERE id = $1;
+
+-- name: MarkTrackerOutboxRetry :exec
+-- Pushes the row back into 'retrying' with a delayed available_at
+-- (caller computes backoff based on attempts). Bumps error diagnostics.
+UPDATE tracker_sync_outbox
+SET status = 'retrying',
+    available_at = $2,
+    last_error_code = $3,
+    last_error_message = $4,
+    updated_at = now()
+WHERE id = $1;
+
+-- name: MarkTrackerOutboxFailed :exec
+-- Terminal failure: attempts exhausted or non-retryable error.
+UPDATE tracker_sync_outbox
+SET status = 'failed',
+    last_error_code = $2,
+    last_error_message = $3,
+    updated_at = now()
+WHERE id = $1;
+
+-- name: TouchTrackerLastPull :exec
+UPDATE gitlab_tracker_connection
+SET last_pull_at = now(), updated_at = now()
+WHERE id = $1;
