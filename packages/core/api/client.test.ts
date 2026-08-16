@@ -492,4 +492,39 @@ describe("ApiClient", () => {
       expect(JSON.parse(fetchMock.mock.calls[1]![1]?.body as string)).toEqual({ content: "again" });
     });
   });
+
+  it("uses the expected HTTP contract for GitLab tracker endpoints", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ trackers: [], labels: [], reset_count: 2 }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new ApiClient("https://api.example.test");
+
+    await client.validateGitlabTracker({ repository_url: "https://gitlab.com/g/p", access_token: "secret" });
+    await client.createProjectGitlabTracker("p1", { repository_url: "https://gitlab.com/g/p", access_token: "secret" });
+    await client.rotateGitlabTrackerToken("p1", "t1", "rotated");
+    await client.syncGitlabTracker("p1", "t1");
+    await client.retryGitlabTracker("p1", "t1");
+    await client.disableGitlabTracker("p1", "t1");
+    await client.deleteGitlabTrackerMirrors("p1", "t1");
+    await client.listLabels({ project_id: "p1", source: "gitlab", tracker_id: "t1" });
+
+    const calls = fetchMock.mock.calls.map(([url, init]) => ({
+      url,
+      method: init?.method ?? "GET",
+      body: init?.body,
+    }));
+    expect(calls).toEqual([
+      { url: "https://api.example.test/api/gitlab-trackers/validate", method: "POST", body: JSON.stringify({ repository_url: "https://gitlab.com/g/p", access_token: "secret" }) },
+      { url: "https://api.example.test/api/projects/p1/gitlab-trackers", method: "POST", body: JSON.stringify({ repository_url: "https://gitlab.com/g/p", access_token: "secret" }) },
+      { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/token", method: "PUT", body: JSON.stringify({ access_token: "rotated" }) },
+      { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/sync", method: "POST", body: undefined },
+      { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/retry", method: "POST", body: undefined },
+      { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/disable", method: "POST", body: undefined },
+      { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/mirrors", method: "DELETE", body: undefined },
+      { url: "https://api.example.test/api/labels?project_id=p1&source=gitlab&tracker_id=t1", method: "GET", body: undefined },
+    ]);
+    expect(fetchMock.mock.calls[6]?.[1]?.headers).toMatchObject({ "X-Confirm-Delete-Mirrors": "true" });
+  });
 });

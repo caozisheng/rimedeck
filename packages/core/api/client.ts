@@ -80,6 +80,12 @@ import type {
   ListLabelsResponse,
   IssueLabelsResponse,
   ListGitlabTrackersResponse,
+  GitlabTracker,
+  ValidateGitlabTrackerRequest,
+  ValidateGitlabTrackerResponse,
+  CreateGitlabTrackerRequest,
+  RetryGitlabTrackerResponse,
+  ListLabelsParams,
   PinnedItem,
   CreatePinRequest,
   PinnedItemType,
@@ -1645,6 +1651,46 @@ export class ApiClient {
     return this.fetch(`/api/projects/${projectId}/gitlab-trackers`);
   }
 
+  async validateGitlabTracker(data: ValidateGitlabTrackerRequest): Promise<ValidateGitlabTrackerResponse> {
+    return this.fetch(`/api/gitlab-trackers/validate`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createProjectGitlabTracker(projectId: string, data: CreateGitlabTrackerRequest): Promise<GitlabTracker> {
+    return this.fetch(`/api/projects/${projectId}/gitlab-trackers`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async rotateGitlabTrackerToken(projectId: string, trackerId: string, accessToken: string): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/gitlab-trackers/${trackerId}/token`, {
+      method: "PUT",
+      body: JSON.stringify({ access_token: accessToken }),
+    });
+  }
+
+  async syncGitlabTracker(projectId: string, trackerId: string): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/gitlab-trackers/${trackerId}/sync`, { method: "POST" });
+  }
+
+  async retryGitlabTracker(projectId: string, trackerId: string): Promise<RetryGitlabTrackerResponse> {
+    return this.fetch(`/api/projects/${projectId}/gitlab-trackers/${trackerId}/retry`, { method: "POST" });
+  }
+
+  async disableGitlabTracker(projectId: string, trackerId: string): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/gitlab-trackers/${trackerId}/disable`, { method: "POST" });
+  }
+
+  async deleteGitlabTrackerMirrors(projectId: string, trackerId: string): Promise<void> {
+    await this.fetch(`/api/projects/${projectId}/gitlab-trackers/${trackerId}/mirrors`, {
+      method: "DELETE",
+      headers: { "X-Confirm-Delete-Mirrors": "true" },
+    });
+  }
+
   async createProjectResource(
     projectId: string,
     data: CreateProjectResourceRequest,
@@ -1676,8 +1722,13 @@ export class ApiClient {
   }
 
   // Labels
-  async listLabels(): Promise<ListLabelsResponse> {
-    return this.fetch(`/api/labels`);
+  async listLabels(params?: ListLabelsParams): Promise<ListLabelsResponse> {
+    const search = new URLSearchParams();
+    if (params?.project_id) search.set("project_id", params.project_id);
+    if (params?.source) search.set("source", params.source);
+    if (params?.tracker_id) search.set("tracker_id", params.tracker_id);
+    const query = search.toString();
+    return this.fetch(`/api/labels${query ? `?${query}` : ""}`);
   }
 
   async getLabel(id: string): Promise<Label> {

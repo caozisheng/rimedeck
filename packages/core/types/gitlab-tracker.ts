@@ -15,3 +15,39 @@ export interface GitlabTracker {
 export interface ListGitlabTrackersResponse {
   trackers: GitlabTracker[];
 }
+
+export interface ValidateGitlabTrackerRequest {
+  repository_url: string;
+  access_token: string;
+  instance_hint?: string;
+}
+
+export interface GitlabTrackerPermissions {
+  can_write_issues: boolean;
+  can_configure_webhook: boolean;
+}
+
+export interface ValidateGitlabTrackerResponse {
+  host: string;
+  instance_url: string;
+  path_with_namespace: string;
+  remote_project_id: number;
+  web_url: string;
+  default_branch: string;
+  permissions: GitlabTrackerPermissions;
+}
+
+export interface CreateGitlabTrackerRequest {
+  repository_url: string;
+  access_token: string;
+}
+
+export interface RetryGitlabTrackerResponse {
+  reset_count: number;
+}
+
+export interface ListLabelsParams {
+  project_id?: string;
+  source?: "local" | "gitlab";
+  tracker_id?: string;
+}
