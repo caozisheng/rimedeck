@@ -359,11 +359,17 @@ export class ApiClient {
       ...init,
       extraHeaders: { "Content-Type": "application/json" },
     });
-    // Handle 204 No Content
-    if (res.status === 204) {
+    // Empty-body responses (204 No Content, 202 Accepted with no
+    // payload, and any handler that flips WriteHeader without writing
+    // a body) must NOT hit res.json() — it throws a DOMException on an
+    // empty stream. Content-Length: 0 catches the common cases; the
+    // body-read fallback covers chunked-encoded empty bodies too.
+    if (res.status === 204 || res.headers.get("Content-Length") === "0") {
       return undefined as T;
     }
-    return res.json() as Promise<T>;
+    const text = await res.text();
+    if (text === "") return undefined as T;
+    return JSON.parse(text) as T;
   }
 
   // Auth
