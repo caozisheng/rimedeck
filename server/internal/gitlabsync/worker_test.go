@@ -15,17 +15,19 @@ import (
 )
 
 type fakeQueries struct {
-	claim    []db.TrackerSyncOutbox
-	tracker  db.GitlabTrackerConnection
-	success  []pgtype.UUID
-	retries  []db.MarkTrackerOutboxRetryParams
-	failures []db.MarkTrackerOutboxFailedParams
-	touched  []pgtype.UUID
-	getErr   error
-	issues   map[string]db.Issue
-	links    map[string]db.GitlabIssueLink
-	deleted  []pgtype.UUID
-	canceled []pgtype.UUID
+	claim                []db.TrackerSyncOutbox
+	tracker              db.GitlabTrackerConnection
+	success              []pgtype.UUID
+	retries              []db.MarkTrackerOutboxRetryParams
+	failures             []db.MarkTrackerOutboxFailedParams
+	touched              []pgtype.UUID
+	getErr               error
+	issues               map[string]db.Issue
+	links                map[string]db.GitlabIssueLink
+	deleted              []pgtype.UUID
+	canceled             []pgtype.UUID
+	linkIIDs             []db.ListGitlabIssueLinkIIDsRow
+	fullReconcileTouched []pgtype.UUID
 }
 
 func (f *fakeQueries) ClaimReadyTrackerOutbox(context.Context, int32) ([]db.TrackerSyncOutbox, error) {
@@ -49,11 +51,15 @@ func (f *fakeQueries) MarkTrackerOutboxFailed(_ context.Context, arg db.MarkTrac
 	return nil
 }
 func (f *fakeQueries) GetIssue(_ context.Context, id pgtype.UUID) (db.Issue, error) {
-	if issue, ok := f.issues[string(id.Bytes[:])]; ok { return issue, nil }
+	if issue, ok := f.issues[string(id.Bytes[:])]; ok {
+		return issue, nil
+	}
 	return db.Issue{}, errors.New("issue not found")
 }
 func (f *fakeQueries) GetGitlabIssueLinkByIssueID(_ context.Context, id pgtype.UUID) (db.GitlabIssueLink, error) {
-	if link, ok := f.links[string(id.Bytes[:])]; ok { return link, nil }
+	if link, ok := f.links[string(id.Bytes[:])]; ok {
+		return link, nil
+	}
 	return db.GitlabIssueLink{}, errors.New("link not found")
 }
 func (f *fakeQueries) CancelTrackerOutboxByIssue(_ context.Context, id pgtype.UUID) error {
@@ -62,6 +68,13 @@ func (f *fakeQueries) CancelTrackerOutboxByIssue(_ context.Context, id pgtype.UU
 }
 func (f *fakeQueries) DeleteIssue(_ context.Context, arg db.DeleteIssueParams) error {
 	f.deleted = append(f.deleted, arg.ID)
+	return nil
+}
+func (f *fakeQueries) ListGitlabIssueLinkIIDs(_ context.Context, _ pgtype.UUID) ([]db.ListGitlabIssueLinkIIDsRow, error) {
+	return f.linkIIDs, nil
+}
+func (f *fakeQueries) TouchLastFullReconcile(_ context.Context, id pgtype.UUID) error {
+	f.fullReconcileTouched = append(f.fullReconcileTouched, id)
 	return nil
 }
 func (f *fakeQueries) TouchTrackerLastPull(_ context.Context, id pgtype.UUID) error {

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/multica-ai/multica/server/internal/gitlabsync"
@@ -16,6 +18,12 @@ import (
 )
 
 const trackerImportInterval = time.Minute
+
+// Reconcile cadences match design §9.3.
+const (
+	incrementalReconcileInterval = 5 * time.Minute
+	fullReconcileInterval        = 6 * time.Hour
+)
 
 // runTrackerImportWorker drains the local outbox. The caller owns the
 // context and cancels it during graceful shutdown.
@@ -29,12 +37,62 @@ func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db
 		} else if result.Claimed > 0 {
 			slog.Info("GitLab tracker import tick", "claimed", result.Claimed, "success", result.Success, "retried", result.Retried, "failed", result.Failed)
 		}
+		if err := scheduleTrackerReconcile(ctx, queries); err != nil {
+			slog.Warn("GitLab tracker reconcile schedule failed", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}
 	}
+}
+
+// scheduleTrackerReconcile enqueues incremental/full sweep outbox rows
+// for every active connection whose last_pull_at / last_full_reconcile_at
+// has aged past the design's cadences. The worker's per-connection
+// serial claim ensures we never overlap with an already-in-flight op.
+func scheduleTrackerReconcile(ctx context.Context, queries *db.Queries) error {
+	trackers, err := queries.ListActiveTrackersForReconcile(ctx)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, tracker := range trackers {
+		if !tracker.LastPullAt.Valid || now.Sub(tracker.LastPullAt.Time) >= incrementalReconcileInterval {
+			if _, err := queries.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{
+				WorkspaceID:         tracker.WorkspaceID,
+				TrackerConnectionID: tracker.ID,
+				Operation:           "reconcile",
+				Payload:             []byte("{}"),
+				IdempotencyKey:      newSchedulerUUID(),
+			}); err != nil {
+				slog.Warn("GitLab reconcile enqueue failed", "tracker", tracker.ID, "error", err)
+			}
+		}
+		if !tracker.LastFullReconcileAt.Valid || now.Sub(tracker.LastFullReconcileAt.Time) >= fullReconcileInterval {
+			if _, err := queries.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{
+				WorkspaceID:         tracker.WorkspaceID,
+				TrackerConnectionID: tracker.ID,
+				Operation:           "full_reconcile",
+				Payload:             []byte("{}"),
+				IdempotencyKey:      newSchedulerUUID(),
+			}); err != nil {
+				slog.Warn("GitLab full reconcile enqueue failed", "tracker", tracker.ID, "error", err)
+			}
+		}
+	}
+	return nil
+}
+
+// newSchedulerUUID mints a fresh idempotency key for scheduler-enqueued
+// outbox rows. Uses the same pattern as the handler package's newRandomUUID.
+func newSchedulerUUID() pgtype.UUID {
+	id := uuid.New()
+	var out pgtype.UUID
+	copy(out.Bytes[:], id[:])
+	out.Valid = true
+	return out
 }
 
 // trackerCipherFromEnv loads the same versioned keyring format as the

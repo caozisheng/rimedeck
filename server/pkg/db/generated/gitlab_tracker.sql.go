@@ -576,6 +576,84 @@ func (q *Queries) InsertGitlabWebhookEvent(ctx context.Context, arg InsertGitlab
 	return inserted, err
 }
 
+const listActiveTrackersForReconcile = `-- name: ListActiveTrackersForReconcile :many
+SELECT id, project_id, workspace_id, last_pull_at, last_full_reconcile_at
+FROM gitlab_tracker_connection
+WHERE state <> 'disabled'
+`
+
+type ListActiveTrackersForReconcileRow struct {
+	ID                  pgtype.UUID        `json:"id"`
+	ProjectID           pgtype.UUID        `json:"project_id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	LastPullAt          pgtype.Timestamptz `json:"last_pull_at"`
+	LastFullReconcileAt pgtype.Timestamptz `json:"last_full_reconcile_at"`
+}
+
+// Returns connections that need a periodic pull. Skips disabled so
+// the scheduler doesn't fight the disable flag. Bounded by the
+// caller-provided cutoffs.
+func (q *Queries) ListActiveTrackersForReconcile(ctx context.Context) ([]ListActiveTrackersForReconcileRow, error) {
+	rows, err := q.db.Query(ctx, listActiveTrackersForReconcile)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveTrackersForReconcileRow{}
+	for rows.Next() {
+		var i ListActiveTrackersForReconcileRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.WorkspaceID,
+			&i.LastPullAt,
+			&i.LastFullReconcileAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGitlabIssueLinkIIDs = `-- name: ListGitlabIssueLinkIIDs :many
+SELECT issue_id, remote_iid
+FROM gitlab_issue_link
+WHERE tracker_connection_id = $1
+ORDER BY remote_iid
+`
+
+type ListGitlabIssueLinkIIDsRow struct {
+	IssueID   pgtype.UUID `json:"issue_id"`
+	RemoteIid int32       `json:"remote_iid"`
+}
+
+// Returns every (issue_id, remote_iid) pair for a connection. Full
+// reconcile compares this against the current remote iid set to
+// detect out-of-band GitLab deletes.
+func (q *Queries) ListGitlabIssueLinkIIDs(ctx context.Context, trackerConnectionID pgtype.UUID) ([]ListGitlabIssueLinkIIDsRow, error) {
+	rows, err := q.db.Query(ctx, listGitlabIssueLinkIIDs, trackerConnectionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGitlabIssueLinkIIDsRow{}
+	for rows.Next() {
+		var i ListGitlabIssueLinkIIDsRow
+		if err := rows.Scan(&i.IssueID, &i.RemoteIid); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGitlabIssueLinksByIssues = `-- name: ListGitlabIssueLinksByIssues :many
 SELECT l.issue_id, l.tracker_connection_id, l.remote_issue_id, l.remote_iid, l.remote_web_url, l.remote_state, l.remote_updated_at, l.remote_author_name, l.remote_author_url, l.remote_position, l.last_remote_snapshot, l.last_pulled_at, l.last_pushed_at, c.instance_url AS connection_instance_url
 FROM gitlab_issue_link l
@@ -798,6 +876,17 @@ type SetTrackerWebhookStateParams struct {
 
 func (q *Queries) SetTrackerWebhookState(ctx context.Context, arg SetTrackerWebhookStateParams) error {
 	_, err := q.db.Exec(ctx, setTrackerWebhookState, arg.ID, arg.WebhookState)
+	return err
+}
+
+const touchLastFullReconcile = `-- name: TouchLastFullReconcile :exec
+UPDATE gitlab_tracker_connection
+SET last_full_reconcile_at = now(), updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) TouchLastFullReconcile(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, touchLastFullReconcile, id)
 	return err
 }
 

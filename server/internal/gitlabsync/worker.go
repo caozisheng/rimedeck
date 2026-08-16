@@ -55,6 +55,8 @@ type Queries interface {
 	GetGitlabIssueLinkByIssueID(ctx context.Context, issueID pgtype.UUID) (db.GitlabIssueLink, error)
 	CancelTrackerOutboxByIssue(ctx context.Context, issueID pgtype.UUID) error
 	DeleteIssue(ctx context.Context, arg db.DeleteIssueParams) error
+	ListGitlabIssueLinkIIDs(ctx context.Context, trackerConnectionID pgtype.UUID) ([]db.ListGitlabIssueLinkIIDsRow, error)
+	TouchLastFullReconcile(ctx context.Context, id pgtype.UUID) error
 }
 
 // TxStarter is the transaction surface the sync worker forwards to
@@ -173,6 +175,10 @@ func (w *Worker) processRow(ctx context.Context, row db.TrackerSyncOutbox) outco
 		if err := w.handleReconcile(ctx, client, tracker); err != nil {
 			return w.classifyError(ctx, row, err)
 		}
+	case "full_reconcile":
+		if err := w.handleFullReconcile(ctx, client, tracker); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
 	case "create_issue":
 		if err := w.handleCreateIssue(ctx, client, tracker, row); err != nil {
 			return w.classifyError(ctx, row, err)
@@ -234,6 +240,54 @@ func (w *Worker) handleReconcile(ctx context.Context, client *gitlabtracker.Rest
 		return errors.New("gitlabtracker: importer transaction starter is not configured")
 	}
 	return gitlabtracker.ImportIssues(ctx, tracker, issues, w.TxStarter, tracker.WorkspaceID)
+}
+
+// handleFullReconcile is the 6-hour safety net. Pages state=all to find
+// (a) remote issue rows we don't have (imported like a normal reconcile)
+// and (b) local link rows for which the remote issue has vanished
+// (a manual GitLab delete or a missed webhook). Orphans get local
+// cleanup: cancel outbox, delete mirror, broadcast happens via the
+// existing publish path in DeleteIssue's cascade.
+func (w *Worker) handleFullReconcile(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection) error {
+	issues, err := client.ListProjectIssues(ctx, tracker.RemoteProjectID, gitlabtracker.ListIssuesOptions{State: "all"})
+	if err != nil {
+		return err
+	}
+	// Import current set — same path reconcile uses so idempotency is
+	// preserved. Skips ImportIssues if a test injects IssueImporter.
+	if w.IssueImporter != nil {
+		if err := w.IssueImporter(ctx, tracker, issues); err != nil {
+			return err
+		}
+	} else if w.TxStarter != nil {
+		if err := gitlabtracker.ImportIssues(ctx, tracker, issues, w.TxStarter, tracker.WorkspaceID); err != nil {
+			return err
+		}
+	}
+
+	remoteIIDs := make(map[int32]struct{}, len(issues))
+	for _, issue := range issues {
+		remoteIIDs[issue.IID] = struct{}{}
+	}
+	links, err := w.Queries.ListGitlabIssueLinkIIDs(ctx, tracker.ID)
+	if err != nil {
+		return fmt.Errorf("list local links: %w", err)
+	}
+	for _, link := range links {
+		if _, present := remoteIIDs[link.RemoteIid]; present {
+			continue
+		}
+		// Orphan: remote issue was deleted (or was never visible via
+		// the token's scope). Cancel any queued follow-ups first so
+		// the FK cascade doesn't fire mid-delete, then remove the
+		// local mirror. DeleteIssue cascades gitlab_issue_link.
+		_ = w.Queries.CancelTrackerOutboxByIssue(ctx, link.IssueID)
+		if err := w.Queries.DeleteIssue(ctx, db.DeleteIssueParams{ID: link.IssueID, WorkspaceID: tracker.WorkspaceID}); err != nil {
+			return fmt.Errorf("delete orphan issue: %w", err)
+		}
+	}
+	_ = w.Queries.TouchLastFullReconcile(ctx, tracker.ID)
+	return nil
 }
 
 // classifyError distinguishes retryable transports (network / 5xx / 429)

@@ -224,3 +224,25 @@ UPDATE gitlab_tracker_connection
 SET webhook_state = $2,
     updated_at = now()
 WHERE id = $1;
+
+-- name: ListGitlabIssueLinkIIDs :many
+-- Returns every (issue_id, remote_iid) pair for a connection. Full
+-- reconcile compares this against the current remote iid set to
+-- detect out-of-band GitLab deletes.
+SELECT issue_id, remote_iid
+FROM gitlab_issue_link
+WHERE tracker_connection_id = $1
+ORDER BY remote_iid;
+
+-- name: TouchLastFullReconcile :exec
+UPDATE gitlab_tracker_connection
+SET last_full_reconcile_at = now(), updated_at = now()
+WHERE id = $1;
+
+-- name: ListActiveTrackersForReconcile :many
+-- Returns connections that need a periodic pull. Skips disabled so
+-- the scheduler doesn't fight the disable flag. Bounded by the
+-- caller-provided cutoffs.
+SELECT id, project_id, workspace_id, last_pull_at, last_full_reconcile_at
+FROM gitlab_tracker_connection
+WHERE state <> 'disabled';
