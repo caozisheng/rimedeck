@@ -413,6 +413,24 @@
     "update_failed": "イシューを更新できませんでした",
     "updated_ago": "{{time}} に更新"
   },
+  "gitlab_conflict": {
+    "title": "GitLab 同期に失敗しました",
+    "description": "最新の変更を GitLab にプッシュできませんでした。以下から対処を選択してください。",
+    "retry_title": "再試行",
+    "retry_hint": "このトラッカーの失敗した操作をリセットして再実行します。",
+    "retry_ok": "再試行を開始しました",
+    "retry_failed": "再試行に失敗しました",
+    "detach_title": "ローカルイシューに変換",
+    "detach_hint": "ローカルの編集を保持し、GitLab との同期を停止します。",
+    "detach_ok": "ローカルイシューに変換しました",
+    "detach_failed": "変換に失敗しました",
+    "discard_title": "ローカル変更を破棄",
+    "discard_hint": "プッシュされていない編集を破棄し、GitLab の内容を優先します。",
+    "discard_ok": "ローカル変更を破棄しました",
+    "discard_failed": "破棄に失敗しました",
+    "cancel": "閉じる",
+    "pick_action": "上から操作を選択"
+  },
   "actions": {
     "status": "ステータス",
     "priority": "優先度",

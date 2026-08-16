@@ -432,6 +432,24 @@
     "update_failed": "Failed to update issue",
     "updated_ago": "Updated {{time}}"
   },
+  "gitlab_conflict": {
+    "title": "GitLab sync failed",
+    "description": "This issue's latest change could not be pushed to GitLab. Pick how to resolve the conflict.",
+    "retry_title": "Retry",
+    "retry_hint": "Reset failed operations on this tracker to pending and try again.",
+    "retry_ok": "Retrying failed operations",
+    "retry_failed": "Failed to retry",
+    "detach_title": "Convert to local issue",
+    "detach_hint": "Keep your local edits and stop syncing with GitLab.",
+    "detach_ok": "Issue converted to local",
+    "detach_failed": "Failed to convert issue",
+    "discard_title": "Discard local changes",
+    "discard_hint": "Roll back your unpushed edits and let GitLab win.",
+    "discard_ok": "Local changes discarded",
+    "discard_failed": "Failed to discard changes",
+    "cancel": "Close",
+    "pick_action": "Pick an action above"
+  },
   "actions": {
     "status": "Status",
     "priority": "Priority",

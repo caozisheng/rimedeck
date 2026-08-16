@@ -418,6 +418,24 @@
     "update_failed": "更新 issue 失败",
     "updated_ago": "更新于 {{time}}"
   },
+  "gitlab_conflict": {
+    "title": "GitLab 同步失败",
+    "description": "最新的修改未能推送到 GitLab，请选择解决方式。",
+    "retry_title": "重试",
+    "retry_hint": "重置该 tracker 的失败任务并重新尝试推送。",
+    "retry_ok": "已重试失败任务",
+    "retry_failed": "重试失败",
+    "detach_title": "转为本地 issue",
+    "detach_hint": "保留本地修改，停止与 GitLab 同步。",
+    "detach_ok": "已转换为本地 issue",
+    "detach_failed": "转换失败",
+    "discard_title": "放弃本地修改",
+    "discard_hint": "放弃未推送的修改，使用 GitLab 的版本。",
+    "discard_ok": "已放弃本地修改",
+    "discard_failed": "放弃失败",
+    "cancel": "关闭",
+    "pick_action": "请从上方选择操作"
+  },
   "actions": {
     "status": "状态",
     "priority": "优先级",

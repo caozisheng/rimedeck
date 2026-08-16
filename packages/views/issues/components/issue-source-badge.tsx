@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { ExternalLink, GitBranch } from "lucide-react";
 import type { Issue } from "@rimedeck/core/types";
 import { cn } from "@rimedeck/ui/lib/utils";
+import { GitlabConflictDialog } from "./gitlab-conflict-dialog";
 
 const syncLabels: Record<string, string> = {
   pending: "Pending sync",
@@ -11,6 +13,7 @@ const syncLabels: Record<string, string> = {
 };
 
 export function IssueSourceBadge({ issue }: { issue: Issue }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
   if (issue.source_type === "local") {
     return <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Local</span>;
   }
@@ -34,16 +37,33 @@ export function IssueSourceBadge({ issue }: { issue: Issue }) {
   ) : content;
 
   const syncLabel = syncLabels[issue.sync_state];
+  const isFailed = issue.sync_state === "failed";
+  const canResolve = isFailed && !!issue.project_id;
   return (
     <span className="inline-flex items-center gap-1">
       {badge}
-      {syncLabel && (
+      {syncLabel && (canResolve ? (
+        <button
+          type="button"
+          onClick={(event) => { event.stopPropagation(); setDialogOpen(true); }}
+          className={cn(
+            "rounded-full px-1.5 py-0.5 text-[10px] transition-colors",
+            "bg-destructive/10 text-destructive hover:bg-destructive/20",
+          )}
+          aria-label="Resolve GitLab sync failure"
+        >
+          {syncLabel}
+        </button>
+      ) : (
         <span className={cn(
           "rounded-full px-1.5 py-0.5 text-[10px]",
-          issue.sync_state === "failed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground",
+          isFailed ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground",
         )}>
           {syncLabel}
         </span>
+      ))}
+      {canResolve && issue.project_id && dialogOpen && (
+        <GitlabConflictDialog issue={issue} projectId={issue.project_id} open={dialogOpen} onOpenChange={setDialogOpen} />
       )}
     </span>
   );
