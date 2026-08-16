@@ -104,7 +104,7 @@ export const issueKeys = {
 
 export type MyIssuesFilter = Pick<
   ListIssuesParams,
-  "assignee_id" | "assignee_ids" | "creator_id" | "project_id" | "involves_user_id"
+  "assignee_id" | "assignee_ids" | "creator_id" | "project_id" | "involves_user_id" | "source" | "tracker_id"
 >;
 
 export type AssigneeGroupedIssuesFilter = Omit<
@@ -249,10 +249,10 @@ async function fetchAllMyAssigneeGroups(
  * Fetches the first page of each paginated status in parallel. Use
  * {@link useLoadMoreByStatus} to paginate a specific status into the cache.
  */
-export function issueListOptions(wsId: string, sort?: IssueSortParam) {
+export function issueListOptions(wsId: string, sort?: IssueSortParam, filter: Pick<ListIssuesParams, "source" | "tracker_id"> = {}) {
   return queryOptions({
-    queryKey: issueKeys.listSorted(wsId, sort),
-    queryFn: () => fetchFirstPages({}, sort),
+    queryKey: issueKeys.listSorted(wsId, { ...sort, ...filter }),
+    queryFn: () => fetchFirstPages(filter, sort),
     select: flattenIssueBuckets,
     placeholderData: keepPreviousData,
   });

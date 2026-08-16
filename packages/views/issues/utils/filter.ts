@@ -10,6 +10,7 @@ export interface IssueFilters {
   projectFilters: string[];
   includeNoProject: boolean;
   labelFilters: string[];
+  sourceFilters?: string[];
   // When `agentRunningFilter` is true, only keep issues whose id is in
   // `runningIssueIds`. The set is derived by the caller from
   // `agentTaskSnapshot` (one pass over running tasks) so filter.ts stays
@@ -28,7 +29,7 @@ export interface IssueFilters {
  * - When both → show matching assignees + unassigned
  */
 export function filterIssues(issues: Issue[], filters: IssueFilters): Issue[] {
-  const { statusFilters, priorityFilters, assigneeFilters, includeNoAssignee, creatorFilters, projectFilters, includeNoProject, labelFilters, agentRunningFilter, runningIssueIds } = filters;
+  const { statusFilters, priorityFilters, assigneeFilters, includeNoAssignee, creatorFilters, projectFilters, includeNoProject, labelFilters, sourceFilters = [], agentRunningFilter, runningIssueIds } = filters;
   const hasAssigneeFilter = assigneeFilters.length > 0 || includeNoAssignee;
   const hasProjectFilter = projectFilters.length > 0 || includeNoProject;
   // Empty set passed without `agentRunningFilter` is a no-op. When the
@@ -87,6 +88,13 @@ export function filterIssues(issues: Issue[], filters: IssueFilters): Issue[] {
       const issueLabels = issue.labels;
       if (!issueLabels || issueLabels.length === 0) return false;
       if (!issueLabels.some((l) => labelFilters.includes(l.id))) return false;
+    }
+    if (sourceFilters.length > 0) {
+      const selected = sourceFilters[0];
+      if (selected === "gitlab" && issue.source_type !== "gitlab") return false;
+      if (selected === "local" && issue.source_type !== "local") return false;
+      if (selected === "detached" && issue.source_type !== "detached") return false;
+      if (selected?.startsWith("tracker:") && issue.tracker_connection_id !== selected.slice("tracker:".length)) return false;
     }
 
     return true;
