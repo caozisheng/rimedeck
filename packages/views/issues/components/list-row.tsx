@@ -18,6 +18,7 @@ import { PriorityIcon } from "./priority-icon";
 import { ProgressRing } from "./progress-ring";
 import { IssueActionsContextMenu } from "../actions";
 import { LabelChip } from "../../labels/label-chip";
+import { IssueSourceBadge } from "./issue-source-badge";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 
 export interface ChildProgress {
@@ -102,6 +103,7 @@ function ListRowContent({
           <span className="w-16 shrink-0 text-xs text-muted-foreground">
             {issue.identifier}
           </span>
+          <IssueSourceBadge issue={issue} />
           <IssueAgentActivityIndicator issueId={issue.id} />
 
           <span className="flex min-w-0 flex-1 items-center gap-1.5">

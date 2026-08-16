@@ -24,6 +24,7 @@ import { ProgressRing } from "./progress-ring";
 import type { ChildProgress } from "./list-row";
 import { IssueActionsContextMenu } from "../actions";
 import { LabelChip } from "../../labels/label-chip";
+import { IssueSourceBadge } from "./issue-source-badge";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { useT } from "../../i18n";
 import { useRelationshipFocusStore } from "@rimedeck/core/issues/stores/relationship-focus-store";
@@ -199,6 +200,7 @@ export const BoardCardContent = memo(function BoardCardContent({
         <div className="flex items-center gap-1.5 min-w-0">
           {priorityIconNode}
           <p className="text-xs text-muted-foreground truncate">{issue.identifier}</p>
+          <IssueSourceBadge issue={issue} />
         </div>
         <IssueAgentActivityIndicator issueId={issue.id} />
       </div>
