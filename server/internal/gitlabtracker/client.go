@@ -460,3 +460,74 @@ func mapStatusError(status int) error {
 		return fmt.Errorf("%w: status %d", ErrRemote, status)
 	}
 }
+
+// CreateProjectHookRequest is the write-side request for the project
+// hook endpoint. Only the fields RimeDeck actually toggles are here —
+// we opt into issues + notes + confidential variants because those map
+// to the outbox operations Task 1's ingress already knows how to
+// route.
+type CreateProjectHookRequest struct {
+	URL                    string `json:"url"`
+	Token                  string `json:"token"`
+	IssuesEvents           bool   `json:"issues_events"`
+	ConfidentialIssues     bool   `json:"confidential_issues_events"`
+	NoteEvents             bool   `json:"note_events"`
+	ConfidentialNoteEvents bool   `json:"confidential_note_events"`
+	EnableSSLVerification  bool   `json:"enable_ssl_verification"`
+}
+
+// CreateProjectHook registers a webhook against the given project and
+// returns GitLab's assigned hook id so callers can delete/replace it
+// later. Payload is minimal on purpose — everything else can flow via
+// reconcile if the operator opts out.
+func (c *RestClient) CreateProjectHook(ctx context.Context, projectID int64, req CreateProjectHookRequest) (int64, error) {
+	if c == nil {
+		return 0, errors.New("gitlabtracker: nil RestClient")
+	}
+	buf, err := json.Marshal(req)
+	if err != nil {
+		return 0, fmt.Errorf("%w: encode hook: %w", ErrRemote, err)
+	}
+	httpReq, err := c.newRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v4/projects/%d/hooks", projectID), strings.NewReader(string(buf)))
+	if err != nil {
+		return 0, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.transport.Do(httpReq)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if err := mapStatusError(resp.StatusCode); err != nil {
+		return 0, err
+	}
+	var payload struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return 0, fmt.Errorf("%w: decode hook: %w", ErrRemote, err)
+	}
+	return payload.ID, nil
+}
+
+// DeleteProjectHook removes a previously-created webhook. GitLab
+// returns 204 on success and 404 when the hook is already gone; both
+// are non-errors from the operational viewpoint.
+func (c *RestClient) DeleteProjectHook(ctx context.Context, projectID, hookID int64) error {
+	if c == nil {
+		return errors.New("gitlabtracker: nil RestClient")
+	}
+	req, err := c.newRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/v4/projects/%d/hooks/%d", projectID, hookID), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.transport.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	return mapStatusError(resp.StatusCode)
+}

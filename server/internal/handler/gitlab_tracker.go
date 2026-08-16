@@ -395,7 +395,42 @@ func (h *Handler) createGitlabTracker(ctx context.Context, project db.Project, w
 			return db.GitlabTrackerConnection{}, fmt.Errorf("enqueue first import: %w", err)
 		}
 	}
+
+	// Best-effort webhook provisioning. Success reaches the operator via
+	// webhook_state='active'; failure leaves state='unavailable' and
+	// the tracker still works via reconcile (design §9.3).
+	if remote.CanConfigureWebhook && h.cfg.PublicURL != "" {
+		if hookID, err := h.provisionTrackerWebhook(ctx, created, client, webhookSecret); err == nil {
+			_ = h.Queries.SetTrackerWebhookProvisioned(ctx, db.SetTrackerWebhookProvisionedParams{
+				ID:        created.ID,
+				WebhookID: pgtype.Int8{Int64: hookID, Valid: true},
+			})
+			created.WebhookID = pgtype.Int8{Int64: hookID, Valid: true}
+			created.WebhookState = "active"
+		}
+	}
 	return created, nil
+}
+
+// provisionTrackerWebhook POSTs a project hook to GitLab with our
+// public ingress URL + the just-decrypted webhook secret. Returns the
+// hook id GitLab assigned so callers can delete it during token
+// rotation or tracker teardown.
+func (h *Handler) provisionTrackerWebhook(ctx context.Context, tracker db.GitlabTrackerConnection, client *gitlabtracker.RestClient, secret []byte) (int64, error) {
+	base := strings.TrimRight(h.cfg.PublicURL, "/")
+	if base == "" {
+		return 0, errors.New("PublicURL not configured")
+	}
+	hookURL := fmt.Sprintf("%s/api/webhooks/gitlab/%s", base, uuidToString(tracker.ID))
+	return client.CreateProjectHook(ctx, tracker.RemoteProjectID, gitlabtracker.CreateProjectHookRequest{
+		URL:                    hookURL,
+		Token:                  string(secret),
+		IssuesEvents:           true,
+		ConfidentialIssues:     true,
+		NoteEvents:             true,
+		ConfidentialNoteEvents: true,
+		EnableSSLVerification:  true,
+	})
 }
 
 type gitlabTrackerCreateError struct {

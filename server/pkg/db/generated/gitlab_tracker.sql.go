@@ -766,6 +766,41 @@ func (q *Queries) ResetFailedTrackerOutbox(ctx context.Context, trackerConnectio
 	return result.RowsAffected(), nil
 }
 
+const setTrackerWebhookProvisioned = `-- name: SetTrackerWebhookProvisioned :exec
+UPDATE gitlab_tracker_connection
+SET webhook_id = $2,
+    webhook_state = 'active',
+    updated_at = now()
+WHERE id = $1
+`
+
+type SetTrackerWebhookProvisionedParams struct {
+	ID        pgtype.UUID `json:"id"`
+	WebhookID pgtype.Int8 `json:"webhook_id"`
+}
+
+func (q *Queries) SetTrackerWebhookProvisioned(ctx context.Context, arg SetTrackerWebhookProvisionedParams) error {
+	_, err := q.db.Exec(ctx, setTrackerWebhookProvisioned, arg.ID, arg.WebhookID)
+	return err
+}
+
+const setTrackerWebhookState = `-- name: SetTrackerWebhookState :exec
+UPDATE gitlab_tracker_connection
+SET webhook_state = $2,
+    updated_at = now()
+WHERE id = $1
+`
+
+type SetTrackerWebhookStateParams struct {
+	ID           pgtype.UUID `json:"id"`
+	WebhookState string      `json:"webhook_state"`
+}
+
+func (q *Queries) SetTrackerWebhookState(ctx context.Context, arg SetTrackerWebhookStateParams) error {
+	_, err := q.db.Exec(ctx, setTrackerWebhookState, arg.ID, arg.WebhookState)
+	return err
+}
+
 const touchTrackerLastPull = `-- name: TouchTrackerLastPull :exec
 UPDATE gitlab_tracker_connection
 SET last_pull_at = now(), updated_at = now()

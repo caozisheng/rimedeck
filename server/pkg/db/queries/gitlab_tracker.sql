@@ -211,3 +211,16 @@ INSERT INTO gitlab_webhook_event (tracker_connection_id, event_uuid)
 VALUES ($1, $2)
 ON CONFLICT (tracker_connection_id, event_uuid) DO NOTHING
 RETURNING (xmax = 0) AS inserted;
+
+-- name: SetTrackerWebhookProvisioned :exec
+UPDATE gitlab_tracker_connection
+SET webhook_id = $2,
+    webhook_state = 'active',
+    updated_at = now()
+WHERE id = $1;
+
+-- name: SetTrackerWebhookState :exec
+UPDATE gitlab_tracker_connection
+SET webhook_state = $2,
+    updated_at = now()
+WHERE id = $1;
