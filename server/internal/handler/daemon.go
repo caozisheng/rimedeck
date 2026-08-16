@@ -1305,10 +1305,13 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 							ResourceRef:  ref,
 							Label:        label,
 						})
-						// Lift github_repo resources into the daemon's repo list
-						// so `multica repo checkout` and the meta-skill render
-						// them as the issue's repos.
-						if row.ResourceType == "github_repo" {
+						// Lift github_repo and gitlab_repo resources into
+						// the daemon's repo list so `multica repo
+						// checkout` and the meta-skill render them as the
+						// issue's repos. Both types share the same {url}
+						// ref shape (see validateGitlabRepoRef mirroring
+						// validateGithubRepoRef).
+						if row.ResourceType == "github_repo" || row.ResourceType == "gitlab_repo" {
 							var payload struct {
 								URL string `json:"url"`
 							}

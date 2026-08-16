@@ -74,6 +74,8 @@ func validateAndNormalizeResourceRef(resourceType string, ref json.RawMessage) (
 	switch resourceType {
 	case "github_repo":
 		return validateGithubRepoRef(ref)
+	case "gitlab_repo":
+		return validateGitlabRepoRef(ref)
 	case "local_directory":
 		return validateLocalDirectoryRef(ref)
 	default:
@@ -97,6 +99,37 @@ func validateGithubRepoRef(ref json.RawMessage) (json.RawMessage, error) {
 	}
 	if !isValidGitRepoURL(payload.URL) {
 		return nil, errors.New("github_repo: url must be a valid http(s) or ssh git URL")
+	}
+	payload.DefaultBranchHint = strings.TrimSpace(payload.DefaultBranchHint)
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+// gitlabRepoRef is the JSONB shape stored for resource_type=gitlab_repo.
+// It intentionally mirrors github_repo (url + default_branch_hint) so the
+// daemon's dispatch path — including `multica repo checkout <url>` and the
+// meta-skill's per-project repo bullets — treats a gitlab_repo the same
+// way. The tracker connection (with its encrypted token) lives on a
+// separate row in gitlab_tracker_connection; this ref carries no
+// credentials, only the clone URL.
+type gitlabRepoRef struct {
+	URL               string `json:"url"`
+	DefaultBranchHint string `json:"default_branch_hint,omitempty"`
+}
+
+func validateGitlabRepoRef(ref json.RawMessage) (json.RawMessage, error) {
+	var payload gitlabRepoRef
+	if err := json.Unmarshal(ref, &payload); err != nil {
+		return nil, fmt.Errorf("invalid gitlab_repo payload: %w", err)
+	}
+	payload.URL = strings.TrimSpace(payload.URL)
+	if payload.URL == "" {
+		return nil, errors.New("gitlab_repo: url is required")
+	}
+	if !isValidGitRepoURL(payload.URL) {
+		return nil, errors.New("gitlab_repo: url must be a valid http(s) or ssh git URL")
 	}
 	payload.DefaultBranchHint = strings.TrimSpace(payload.DefaultBranchHint)
 	out, err := json.Marshal(payload)
