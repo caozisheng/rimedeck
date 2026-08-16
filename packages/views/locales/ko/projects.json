@@ -90,7 +90,8 @@
     "gitlab_trackers_disable_ok": "GitLab 트래커가 비활성화되었습니다",
     "gitlab_trackers_disable_failed": "트래커 비활성화에 실패했습니다",
     "gitlab_trackers_delete_ok": "GitLab 트래커가 삭제되었습니다",
-    "gitlab_trackers_delete_failed": "트래커 삭제에 실패했습니다"
+    "gitlab_trackers_delete_failed": "트래커 삭제에 실패했습니다",
+    "gitlab_trackers_degraded_banner": "GitLab 동기화가 저하되었습니다 ({{code}}). 작업 메뉴에서 토큰을 회전하거나 재시도하세요."
   },
   "resources": {
     "section_header": "리소스",

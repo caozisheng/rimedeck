@@ -47,6 +47,7 @@ type GitlabTrackerResponse struct {
 	State              string  `json:"state"`
 	WebhookState       string  `json:"webhook_state"`
 	LastPullAt         *string `json:"last_pull_at"`
+	LastErrorCode      *string `json:"last_error_code"`
 	PendingOutboxCount int64   `json:"pending_outbox_count"`
 	FailedOutboxCount  int64   `json:"failed_outbox_count"`
 	TokenConfigured    bool    `json:"token_configured"`
@@ -62,6 +63,7 @@ func gitlabTrackerToResponse(row db.GitlabTrackerConnection, pending, failed int
 		State:              row.State,
 		WebhookState:       row.WebhookState,
 		LastPullAt:         timestampToPtr(row.LastPullAt),
+		LastErrorCode:      textToPtr(row.LastErrorCode),
 		PendingOutboxCount: pending,
 		FailedOutboxCount:  failed,
 		TokenConfigured:    len(row.TokenCiphertext) > 0,

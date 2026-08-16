@@ -28,6 +28,8 @@ type fakeQueries struct {
 	canceled             []pgtype.UUID
 	linkIIDs             []db.ListGitlabIssueLinkIIDsRow
 	fullReconcileTouched []pgtype.UUID
+	degraded             []db.MarkTrackerDegradedParams
+	active               []pgtype.UUID
 }
 
 func (f *fakeQueries) ClaimReadyTrackerOutbox(context.Context, int32) ([]db.TrackerSyncOutbox, error) {
@@ -72,6 +74,14 @@ func (f *fakeQueries) DeleteIssue(_ context.Context, arg db.DeleteIssueParams) e
 }
 func (f *fakeQueries) ListGitlabIssueLinkIIDs(_ context.Context, _ pgtype.UUID) ([]db.ListGitlabIssueLinkIIDsRow, error) {
 	return f.linkIIDs, nil
+}
+func (f *fakeQueries) MarkTrackerDegraded(_ context.Context, arg db.MarkTrackerDegradedParams) error {
+	f.degraded = append(f.degraded, arg)
+	return nil
+}
+func (f *fakeQueries) MarkTrackerActive(_ context.Context, id pgtype.UUID) error {
+	f.active = append(f.active, id)
+	return nil
 }
 func (f *fakeQueries) TouchLastFullReconcile(_ context.Context, id pgtype.UUID) error {
 	f.fullReconcileTouched = append(f.fullReconcileTouched, id)

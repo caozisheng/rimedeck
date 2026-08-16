@@ -8,6 +8,7 @@ export interface GitlabTracker {
   last_pull_at: string | null;
   pending_outbox_count: number;
   failed_outbox_count: number;
+  last_error_code?: string | null;
   token_configured: boolean;
   can_manage: boolean;
 }

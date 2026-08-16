@@ -762,6 +762,43 @@ func (q *Queries) ListGitlabTrackerConnectionsByProject(ctx context.Context, pro
 	return items, nil
 }
 
+const markTrackerActive = `-- name: MarkTrackerActive :exec
+UPDATE gitlab_tracker_connection
+SET state = CASE WHEN state = 'degraded' THEN 'active' ELSE state END,
+    last_error_code = NULL,
+    last_error_at = NULL,
+    updated_at = now()
+WHERE id = $1
+`
+
+// Successful op → clear the degradation flag and error markers.
+func (q *Queries) MarkTrackerActive(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markTrackerActive, id)
+	return err
+}
+
+const markTrackerDegraded = `-- name: MarkTrackerDegraded :exec
+UPDATE gitlab_tracker_connection
+SET state = CASE WHEN state = 'disabled' THEN 'disabled' ELSE 'degraded' END,
+    last_error_code = $2,
+    last_error_at = now(),
+    updated_at = now()
+WHERE id = $1
+`
+
+type MarkTrackerDegradedParams struct {
+	ID            pgtype.UUID `json:"id"`
+	LastErrorCode pgtype.Text `json:"last_error_code"`
+}
+
+// Called by the worker after MaxAttempts retries or a terminal auth
+// error. state='disabled' is left alone — the operator disable flag
+// takes precedence over degradation heuristics.
+func (q *Queries) MarkTrackerDegraded(ctx context.Context, arg MarkTrackerDegradedParams) error {
+	_, err := q.db.Exec(ctx, markTrackerDegraded, arg.ID, arg.LastErrorCode)
+	return err
+}
+
 const markTrackerOutboxFailed = `-- name: MarkTrackerOutboxFailed :exec
 UPDATE tracker_sync_outbox
 SET status = 'failed',

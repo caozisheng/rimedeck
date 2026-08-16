@@ -90,7 +90,8 @@
     "gitlab_trackers_disable_ok": "GitLab tracker 已停用",
     "gitlab_trackers_disable_failed": "停用 tracker 失败",
     "gitlab_trackers_delete_ok": "GitLab tracker 已删除",
-    "gitlab_trackers_delete_failed": "删除 tracker 失败"
+    "gitlab_trackers_delete_failed": "删除 tracker 失败",
+    "gitlab_trackers_degraded_banner": "GitLab 同步已降级（{{code}}），可从操作菜单轮换令牌或重试。"
   },
   "resources": {
     "section_header": "资源",

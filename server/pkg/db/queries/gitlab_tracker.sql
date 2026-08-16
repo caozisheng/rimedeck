@@ -246,3 +246,23 @@ WHERE id = $1;
 SELECT id, project_id, workspace_id, last_pull_at, last_full_reconcile_at
 FROM gitlab_tracker_connection
 WHERE state <> 'disabled';
+
+-- name: MarkTrackerDegraded :exec
+-- Called by the worker after MaxAttempts retries or a terminal auth
+-- error. state='disabled' is left alone — the operator disable flag
+-- takes precedence over degradation heuristics.
+UPDATE gitlab_tracker_connection
+SET state = CASE WHEN state = 'disabled' THEN 'disabled' ELSE 'degraded' END,
+    last_error_code = $2,
+    last_error_at = now(),
+    updated_at = now()
+WHERE id = $1;
+
+-- name: MarkTrackerActive :exec
+-- Successful op → clear the degradation flag and error markers.
+UPDATE gitlab_tracker_connection
+SET state = CASE WHEN state = 'degraded' THEN 'active' ELSE state END,
+    last_error_code = NULL,
+    last_error_at = NULL,
+    updated_at = now()
+WHERE id = $1;

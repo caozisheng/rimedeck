@@ -57,6 +57,8 @@ type Queries interface {
 	DeleteIssue(ctx context.Context, arg db.DeleteIssueParams) error
 	ListGitlabIssueLinkIIDs(ctx context.Context, trackerConnectionID pgtype.UUID) ([]db.ListGitlabIssueLinkIIDsRow, error)
 	TouchLastFullReconcile(ctx context.Context, id pgtype.UUID) error
+	MarkTrackerDegraded(ctx context.Context, arg db.MarkTrackerDegradedParams) error
+	MarkTrackerActive(ctx context.Context, id pgtype.UUID) error
 }
 
 // TxStarter is the transaction surface the sync worker forwards to
@@ -208,6 +210,7 @@ func (w *Worker) processRow(ctx context.Context, row db.TrackerSyncOutbox) outco
 	}
 	// Best-effort last_pull_at bump; a stale timestamp is harmless.
 	_ = w.Queries.TouchTrackerLastPull(ctx, tracker.ID)
+	_ = w.Queries.MarkTrackerActive(ctx, tracker.ID)
 	return outcomeSuccess
 }
 
@@ -304,6 +307,10 @@ func (w *Worker) classifyError(ctx context.Context, row db.TrackerSyncOutbox, er
 			ID:               row.ID,
 			LastErrorCode:    pgText("auth_revoked"),
 			LastErrorMessage: pgText(err.Error()),
+		})
+		_ = w.Queries.MarkTrackerDegraded(ctx, db.MarkTrackerDegradedParams{
+			ID:            row.TrackerConnectionID,
+			LastErrorCode: pgText("auth_revoked"),
 		})
 		return outcomeFailed
 	case errors.Is(err, gitlabtracker.ErrNotFound):
@@ -436,6 +443,10 @@ func (w *Worker) backoff(ctx context.Context, row db.TrackerSyncOutbox, code, ms
 			ID:               row.ID,
 			LastErrorCode:    pgText(code),
 			LastErrorMessage: pgText(msg),
+		})
+		_ = w.Queries.MarkTrackerDegraded(ctx, db.MarkTrackerDegradedParams{
+			ID:            row.TrackerConnectionID,
+			LastErrorCode: pgText(code),
 		})
 		return outcomeFailed
 	}

@@ -90,7 +90,8 @@
     "gitlab_trackers_disable_ok": "GitLab tracker disabled",
     "gitlab_trackers_disable_failed": "Failed to disable tracker",
     "gitlab_trackers_delete_ok": "GitLab tracker deleted",
-    "gitlab_trackers_delete_failed": "Failed to delete tracker"
+    "gitlab_trackers_delete_failed": "Failed to delete tracker",
+    "gitlab_trackers_degraded_banner": "GitLab sync is degraded ({{code}}). Rotate the token or retry from the actions menu."
   },
   "resources": {
     "section_header": "Resources",

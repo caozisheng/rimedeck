@@ -129,6 +129,11 @@ function ProjectGitlabTrackerRow({ projectId, tracker }: { projectId: string; tr
           </DropdownMenu>
         )}
       </div>
+      {tracker.state === "degraded" && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-300" role="alert">
+          {t(($) => $.detail.gitlab_trackers_degraded_banner, { code: tracker.last_error_code ?? "error" })}
+        </div>
+      )}
 
       <AlertDialog open={rotateOpen} onOpenChange={setRotateOpen}>
         <AlertDialogContent>

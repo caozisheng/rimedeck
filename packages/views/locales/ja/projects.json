@@ -90,7 +90,8 @@
     "gitlab_trackers_disable_ok": "GitLab トラッカーを無効化しました",
     "gitlab_trackers_disable_failed": "トラッカーを無効化できませんでした",
     "gitlab_trackers_delete_ok": "GitLab トラッカーを削除しました",
-    "gitlab_trackers_delete_failed": "トラッカーを削除できませんでした"
+    "gitlab_trackers_delete_failed": "トラッカーを削除できませんでした",
+    "gitlab_trackers_degraded_banner": "GitLab 同期が劣化しています ({{code}})。アクションメニューからトークン更新または再試行してください。"
   },
   "resources": {
     "section_header": "リソース",
