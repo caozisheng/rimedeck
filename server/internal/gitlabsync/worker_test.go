@@ -124,7 +124,7 @@ func testWorker(fq *fakeQueries, cipher *gitlabtracker.Cipher) *Worker {
 		LabelImporter: func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error { return nil },
 		IssueImporter: func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error { return nil },
 		ClientFactory: func(instanceURL, token string) (*gitlabtracker.RestClient, error) {
-			transport, err := gitlabtracker.NewClient(gitlabtracker.Config{AllowedHosts: []string{gitlabtracker.AllowLoopbackFlag}})
+			transport, err := gitlabtracker.NewClient(gitlabtracker.Config{})
 			if err != nil {
 				return nil, err
 			}

@@ -12,20 +12,12 @@ import (
 // installGitlabValidateStub swaps the package-level factory so
 // ValidateGitlabTracker points at an httptest GitLab. Returned cleanup
 // restores the previous factory and closes the stub.
-func installGitlabValidateStub(t *testing.T, handler http.Handler, allowedHosts []string) (baseURL string) {
+func installGitlabValidateStub(t *testing.T, handler http.Handler) (baseURL string) {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	origFactory := gitlabTrackerClientFactory
-	origHosts := GitlabTrackerAllowedHosts
-	GitlabTrackerAllowedHosts = func() []string { return allowedHosts }
-	// The parser rejects loopback hosts unconditionally, so tests pass a
-	// non-loopback host through GitlabTrackerAllowedHosts (see the caller).
-	// The transport still needs to accept 127.0.0.1 to reach httptest, so
-	// factory bypasses the allowlist entirely for tests.
 	gitlabTrackerClientFactory = func(_, token string) (*gitlabtracker.RestClient, error) {
-		transport, err := gitlabtracker.NewClient(gitlabtracker.Config{
-			AllowedHosts: []string{gitlabtracker.AllowLoopbackFlag},
-		})
+		transport, err := gitlabtracker.NewClient(gitlabtracker.Config{})
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +25,6 @@ func installGitlabValidateStub(t *testing.T, handler http.Handler, allowedHosts 
 	}
 	t.Cleanup(func() {
 		gitlabTrackerClientFactory = origFactory
-		GitlabTrackerAllowedHosts = origHosts
 		srv.Close()
 	})
 	return srv.URL
@@ -56,7 +47,7 @@ func TestValidateGitlabTracker_HappyPath(t *testing.T) {
 			"permissions":         map[string]any{"project_access": map[string]any{"access_level": 40}},
 		})
 	})
-	installGitlabValidateStub(t, handler, []string{"gitlab.example.com"})
+	installGitlabValidateStub(t, handler)
 
 	w := httptest.NewRecorder()
 	req := newRequest("POST", "/api/gitlab-trackers/validate", map[string]any{
@@ -108,7 +99,7 @@ func TestValidateGitlabTracker_ErrorMapping(t *testing.T) {
 			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tc.status)
 			})
-			installGitlabValidateStub(t, handler, []string{"gitlab.example.com"})
+			installGitlabValidateStub(t, handler)
 
 			w := httptest.NewRecorder()
 			req := newRequest("POST", "/api/gitlab-trackers/validate", map[string]any{
@@ -136,13 +127,9 @@ func TestValidateGitlabTracker_InvalidURL(t *testing.T) {
 		t.Skip("handler fixture not initialized")
 	}
 	// No stub — the request never reaches GitLab.
-	origHosts := GitlabTrackerAllowedHosts
-	GitlabTrackerAllowedHosts = func() []string { return nil }
-	t.Cleanup(func() { GitlabTrackerAllowedHosts = origHosts })
-
 	w := httptest.NewRecorder()
 	req := newRequest("POST", "/api/gitlab-trackers/validate", map[string]any{
-		"repository_url": "http://gitlab.com/g/p",
+		"repository_url": "https://user:pass@gitlab.com/g/p",
 		"access_token":   "glpat",
 	})
 	testHandler.ValidateGitlabTracker(w, req)
@@ -151,8 +138,8 @@ func TestValidateGitlabTracker_InvalidURL(t *testing.T) {
 	}
 	var body map[string]string
 	json.NewDecoder(w.Body).Decode(&body)
-	if body["code"] != "https_required" {
-		t.Errorf("code = %q, want https_required", body["code"])
+	if body["code"] != "userinfo_forbidden" {
+		t.Errorf("code = %q, want userinfo_forbidden", body["code"])
 	}
 }
 

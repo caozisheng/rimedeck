@@ -5,25 +5,18 @@ import (
 	"testing"
 )
 
-// TestParseProjectURL is the parser's contract in one table. Every case
-// pins either the exact success shape or the exact error code — no
-// wildcards. Add cases when GitLab surfaces a new URL flavor; never delete
-// one without moving its behavior into another case.
+// TestParseProjectURL pins the parser's contract in one table. Every
+// case declares either the exact success shape or the exact error code.
+// New URL flavors (custom port, IP host, http scheme) each get a row.
 func TestParseProjectURL(t *testing.T) {
-	// Two AllowedHosts fixtures cover the two operator postures we
-	// document (§11.3): (a) "cloud only" — no allowlist, gitlab.com is
-	// implicit; (b) "self-hosted" — an explicit host is on the allowlist.
-	// Loopback / RFC1918 stay rejected in both.
-	allowSelfHosted := []string{"gitlab.example.com"}
-
 	cases := []struct {
 		name         string
 		input        string
-		allow        []string
-		wantHost     string
+		wantHost     string // host (including port when supplied)
 		wantPath     string
 		wantWebURL   string
 		wantCloneURL string
+		wantScheme   string // "" defaults to https
 		wantErrCode  string
 	}{
 		{
@@ -35,7 +28,15 @@ func TestParseProjectURL(t *testing.T) {
 			wantCloneURL: "https://gitlab.com/group/project.git",
 		},
 		{
-			name:         "gitlab.com https .git suffix stripped",
+			name:         "jihulab.com works without any operator config",
+			input:        "https://jihulab.com/group/project",
+			wantHost:     "jihulab.com",
+			wantPath:     "group/project",
+			wantWebURL:   "https://jihulab.com/group/project",
+			wantCloneURL: "https://jihulab.com/group/project.git",
+		},
+		{
+			name:         ".git suffix stripped",
 			input:        "https://gitlab.com/group/project.git",
 			wantHost:     "gitlab.com",
 			wantPath:     "group/project",
@@ -56,20 +57,38 @@ func TestParseProjectURL(t *testing.T) {
 			wantCloneURL: "https://gitlab.com/group/project.git",
 		},
 		{
-			name:         "self-hosted host on allowlist",
-			input:        "https://gitlab.example.com/g/p",
-			allow:        allowSelfHosted,
-			wantHost:     "gitlab.example.com",
+			name:         "self-hosted with custom port preserves port everywhere",
+			input:        "https://gitlab.internal:9080/g/p",
+			wantHost:     "gitlab.internal:9080",
 			wantPath:     "g/p",
-			wantCloneURL: "https://gitlab.example.com/g/p.git",
+			wantWebURL:   "https://gitlab.internal:9080/g/p",
+			wantCloneURL: "https://gitlab.internal:9080/g/p.git",
 		},
 		{
-			name:        "self-hosted host missing from allowlist",
-			input:       "https://gitlab.example.com/g/p",
-			wantErrCode: "host_not_allowed",
+			name:         "bare IPv4 with port (LAN GitLab)",
+			input:        "https://192.168.1.10:8443/team/app",
+			wantHost:     "192.168.1.10:8443",
+			wantPath:     "team/app",
+			wantCloneURL: "https://192.168.1.10:8443/team/app.git",
 		},
 		{
-			name:        "userinfo forbidden even for gitlab.com",
+			name:         "bare IPv4 default port",
+			input:        "https://10.0.0.5/team/app",
+			wantHost:     "10.0.0.5",
+			wantPath:     "team/app",
+			wantCloneURL: "https://10.0.0.5/team/app.git",
+		},
+		{
+			name:         "http scheme accepted for internal deployments",
+			input:        "http://gitlab.internal/g/p",
+			wantHost:     "gitlab.internal",
+			wantPath:     "g/p",
+			wantWebURL:   "http://gitlab.internal/g/p",
+			wantCloneURL: "http://gitlab.internal/g/p.git",
+			wantScheme:   "http://",
+		},
+		{
+			name:        "userinfo forbidden",
 			input:       "https://user:pass@gitlab.com/g/p",
 			wantErrCode: "userinfo_forbidden",
 		},
@@ -79,14 +98,9 @@ func TestParseProjectURL(t *testing.T) {
 			wantErrCode: "fragment_forbidden",
 		},
 		{
-			name:        "http (non-tls) rejected",
-			input:       "http://gitlab.com/g/p",
-			wantErrCode: "https_required",
-		},
-		{
-			name:        "loopback rejected regardless of allowlist",
-			input:       "https://127.0.0.1/g/p",
-			wantErrCode: "host_not_allowed",
+			name:        "scheme other than http/https rejected",
+			input:       "ftp://gitlab.com/g/p",
+			wantErrCode: "scheme_required",
 		},
 		{
 			name:        "empty group segment",
@@ -104,7 +118,7 @@ func TestParseProjectURL(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := ParseProjectURL(tc.input, tc.allow)
+			got, err := ParseProjectURL(tc.input)
 			if tc.wantErrCode != "" {
 				if err == nil {
 					t.Fatalf("expected error %q, got nil (parsed=%+v)", tc.wantErrCode, got)
@@ -133,8 +147,12 @@ func TestParseProjectURL(t *testing.T) {
 			if got.CloneURL != tc.wantCloneURL {
 				t.Errorf("CloneURL = %q, want %q", got.CloneURL, tc.wantCloneURL)
 			}
-			if !strings.HasPrefix(got.InstanceURL, "https://") {
-				t.Errorf("InstanceURL = %q, want https:// prefix", got.InstanceURL)
+			wantScheme := tc.wantScheme
+			if wantScheme == "" {
+				wantScheme = "https://"
+			}
+			if !strings.HasPrefix(got.InstanceURL, wantScheme) {
+				t.Errorf("InstanceURL = %q, want %s prefix", got.InstanceURL, wantScheme)
 			}
 		})
 	}

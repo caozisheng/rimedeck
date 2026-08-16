@@ -65,7 +65,7 @@ func TestCreateProjectGitlabTracker_ProvisionsWebhookWhenAllowed(t *testing.T) {
 		t.Skip("database not available")
 	}
 	hookCreates := 0
-	installGitlabCreateStub(t, upstreamWithProvision(t, 40, http.StatusCreated, 4242, &hookCreates), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, upstreamWithProvision(t, 40, http.StatusCreated, 4242, &hookCreates))
 
 	prev := testHandler.cfg.PublicURL
 	testHandler.cfg.PublicURL = "https://rimedeck.example"
@@ -109,7 +109,7 @@ func TestCreateProjectGitlabTracker_SkipsWebhookWhenReadOnly(t *testing.T) {
 		t.Skip("database not available")
 	}
 	hookCreates := 0
-	installGitlabCreateStub(t, upstreamWithProvision(t, 30, http.StatusForbidden, 0, &hookCreates), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, upstreamWithProvision(t, 30, http.StatusForbidden, 0, &hookCreates))
 
 	prev := testHandler.cfg.PublicURL
 	testHandler.cfg.PublicURL = "https://rimedeck.example"
@@ -152,7 +152,7 @@ func TestCreateProjectGitlabTracker_SkipsWebhookWhenPublicURLEmpty(t *testing.T)
 		t.Skip("database not available")
 	}
 	hookCreates := 0
-	installGitlabCreateStub(t, upstreamWithProvision(t, 40, http.StatusCreated, 999, &hookCreates), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, upstreamWithProvision(t, 40, http.StatusCreated, 999, &hookCreates))
 
 	prev := testHandler.cfg.PublicURL
 	testHandler.cfg.PublicURL = ""

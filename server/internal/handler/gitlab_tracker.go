@@ -122,35 +122,15 @@ func (h *Handler) ListProjectGitlabTrackers(w http.ResponseWriter, r *http.Reque
 // Validate endpoint (Phase 2 Task 7)
 // ---------------------------------------------------------------------------
 
-// GitlabTrackerAllowedHosts is the operator-configured list of self-hosted
-// GitLab hosts (comma-separated, GITLAB_ALLOWED_HOSTS). gitlab.com is
-// always accepted and does not need to appear here. Exposed as a variable
-// so tests can override without setenv gymnastics.
-var GitlabTrackerAllowedHosts = allowedGitlabHostsFromEnv
-
 // gitlabTrackerClientFactory builds a *gitlabtracker.RestClient for a
-// given base URL + PAT. Tests replace it with a factory that points at an
-// httptest server; production uses the SSRF-safe transport.
+// given base URL + PAT. Tests replace it with a factory that points at
+// an httptest server; production uses the standard transport (see the
+// gitlabtracker package for the rationale on why the transport is
+// deliberately unfiltered).
 var gitlabTrackerClientFactory = defaultGitlabTrackerClientFactory
-
-func allowedGitlabHostsFromEnv() []string {
-	raw := strings.TrimSpace(os.Getenv("GITLAB_ALLOWED_HOSTS"))
-	if raw == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if s := strings.TrimSpace(p); s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
-}
 
 func defaultGitlabTrackerClientFactory(baseURL, token string) (*gitlabtracker.RestClient, error) {
 	transport, err := gitlabtracker.NewClient(gitlabtracker.Config{
-		AllowedHosts:   GitlabTrackerAllowedHosts(),
 		RequestTimeout: 30 * time.Second,
 	})
 	if err != nil {
@@ -202,7 +182,7 @@ func (h *Handler) ValidateGitlabTracker(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	parsed, err := gitlabtracker.ParseProjectURL(req.RepositoryURL, GitlabTrackerAllowedHosts())
+	parsed, err := gitlabtracker.ParseProjectURL(req.RepositoryURL)
 	if err != nil {
 		var ue *gitlabtracker.URLError
 		if errors.As(err, &ue) {
@@ -348,7 +328,7 @@ func (h *Handler) createGitlabTracker(ctx context.Context, project db.Project, w
 	if err != nil {
 		return db.GitlabTrackerConnection{}, &gitlabTrackerCreateError{status: http.StatusServiceUnavailable, code: "encryption_unavailable", message: err.Error()}
 	}
-	parsed, err := gitlabtracker.ParseProjectURL(req.RepositoryURL, GitlabTrackerAllowedHosts())
+	parsed, err := gitlabtracker.ParseProjectURL(req.RepositoryURL)
 	if err != nil {
 		var ue *gitlabtracker.URLError
 		if errors.As(err, &ue) {

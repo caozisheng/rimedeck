@@ -1,16 +1,10 @@
 package gitlabtracker
 
 import (
-	"fmt"
-	"net"
 	"net/url"
 	"regexp"
 	"strings"
 )
-
-// DefaultAllowedHost is the well-known SaaS host. Operators do not have to
-// list it; anything else must appear in GITLAB_ALLOWED_HOSTS.
-const DefaultAllowedHost = "gitlab.com"
 
 // URLError carries a stable machine-readable code alongside the human
 // message. Consumers pattern-match on Code so the safe error mapping in
@@ -27,13 +21,14 @@ func (e *URLError) Error() string {
 	return e.Code + ": " + e.Message
 }
 
-// ProjectURL is the normalized triple: instance root (protocol+host, no
-// path), the parsed host on its own, and the group/subgroup/project path
-// with the trailing `.git` stripped. WebURL and CloneURL are canonicalized
-// so downstream code never has to re-normalize.
+// ProjectURL is the normalized set of URL fields the rest of the tracker
+// stack consumes. Host preserves the port when the user supplied one so
+// LAN GitLab installs like `https://192.168.1.10:8443/g/p` reach the
+// right listener. InstanceURL is scheme + Host so the REST client can
+// concatenate `/api/v4/…` without re-parsing.
 type ProjectURL struct {
 	InstanceURL       string
-	Host              string
+	Host              string // hostname or IP, plus port if the URL had one
 	PathWithNamespace string
 	WebURL            string
 	CloneURL          string
@@ -49,21 +44,23 @@ var (
 	blankRE = regexp.MustCompile(`^\s*$`)
 )
 
-// ParseProjectURL takes a user-typed URL (either HTTPS or scp-like SSH)
-// plus the operator's self-hosted allowlist and returns the normalized
-// ProjectURL, or a *URLError. gitlab.com is always allowed. Loopback /
-// link-local / RFC1918 / multicast literal hosts are rejected regardless
-// of the allowlist — the allowlist is a name allowlist, not an IP
-// allowlist; direct-IP GitLab access would require operator opt-in via a
-// future explicit setting.
-func ParseProjectURL(raw string, allowedHosts []string) (ProjectURL, error) {
+// ParseProjectURL takes a user-typed URL (either http/https or scp-like
+// SSH) and returns the normalized ProjectURL, or a *URLError. Any
+// resolvable host is accepted — hostname, bare IP literal, custom port,
+// http or https. Self-hosted / regional GitLab installs (jihulab.com,
+// gitlab.internal:9080, 192.168.1.10:8443) work with zero operator
+// config; the REST validation call is what proves it's actually GitLab.
+// Structural checks stay: userinfo and fragments are still rejected
+// because GitLab never emits them and they only appear when a URL was
+// pasted from a phish/token-in-URL context.
+func ParseProjectURL(raw string) (ProjectURL, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || blankRE.MatchString(raw) {
 		return ProjectURL{}, &URLError{Code: "empty_url", Message: "repository URL is required"}
 	}
 
-	// scp-like SSH shortcut: convert to https and fall through to the same
-	// validator so the allowlist / path checks stay in one place.
+	// scp-like SSH shortcut: convert to https and fall through so the
+	// path/userinfo/fragment checks stay in one place.
 	if m := sshShortRE.FindStringSubmatch(raw); m != nil {
 		raw = "https://" + m[1] + "/" + m[2]
 	}
@@ -72,8 +69,8 @@ func ParseProjectURL(raw string, allowedHosts []string) (ProjectURL, error) {
 	if err != nil {
 		return ProjectURL{}, &URLError{Code: "invalid_url", Message: err.Error()}
 	}
-	if u.Scheme != "https" {
-		return ProjectURL{}, &URLError{Code: "https_required", Message: "only https URLs are accepted"}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return ProjectURL{}, &URLError{Code: "scheme_required", Message: "only http and https URLs are accepted"}
 	}
 	if u.User != nil {
 		return ProjectURL{}, &URLError{Code: "userinfo_forbidden", Message: "URL must not include a userinfo component"}
@@ -81,12 +78,13 @@ func ParseProjectURL(raw string, allowedHosts []string) (ProjectURL, error) {
 	if u.Fragment != "" || strings.Contains(raw, "#") {
 		return ProjectURL{}, &URLError{Code: "fragment_forbidden", Message: "URL must not include a fragment"}
 	}
-	host := strings.ToLower(u.Hostname())
+	// u.Host keeps the port (u.Hostname() would drop it), which we need
+	// so LAN installs on non-default ports round-trip correctly. Lower-
+	// case the hostname portion for stable equality but preserve the
+	// caller's port digits verbatim.
+	host := strings.ToLower(u.Host)
 	if host == "" {
 		return ProjectURL{}, &URLError{Code: "invalid_url", Message: "URL has no host"}
-	}
-	if !hostAllowed(host, allowedHosts) {
-		return ProjectURL{}, &URLError{Code: "host_not_allowed", Message: fmt.Sprintf("host %q is not on the GitLab allowlist", host)}
 	}
 
 	path := strings.Trim(u.Path, "/")
@@ -95,9 +93,7 @@ func ParseProjectURL(raw string, allowedHosts []string) (ProjectURL, error) {
 		return ProjectURL{}, &URLError{Code: "path_needs_namespace", Message: "URL must include at least namespace/project"}
 	}
 
-	// InstanceURL keeps only scheme+host so the REST client can concat
-	// `/api/v4/...` without re-parsing.
-	instance := "https://" + host
+	instance := u.Scheme + "://" + host
 
 	return ProjectURL{
 		InstanceURL:       instance,
@@ -106,23 +102,4 @@ func ParseProjectURL(raw string, allowedHosts []string) (ProjectURL, error) {
 		WebURL:            instance + "/" + path,
 		CloneURL:          instance + "/" + path + ".git",
 	}, nil
-}
-
-// hostAllowed centralizes the two-branch decision so ParseProjectURL stays
-// linear. IP literals are always rejected — the allowlist is a name
-// allowlist; if an operator ever needs to accept a bare IP, they can add
-// an explicit dedicated setting rather than blurring this predicate.
-func hostAllowed(host string, allowed []string) bool {
-	if ip := net.ParseIP(host); ip != nil {
-		return false
-	}
-	if host == DefaultAllowedHost {
-		return true
-	}
-	for _, candidate := range allowed {
-		if strings.EqualFold(strings.TrimSpace(candidate), host) {
-			return true
-		}
-	}
-	return false
 }

@@ -20,7 +20,7 @@ func TestDetachIssueTracker_FlipsSourceAndCancelsOutbox(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "conflict-detach")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 
@@ -72,7 +72,7 @@ func TestDiscardIssuePending_RollsRevisionAndCancelsOutbox(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "conflict-discard")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 
@@ -130,7 +130,7 @@ func TestDetachIssueTracker_NonOwnerForbidden(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "conflict-role")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 

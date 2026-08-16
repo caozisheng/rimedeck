@@ -442,7 +442,7 @@ func TestListLabelsGitlabFilters(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "label-filter-project")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	localName := "local-filter-" + trackerID[:8]

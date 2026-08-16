@@ -21,7 +21,7 @@ func TestEnqueueTrackerOutbox_CompressesEarlierRevisions(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "outbox-compress")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	// Seed a fake issue row scoped to the tracker so the outbox rows
@@ -100,7 +100,7 @@ func TestEnqueueTrackerOutbox_LeavesRunningRows(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "outbox-compress-inflight")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	var issueID pgtype.UUID
@@ -164,7 +164,7 @@ func TestClaimReadyTrackerOutbox_SerializesPerConnection(t *testing.T) {
 	}
 	projectA := projectForCreateTracker(t, "serial-A")
 	projectB := projectForCreateTracker(t, "serial-B")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerA := createTrackerHelper(t, projectA.ID)
 	trackerB := createTrackerHelper(t, projectB.ID)
 	// The Task 8 create path already enqueued 2 pull rows per tracker;

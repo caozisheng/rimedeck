@@ -18,7 +18,7 @@ func TestApplyCanonicalIssue_RevisionMatchWritesCanonical(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "canonical-match")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 
@@ -58,7 +58,7 @@ func TestApplyCanonicalIssue_RevisionMismatchPreservesLocal(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "canonical-mismatch")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 

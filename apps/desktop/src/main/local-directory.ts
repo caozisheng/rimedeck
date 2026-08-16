@@ -81,8 +81,24 @@ export async function detectGitRemote(path: string): Promise<GitRemoteInfo | und
       try { host = new URL(url).hostname.toLowerCase(); } catch { host = ""; }
     }
     if (!host) return { url, host: "", provider: "unknown" };
-    const allowed = new Set(["gitlab.com", ...String(process.env.GITLAB_ALLOWED_HOSTS ?? "").split(",").map((v) => v.trim().toLowerCase()).filter(Boolean)]);
-    const provider = allowed.has(host) ? "gitlab" : host === "github.com" ? "github" : "unknown";
+    // Pure UI hint. The Add-Resource popover confirms the actual
+    // provider via the REST validation round-trip, so a false positive
+    // here just seeds the wrong tab and the user can flip it. We
+    // recognise obvious GitHub / GitLab hosts and fall back to
+    // "unknown" for hostnames that give us no signal (a self-hosted
+    // GitLab at `git.company.internal` will show up as unknown and
+    // the user picks GitLab manually).
+    let provider: "gitlab" | "github" | "unknown" = "unknown";
+    if (host === "github.com" || host.endsWith(".github.com")) {
+      provider = "github";
+    } else if (
+      host === "gitlab.com" ||
+      host === "jihulab.com" ||
+      host.includes("gitlab") ||
+      host.includes("jihulab")
+    ) {
+      provider = "gitlab";
+    }
     return { url, host, provider };
   } catch {
     return undefined;

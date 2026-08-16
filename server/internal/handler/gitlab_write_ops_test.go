@@ -85,7 +85,7 @@ func TestUpdateIssueGitlab_EnqueuesOutbox(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "gitlab-update-op")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 
@@ -154,7 +154,7 @@ func TestDeleteIssueGitlab_LinkedGoesPendingDelete(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "gitlab-delete-linked")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 
@@ -183,7 +183,7 @@ func TestDeleteIssueGitlab_UnlinkedDeletesLocally(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "gitlab-delete-unlinked")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, false)
 	if _, err := testPool.Exec(context.Background(),
@@ -218,7 +218,7 @@ func TestAttachDetachLabel_EnqueuesSetLabels(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "gitlab-labels")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
 

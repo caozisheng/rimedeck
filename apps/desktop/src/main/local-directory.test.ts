@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -10,7 +10,6 @@ const execFileAsync = promisify(execFile);
 const dirs: string[] = [];
 
 afterEach(async () => {
-  vi.unstubAllEnvs();
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
@@ -23,20 +22,35 @@ async function repoWithRemote(remote: string): Promise<string> {
 }
 
 describe("detectGitRemote", () => {
-  it("classifies gitlab.com and GitHub remotes", async () => {
+  it("classifies well-known SaaS remotes", async () => {
     const gitlab = await repoWithRemote("git@gitlab.com:group/project.git");
+    const jihulab = await repoWithRemote("https://jihulab.com/team/app.git");
     const github = await repoWithRemote("https://github.com/org/repo.git");
     await expect(detectGitRemote(gitlab)).resolves.toMatchObject({ host: "gitlab.com", provider: "gitlab" });
+    await expect(detectGitRemote(jihulab)).resolves.toMatchObject({ host: "jihulab.com", provider: "gitlab" });
     await expect(detectGitRemote(github)).resolves.toMatchObject({ host: "github.com", provider: "github" });
   });
 
-  it("classifies configured self-hosted GitLab and ignores missing origins", async () => {
-    vi.stubEnv("GITLAB_ALLOWED_HOSTS", "gitlab.example.com");
+  it("infers GitLab from a self-hosted hostname without operator config", async () => {
     const selfHosted = await repoWithRemote("ssh://git@gitlab.example.com/group/project.git");
+    await expect(detectGitRemote(selfHosted)).resolves.toMatchObject({
+      host: "gitlab.example.com",
+      provider: "gitlab",
+    });
+  });
+
+  it("returns unknown for hosts that give no signal", async () => {
+    const custom = await repoWithRemote("https://git.company.internal/team/app.git");
+    await expect(detectGitRemote(custom)).resolves.toMatchObject({
+      host: "git.company.internal",
+      provider: "unknown",
+    });
+  });
+
+  it("returns undefined for repos without an origin remote", async () => {
     const empty = await mkdtemp(join(tmpdir(), "rimedeck-git-empty-"));
     dirs.push(empty);
     await execFileAsync("git", ["init", empty]);
-    await expect(detectGitRemote(selfHosted)).resolves.toMatchObject({ host: "gitlab.example.com", provider: "gitlab" });
     await expect(detectGitRemote(empty)).resolves.toBeUndefined();
   });
 });

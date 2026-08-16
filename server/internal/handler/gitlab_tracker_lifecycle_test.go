@@ -62,7 +62,7 @@ func TestRotateGitlabTrackerToken_HappyPath(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "lifecycle-rotate")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	before := loadTrackerCiphertext(t, trackerID)
@@ -84,7 +84,7 @@ func TestSyncGitlabTracker_EnqueuesLabelsAndReconcile(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "lifecycle-sync")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	req := lifecycleRequest("POST", "/api/projects/"+project.ID+"/gitlab-trackers/"+trackerID+"/sync", project.ID, trackerID, nil)
@@ -105,7 +105,7 @@ func TestRetryGitlabTrackerFailedOutbox_ResetsFailedRows(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "lifecycle-retry")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	if _, err := testPool.Exec(context.Background(),
@@ -134,7 +134,7 @@ func TestDisableGitlabTracker_MarksDisabledAndDetaches(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "lifecycle-disable")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	req := lifecycleRequest("POST", "/api/projects/"+project.ID+"/gitlab-trackers/"+trackerID+"/disable", project.ID, trackerID, nil)
@@ -153,7 +153,7 @@ func TestDeleteGitlabTrackerMirrors_RequiresConfirmationHeader(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "lifecycle-delete-noheader")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	req := lifecycleRequest("DELETE", "/api/projects/"+project.ID+"/gitlab-trackers/"+trackerID+"/mirrors", project.ID, trackerID, nil)
@@ -174,7 +174,7 @@ func TestDeleteGitlabTrackerMirrors_RefusesWhenOutboxNonTerminal(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "lifecycle-delete-nondrain")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	req := lifecycleRequest("DELETE", "/api/projects/"+project.ID+"/gitlab-trackers/"+trackerID+"/mirrors", project.ID, trackerID, nil)
@@ -196,7 +196,7 @@ func TestDeleteGitlabTrackerMirrors_HappyPath(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "lifecycle-delete-happy")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	// 'succeeded' is the terminal-success state per migration 128 constraint.

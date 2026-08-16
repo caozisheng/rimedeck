@@ -19,7 +19,7 @@ func TestGetGitlabTrackerHealth_ReturnsSafeCounters(t *testing.T) {
 		t.Skip("database not available")
 	}
 	project := projectForCreateTracker(t, "health-happy")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerID := createTrackerHelper(t, project.ID)
 
 	// Seed three outbox rows in the three statuses the panel surfaces.
@@ -72,7 +72,7 @@ func TestGetGitlabTrackerHealth_TrackerFromAnotherProjectRejected(t *testing.T) 
 	}
 	projectA := projectForCreateTracker(t, "health-scope-a")
 	projectB := projectForCreateTracker(t, "health-scope-b")
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	trackerA := createTrackerHelper(t, projectA.ID)
 
 	// Ask projectB for projectA's tracker.

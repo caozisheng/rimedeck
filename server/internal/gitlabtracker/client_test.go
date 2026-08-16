@@ -56,12 +56,11 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// clientFor wires a Client pointing at a stub GitLab, opting the dial
-// guard into loopback so httptest works. Production Config never sets
-// AllowLoopback.
+// clientFor wires a Client pointing at a stub GitLab server. Transport
+// is unfiltered so httptest's loopback bind works without ceremony.
 func clientFor(t *testing.T, base string, token string) *RestClient {
 	t.Helper()
-	transport, err := NewClient(Config{AllowedHosts: []string{AllowLoopbackFlag}, RequestTimeout: 5 * time.Second})
+	transport, err := NewClient(Config{RequestTimeout: 5 * time.Second})
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -264,7 +263,7 @@ func TestListProjectIssues_HonorsStateFilter(t *testing.T) {
 // early rather than sending unauthenticated requests to whoever
 // resolves an empty URL.
 func TestNewRestClientRejectsEmptyBase(t *testing.T) {
-	transport, _ := NewClient(Config{AllowedHosts: []string{AllowLoopbackFlag}})
+	transport, _ := NewClient(Config{})
 	defer func() {
 		if r := recover(); r == nil {
 			// Fallback: NewRestClient may return a nil client rather than panic.

@@ -26,7 +26,7 @@ type webhookFixture struct {
 // every FK/constraint the real flow exercises).
 func installWebhookTracker(t *testing.T) webhookFixture {
 	t.Helper()
-	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
 	project := projectForCreateTracker(t, "webhook-"+t.Name())
 	trackerID := createTrackerHelper(t, project.ID)
 

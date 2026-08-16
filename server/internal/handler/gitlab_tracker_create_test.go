@@ -29,17 +29,13 @@ func memberMemberContext(ctx context.Context) context.Context {
 // cipher) so CreateProjectGitlabTracker can run without env config.
 // Returns the cipher so tests can decrypt token_ciphertext for the
 // "round-trip" assertion.
-func installGitlabCreateStub(t *testing.T, handler http.Handler, allowedHosts []string) *gitlabtracker.Cipher {
+func installGitlabCreateStub(t *testing.T, handler http.Handler) *gitlabtracker.Cipher {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	origFactory := gitlabTrackerClientFactory
-	origHosts := GitlabTrackerAllowedHosts
 	origProvider := GitlabTrackerCipherProvider
-	GitlabTrackerAllowedHosts = func() []string { return allowedHosts }
 	gitlabTrackerClientFactory = func(_, token string) (*gitlabtracker.RestClient, error) {
-		transport, err := gitlabtracker.NewClient(gitlabtracker.Config{
-			AllowedHosts: []string{gitlabtracker.AllowLoopbackFlag},
-		})
+		transport, err := gitlabtracker.NewClient(gitlabtracker.Config{})
 		if err != nil {
 			return nil, err
 		}
@@ -56,7 +52,6 @@ func installGitlabCreateStub(t *testing.T, handler http.Handler, allowedHosts []
 	GitlabTrackerCipherProvider = func() (*gitlabtracker.Cipher, error) { return cipher, nil }
 	t.Cleanup(func() {
 		gitlabTrackerClientFactory = origFactory
-		GitlabTrackerAllowedHosts = origHosts
 		GitlabTrackerCipherProvider = origProvider
 		srv.Close()
 	})
@@ -103,7 +98,7 @@ func TestCreateProjectGitlabTracker_HappyPath(t *testing.T) {
 			"permissions":         map[string]any{"project_access": map[string]any{"access_level": 40}},
 		})
 	})
-	cipher := installGitlabCreateStub(t, handler, []string{"gitlab.example.com"})
+	cipher := installGitlabCreateStub(t, handler)
 
 	project := projectForCreateTracker(t, "tracker-happy")
 
@@ -188,7 +183,7 @@ func TestCreateProjectGitlabTracker_DuplicateReturns409(t *testing.T) {
 			"permissions":         map[string]any{"project_access": map[string]any{"access_level": 40}},
 		})
 	})
-	installGitlabCreateStub(t, handler, []string{"gitlab.example.com"})
+	installGitlabCreateStub(t, handler)
 	project := projectForCreateTracker(t, "tracker-dup")
 	makeReq := func() *http.Request {
 		req := newRequest("POST", "/api/projects/"+project.ID+"/gitlab-trackers?workspace_id="+testWorkspaceID, map[string]any{
@@ -226,7 +221,7 @@ func TestCreateProjectGitlabTracker_MemberRoleRejected(t *testing.T) {
 	}
 	installGitlabCreateStub(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Errorf("member request must not reach GitLab")
-	}), []string{"gitlab.example.com"})
+	}))
 	project := projectForCreateTracker(t, "tracker-role-gate")
 
 	w := httptest.NewRecorder()
@@ -285,7 +280,7 @@ func TestCreateProject_WithBundledGitlabTracker(t *testing.T) {
 			"web_url": "https://gitlab.example.com/bundle/project", "default_branch": "main",
 			"permissions": map[string]any{"project_access": map[string]any{"access_level": 40}},
 		})
-	}), []string{"gitlab.example.com"})
+	}))
 	w := httptest.NewRecorder()
 	req := newRequest("POST", "/api/projects?workspace_id="+testWorkspaceID, map[string]any{
 		"title":           "bundled-gitlab-project",

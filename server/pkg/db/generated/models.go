@@ -361,6 +361,13 @@ type GitlabTrackerConnection struct {
 	CreatedBy               pgtype.UUID        `json:"created_by"`
 	CreatedAt               pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	LastWebhookAt           pgtype.Timestamptz `json:"last_webhook_at"`
+}
+
+type GitlabWebhookEvent struct {
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
+	EventUuid           string             `json:"event_uuid"`
+	ReceivedAt          pgtype.Timestamptz `json:"received_at"`
 }
 
 type InboxItem struct {

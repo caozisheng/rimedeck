@@ -317,7 +317,7 @@ func main() {
 	if cipher, cipherErr := trackerCipherFromEnv(); cipherErr != nil {
 		slog.Warn("GitLab tracker import worker disabled: GITLAB_TRACKER_KEYS is not configured or invalid", "error", cipherErr)
 	} else {
-		trackerTransport, transportErr := gitlabtracker.NewClient(gitlabtracker.Config{AllowedHosts: handler.GitlabTrackerAllowedHosts()})
+		trackerTransport, transportErr := gitlabtracker.NewClient(gitlabtracker.Config{})
 		if transportErr != nil {
 			slog.Warn("GitLab tracker import worker disabled: transport unavailable", "error", transportErr)
 		} else {
