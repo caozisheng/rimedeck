@@ -551,6 +551,7 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,
 	}); err != nil {
+		slog.Error("delete project failed", "project_id", uuidToString(project.ID), "workspace_id", workspaceID, "error", err.Error())
 		writeError(w, http.StatusInternalServerError, "failed to delete project")
 		return
 	}
