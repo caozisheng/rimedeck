@@ -436,3 +436,63 @@ func createOtherTestWorkspace(t *testing.T) string {
 	})
 	return wsID
 }
+
+func TestListLabelsGitlabFilters(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "label-filter-project")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t), []string{"gitlab.example.com"})
+	trackerID := createTrackerHelper(t, project.ID)
+
+	localName := "local-filter-" + trackerID[:8]
+	gitlabName := "remote-filter-" + trackerID[:8]
+	if _, err := testPool.Exec(context.Background(), `
+INSERT INTO issue_label(workspace_id,name,color,source_type)
+VALUES ($1,$2,'#111111','local')`, parseUUID(testWorkspaceID), localName); err != nil {
+		t.Fatalf("seed local label: %v", err)
+	}
+	if _, err := testPool.Exec(context.Background(), `
+INSERT INTO issue_label(workspace_id,name,color,source_type,gitlab_tracker_connection_id,gitlab_label_id)
+VALUES ($1,$2,'#222222','gitlab',$3,991)`, parseUUID(testWorkspaceID), gitlabName, parseUUID(trackerID)); err != nil {
+		t.Fatalf("seed gitlab label: %v", err)
+	}
+
+	call := func(query string) []LabelResponse {
+		t.Helper()
+		req := newRequest("GET", "/api/labels?workspace_id="+testWorkspaceID+query, nil)
+		w := httptest.NewRecorder()
+		testHandler.ListLabels(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("ListLabels(%q): %d %s", query, w.Code, w.Body.String())
+		}
+		var body struct {
+			Labels []LabelResponse `json:"labels"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		return body.Labels
+	}
+	contains := func(labels []LabelResponse, name string) bool {
+		for _, label := range labels {
+			if label.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+
+	if labels := call(""); !contains(labels, localName) || contains(labels, gitlabName) {
+		t.Fatalf("unfiltered labels must include local and exclude gitlab: %+v", labels)
+	}
+	if labels := call("&project_id=" + project.ID); !contains(labels, localName) || !contains(labels, gitlabName) {
+		t.Fatalf("project labels must include local + active tracker labels: %+v", labels)
+	}
+	if labels := call("&source=gitlab&tracker_id=" + trackerID); contains(labels, localName) || !contains(labels, gitlabName) {
+		t.Fatalf("tracker filter must return only that tracker labels: %+v", labels)
+	}
+	if labels := call("&source=local"); !contains(labels, localName) || contains(labels, gitlabName) {
+		t.Fatalf("source=local must exclude gitlab: %+v", labels)
+	}
+}

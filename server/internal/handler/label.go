@@ -102,7 +102,47 @@ func validateLabelName(raw string) (string, error) {
 
 func (h *Handler) ListLabels(w http.ResponseWriter, r *http.Request) {
 	workspaceID := h.resolveWorkspaceID(r)
-	labels, err := h.Queries.ListLabels(r.Context(), parseUUID(workspaceID))
+	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace id")
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	source := strings.TrimSpace(query.Get("source"))
+	projectRaw := strings.TrimSpace(query.Get("project_id"))
+	trackerRaw := strings.TrimSpace(query.Get("tracker_id"))
+	if source != "" && source != "local" && source != "gitlab" {
+		writeError(w, http.StatusBadRequest, "source must be local or gitlab")
+		return
+	}
+	if source == "local" && trackerRaw != "" {
+		writeError(w, http.StatusBadRequest, "tracker_id cannot be combined with source=local")
+		return
+	}
+	var labels []db.IssueLabel
+	var err error
+	if source == "" && projectRaw == "" && trackerRaw == "" {
+		labels, err = h.Queries.ListLabels(r.Context(), wsUUID)
+	} else {
+		var projectID, trackerID pgtype.UUID
+		if projectRaw != "" {
+			projectID, ok = parseUUIDOrBadRequest(w, projectRaw, "project_id")
+			if !ok {
+				return
+			}
+		}
+		if trackerRaw != "" {
+			trackerID, ok = parseUUIDOrBadRequest(w, trackerRaw, "tracker_id")
+			if !ok {
+				return
+			}
+		}
+		labels, err = h.Queries.ListLabelsFiltered(r.Context(), db.ListLabelsFilteredParams{
+			WorkspaceID: wsUUID,
+			Source:      pgtype.Text{String: source, Valid: source != ""},
+			TrackerID:   trackerID,
+			ProjectID:   projectID,
+		})
+	}
 	if err != nil {
 		slog.Warn("ListLabels failed", append(logger.RequestAttrs(r), "error", err)...)
 		writeError(w, http.StatusInternalServerError, "failed to list labels")

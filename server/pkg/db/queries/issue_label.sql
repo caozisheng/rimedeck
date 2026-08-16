@@ -1,7 +1,27 @@
 -- name: ListLabels :many
 SELECT * FROM issue_label
-WHERE workspace_id = $1
+WHERE workspace_id = $1 AND source_type = 'local'
 ORDER BY LOWER(name) ASC;
+
+-- name: ListLabelsFiltered :many
+SELECT l.* FROM issue_label l
+LEFT JOIN gitlab_tracker_connection c
+  ON c.id = l.gitlab_tracker_connection_id
+WHERE l.workspace_id = sqlc.arg('workspace_id')::uuid
+  AND (
+    sqlc.narg('source')::text IS NULL
+    OR l.source_type = sqlc.narg('source')::text
+  )
+  AND (
+    sqlc.narg('tracker_id')::uuid IS NULL
+    OR l.gitlab_tracker_connection_id = sqlc.narg('tracker_id')::uuid
+  )
+  AND (
+    sqlc.narg('project_id')::uuid IS NULL
+    OR l.source_type = 'local'
+    OR (c.project_id = sqlc.narg('project_id')::uuid AND c.state <> 'disabled')
+  )
+ORDER BY LOWER(l.name) ASC;
 
 -- name: GetLabel :one
 SELECT * FROM issue_label

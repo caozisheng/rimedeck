@@ -147,7 +147,7 @@ func (q *Queries) GetLabel(ctx context.Context, arg GetLabelParams) (IssueLabel,
 
 const listLabels = `-- name: ListLabels :many
 SELECT id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived FROM issue_label
-WHERE workspace_id = $1
+WHERE workspace_id = $1 AND source_type = 'local'
 ORDER BY LOWER(name) ASC
 `
 
@@ -201,6 +201,71 @@ type ListLabelsByIssueParams struct {
 // that passes the wrong workspace gets an empty list rather than leaking labels.
 func (q *Queries) ListLabelsByIssue(ctx context.Context, arg ListLabelsByIssueParams) ([]IssueLabel, error) {
 	rows, err := q.db.Query(ctx, listLabelsByIssue, arg.IssueID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueLabel{}
+	for rows.Next() {
+		var i IssueLabel
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Color,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SourceType,
+			&i.GitlabTrackerConnectionID,
+			&i.GitlabLabelID,
+			&i.IsProjectLabel,
+			&i.IsArchived,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLabelsFiltered = `-- name: ListLabelsFiltered :many
+SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived FROM issue_label l
+LEFT JOIN gitlab_tracker_connection c
+  ON c.id = l.gitlab_tracker_connection_id
+WHERE l.workspace_id = $1::uuid
+  AND (
+    $2::text IS NULL
+    OR l.source_type = $2::text
+  )
+  AND (
+    $3::uuid IS NULL
+    OR l.gitlab_tracker_connection_id = $3::uuid
+  )
+  AND (
+    $4::uuid IS NULL
+    OR l.source_type = 'local'
+    OR (c.project_id = $4::uuid AND c.state <> 'disabled')
+  )
+ORDER BY LOWER(l.name) ASC
+`
+
+type ListLabelsFilteredParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Source      pgtype.Text `json:"source"`
+	TrackerID   pgtype.UUID `json:"tracker_id"`
+	ProjectID   pgtype.UUID `json:"project_id"`
+}
+
+func (q *Queries) ListLabelsFiltered(ctx context.Context, arg ListLabelsFilteredParams) ([]IssueLabel, error) {
+	rows, err := q.db.Query(ctx, listLabelsFiltered,
+		arg.WorkspaceID,
+		arg.Source,
+		arg.TrackerID,
+		arg.ProjectID,
+	)
 	if err != nil {
 		return nil, err
 	}
