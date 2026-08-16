@@ -51,21 +51,30 @@ type Queries interface {
 	MarkTrackerOutboxRetry(ctx context.Context, arg db.MarkTrackerOutboxRetryParams) error
 	MarkTrackerOutboxFailed(ctx context.Context, arg db.MarkTrackerOutboxFailedParams) error
 	TouchTrackerLastPull(ctx context.Context, id pgtype.UUID) error
+	GetIssue(ctx context.Context, id pgtype.UUID) (db.Issue, error)
+	GetGitlabIssueLinkByIssueID(ctx context.Context, issueID pgtype.UUID) (db.GitlabIssueLink, error)
+	CancelTrackerOutboxByIssue(ctx context.Context, issueID pgtype.UUID) error
+	DeleteIssue(ctx context.Context, arg db.DeleteIssueParams) error
 }
 
+// TxStarter is the transaction surface the sync worker forwards to
+// gitlabtracker.ApplyCanonicalIssue and friends. Kept small so tests
+// can plug a fake without spinning a real pgx pool.
 type TxStarter interface {
-	Begin(context.Context) (pgx.Tx, error)
+	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
 // Worker binds every dependency once; call Tick per interval.
 type Worker struct {
-	Queries       Queries
-	TxStarter     TxStarter
-	Cipher        *gitlabtracker.Cipher
-	ClientFactory ClientFactory
-	BatchSize     int32
-	LabelImporter func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error
-	IssueImporter func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error
+	Queries             Queries
+	TxStarter           TxStarter
+	Cipher              *gitlabtracker.Cipher
+	ClientFactory       ClientFactory
+	BatchSize           int32
+	LabelImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error
+	IssueImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error
+	CreateIssueImporter func(context.Context, db.GitlabTrackerConnection, db.Issue, gitlabtracker.Issue) error
+	CanonicalApplier    func(context.Context, db.GitlabTrackerConnection, pgtype.UUID, gitlabtracker.Issue) error
 }
 
 // TickResult summarises one drain pass. Zero counts mean the queue was
@@ -160,16 +169,30 @@ func (w *Worker) processRow(ctx context.Context, row db.TrackerSyncOutbox) outco
 		if err := w.handlePullLabels(ctx, client, tracker); err != nil {
 			return w.classifyError(ctx, row, err)
 		}
-	case "reconcile":
+	case "reconcile", "pull_issue":
 		if err := w.handleReconcile(ctx, client, tracker); err != nil {
 			return w.classifyError(ctx, row, err)
 		}
+	case "create_issue":
+		if err := w.handleCreateIssue(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
+	case "update_issue":
+		if err := w.handleUpdateIssue(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
+	case "set_labels":
+		if err := w.handleSetLabels(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
+	case "delete_issue":
+		if err := w.handleDeleteIssue(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
 	default:
-		// Phase 3 write ops land here — succeed as a no-op so they
-		// don't back the queue up in the meantime. This is
-		// deliberately visible via TickResult.Skipped once we teach
-		// the worker to distinguish, but for Phase 2 we mark
-		// successful so operators don't see false alarms.
+		// Unknown operation — mark succeeded so an accidentally-enqueued
+		// row cannot pin the queue indefinitely. Real ops all live in a
+		// case above, so this is only a defensive terminal branch.
 		_ = w.Queries.MarkTrackerOutboxSucceeded(ctx, row.ID)
 		return outcomeSuccess
 	}
@@ -239,6 +262,116 @@ func (w *Worker) classifyError(ctx context.Context, row db.TrackerSyncOutbox, er
 	default:
 		return w.backoff(ctx, row, "remote_error", err.Error())
 	}
+}
+
+// handleCreateIssue posts the local pending issue to GitLab and links
+// the returned iid. Payload is the JSON body the handler enqueued; we
+// re-read the local row so title/description/labels reflect any edits
+// the user applied while the row waited in the queue.
+func (w *Worker) handleCreateIssue(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	issue, err := w.Queries.GetIssue(ctx, row.IssueID)
+	if err != nil {
+		return fmt.Errorf("load issue for create: %w", err)
+	}
+	req := gitlabtracker.CreateIssueRequest{
+		Title:       issue.Title,
+		Description: issue.Description.String,
+	}
+	remote, err := client.CreateIssue(ctx, tracker.RemoteProjectID, req)
+	if err != nil {
+		return err
+	}
+	if w.CreateIssueImporter != nil {
+		return w.CreateIssueImporter(ctx, tracker, issue, remote)
+	}
+	if w.TxStarter == nil {
+		return errors.New("gitlabtracker: importer transaction starter is not configured")
+	}
+	return gitlabtracker.CreateGitlabIssueLinkTx(ctx, tracker, issue.ID, remote, w.TxStarter)
+}
+
+// handleUpdateIssue applies the payload fields against the remote issue
+// and canonical-pulls the response. The payload was minted at enqueue
+// time from the fields the user actually touched.
+func (w *Worker) handleUpdateIssue(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	link, err := w.Queries.GetGitlabIssueLinkByIssueID(ctx, row.IssueID)
+	if err != nil {
+		return fmt.Errorf("load link for update: %w", err)
+	}
+	var payload struct {
+		Title       *string `json:"title"`
+		Description *string `json:"description"`
+		DueDate     *string `json:"due_date"`
+		StateEvent  *string `json:"state_event"`
+	}
+	if err := json.Unmarshal(row.Payload, &payload); err != nil {
+		return fmt.Errorf("decode update payload: %w", err)
+	}
+	req := gitlabtracker.UpdateIssueRequest{
+		Title:       payload.Title,
+		Description: payload.Description,
+		DueDate:     payload.DueDate,
+		StateEvent:  payload.StateEvent,
+	}
+	remote, err := client.UpdateIssue(ctx, tracker.RemoteProjectID, link.RemoteIid, req)
+	if err != nil {
+		return err
+	}
+	if w.CanonicalApplier != nil {
+		return w.CanonicalApplier(ctx, tracker, row.IssueID, remote)
+	}
+	if w.TxStarter == nil {
+		return errors.New("gitlabtracker: importer transaction starter is not configured")
+	}
+	return gitlabtracker.ApplyCanonicalIssue(ctx, tracker, row.IssueID, remote, w.TxStarter)
+}
+
+// handleSetLabels replaces the full remote label set with the payload's
+// list, then canonical-pulls (labels + metadata).
+func (w *Worker) handleSetLabels(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	link, err := w.Queries.GetGitlabIssueLinkByIssueID(ctx, row.IssueID)
+	if err != nil {
+		return fmt.Errorf("load link for set_labels: %w", err)
+	}
+	var payload struct {
+		Labels []string `json:"labels"`
+	}
+	if err := json.Unmarshal(row.Payload, &payload); err != nil {
+		return fmt.Errorf("decode set_labels payload: %w", err)
+	}
+	remote, err := client.SetLabels(ctx, tracker.RemoteProjectID, link.RemoteIid, payload.Labels)
+	if err != nil {
+		return err
+	}
+	if w.CanonicalApplier != nil {
+		return w.CanonicalApplier(ctx, tracker, row.IssueID, remote)
+	}
+	if w.TxStarter == nil {
+		return errors.New("gitlabtracker: importer transaction starter is not configured")
+	}
+	return gitlabtracker.ApplyCanonicalIssue(ctx, tracker, row.IssueID, remote, w.TxStarter)
+}
+
+// handleDeleteIssue removes the remote issue then the local mirror. 404
+// is treated as success by the REST client so a manual GitLab delete
+// racing our worker still lets local cleanup run once. Local delete
+// cascades gitlab_issue_link and remaining outbox rows via FK.
+func (w *Worker) handleDeleteIssue(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	link, err := w.Queries.GetGitlabIssueLinkByIssueID(ctx, row.IssueID)
+	if err != nil {
+		return fmt.Errorf("load link for delete: %w", err)
+	}
+	if err := client.DeleteIssue(ctx, tracker.RemoteProjectID, link.RemoteIid); err != nil {
+		return err
+	}
+	// Cancel any queued follow-up ops on this issue before removing the
+	// local row so their FK cascade doesn't fire mid-delete.
+	_ = w.Queries.CancelTrackerOutboxByIssue(ctx, row.IssueID)
+	issue, err := w.Queries.GetIssue(ctx, row.IssueID)
+	if err != nil {
+		return fmt.Errorf("load issue for delete: %w", err)
+	}
+	return w.Queries.DeleteIssue(ctx, db.DeleteIssueParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID})
 }
 
 // backoff writes the row back as `retrying` with an exponential

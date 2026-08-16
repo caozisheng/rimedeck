@@ -191,3 +191,84 @@ func pgText(value string) pgtype.Text { return pgtype.Text{String: value, Valid:
 // Keep strconv linked for old GitLab installations returning numeric dates
 // in JSON snapshots; the importer intentionally stores the raw snapshot.
 var _ = strconv.Itoa
+
+// ApplyCanonicalIssue writes a fresh remote snapshot to the local mirror,
+// honoring the revision guard from design §8.4: if the user's local
+// sync_revision has moved past synced_revision (they made an edit that
+// hasn't been pushed yet), the canonical response only updates
+// last_remote_snapshot and remote metadata; local text stays.
+//
+// Otherwise (revision equal), the canonical response overwrites title /
+// description / status and bumps synced_revision to sync_revision so
+// both sides converge. Label sync is included so post-write label
+// changes on GitLab race back into the mirror correctly.
+//
+// Runs in its own transaction — callers hand it a TxStarter, not a
+// pgx.Tx, so it composes with the outbox worker's per-op unit of work.
+func ApplyCanonicalIssue(ctx context.Context, conn db.GitlabTrackerConnection, issueID pgtype.UUID, remote Issue, txStarter TxStarter) error {
+	tx, err := txStarter.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin canonical apply: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	snapshot, _ := json.Marshal(remote)
+	updatedAt := parseRemoteTime(remote.UpdatedAt)
+	// The UPDATE is guarded by sync_revision=synced_revision. If a user
+	// snuck an edit in between the worker's REST call and this commit,
+	// zero rows update — that's the design's "leave local alone" branch.
+	if _, err := tx.Exec(ctx, `
+UPDATE issue SET title=$2, description=$3, status=$4, sync_state='synced',
+ synced_revision=sync_revision, updated_at=now()
+WHERE id=$1 AND source_type='gitlab' AND sync_revision=synced_revision`,
+		issueID, remote.Title, remote.Description, issueStatus(remote.State)); err != nil {
+		return fmt.Errorf("update issue canonical: %w", err)
+	}
+	// Link row is updated regardless — remote metadata is authoritative
+	// even when local text stays put.
+	if _, err := tx.Exec(ctx, `
+UPDATE gitlab_issue_link SET remote_issue_id=$3, remote_web_url=$4,
+ remote_state=$5, remote_updated_at=$6, remote_author_name=$7,
+ remote_author_url=$8, last_remote_snapshot=$9, last_pulled_at=now()
+WHERE issue_id=$1 AND tracker_connection_id=$2`,
+		issueID, conn.ID, remote.ID, remote.WebURL, normalizeState(remote.State), updatedAt,
+		pgText(remote.Author.Name), pgText(remote.Author.URL), snapshot); err != nil {
+		return fmt.Errorf("update link canonical: %w", err)
+	}
+	if err := syncIssueLabels(ctx, tx, issueID, conn, remote.Labels); err != nil {
+		return fmt.Errorf("sync canonical labels: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
+// CreateGitlabIssueLinkTx inserts the (issue, remote_iid) mapping in one
+// tx and applies the canonical snapshot right after. Used by the worker's
+// create_issue handler: the local row already exists in `pending` state
+// with sync_revision=1; after GitLab returns, we bind the iid and let
+// ApplyCanonicalIssue converge title/description/labels.
+func CreateGitlabIssueLinkTx(ctx context.Context, conn db.GitlabTrackerConnection, issueID pgtype.UUID, remote Issue, txStarter TxStarter) error {
+	tx, err := txStarter.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin link create: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	snapshot, _ := json.Marshal(remote)
+	updatedAt := parseRemoteTime(remote.UpdatedAt)
+	if _, err := tx.Exec(ctx, `
+INSERT INTO gitlab_issue_link (
+ issue_id, tracker_connection_id, remote_issue_id, remote_iid, remote_web_url,
+ remote_state, remote_updated_at, remote_author_name, remote_author_url,
+ last_remote_snapshot, last_pulled_at, last_pushed_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now(),now())
+ON CONFLICT (tracker_connection_id, remote_iid) DO NOTHING`,
+		issueID, conn.ID, remote.ID, remote.IID, remote.WebURL, normalizeState(remote.State), updatedAt,
+		pgText(remote.Author.Name), pgText(remote.Author.URL), snapshot); err != nil {
+		return fmt.Errorf("insert link: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit link create: %w", err)
+	}
+	// Second tx: apply canonical (labels + text). Split from the link
+	// insert so ApplyCanonicalIssue's guard runs against the just-
+	// committed sync_revision value.
+	return ApplyCanonicalIssue(ctx, conn, issueID, remote, txStarter)
+}

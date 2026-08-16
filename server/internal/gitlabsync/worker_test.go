@@ -22,6 +22,10 @@ type fakeQueries struct {
 	failures []db.MarkTrackerOutboxFailedParams
 	touched  []pgtype.UUID
 	getErr   error
+	issues   map[string]db.Issue
+	links    map[string]db.GitlabIssueLink
+	deleted  []pgtype.UUID
+	canceled []pgtype.UUID
 }
 
 func (f *fakeQueries) ClaimReadyTrackerOutbox(context.Context, int32) ([]db.TrackerSyncOutbox, error) {
@@ -42,6 +46,22 @@ func (f *fakeQueries) MarkTrackerOutboxRetry(_ context.Context, arg db.MarkTrack
 }
 func (f *fakeQueries) MarkTrackerOutboxFailed(_ context.Context, arg db.MarkTrackerOutboxFailedParams) error {
 	f.failures = append(f.failures, arg)
+	return nil
+}
+func (f *fakeQueries) GetIssue(_ context.Context, id pgtype.UUID) (db.Issue, error) {
+	if issue, ok := f.issues[string(id.Bytes[:])]; ok { return issue, nil }
+	return db.Issue{}, errors.New("issue not found")
+}
+func (f *fakeQueries) GetGitlabIssueLinkByIssueID(_ context.Context, id pgtype.UUID) (db.GitlabIssueLink, error) {
+	if link, ok := f.links[string(id.Bytes[:])]; ok { return link, nil }
+	return db.GitlabIssueLink{}, errors.New("link not found")
+}
+func (f *fakeQueries) CancelTrackerOutboxByIssue(_ context.Context, id pgtype.UUID) error {
+	f.canceled = append(f.canceled, id)
+	return nil
+}
+func (f *fakeQueries) DeleteIssue(_ context.Context, arg db.DeleteIssueParams) error {
+	f.deleted = append(f.deleted, arg.ID)
 	return nil
 }
 func (f *fakeQueries) TouchTrackerLastPull(_ context.Context, id pgtype.UUID) error {
