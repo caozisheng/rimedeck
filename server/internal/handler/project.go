@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -71,14 +72,15 @@ func (h *Handler) loadProjectResourceCount(ctx context.Context, projectID pgtype
 }
 
 type CreateProjectRequest struct {
-	Title       string                                `json:"title"`
-	Description *string                               `json:"description"`
-	Icon        *string                               `json:"icon"`
-	Status      string                                `json:"status"`
-	Priority    string                                `json:"priority"`
-	LeadType    *string                               `json:"lead_type"`
-	LeadID      *string                               `json:"lead_id"`
-	Resources   []CreateProjectResourceRequestPayload `json:"resources,omitempty"`
+	Title          string                                `json:"title"`
+	Description    *string                               `json:"description"`
+	Icon           *string                               `json:"icon"`
+	Status         string                                `json:"status"`
+	Priority       string                                `json:"priority"`
+	LeadType       *string                               `json:"lead_type"`
+	LeadID         *string                               `json:"lead_id"`
+	Resources      []CreateProjectResourceRequestPayload `json:"resources,omitempty"`
+	GitlabTrackers []CreateProjectGitlabTrackerRequest   `json:"gitlab_trackers,omitempty"`
 }
 
 // CreateProjectResourceRequestPayload mirrors CreateProjectResourceRequest but
@@ -310,13 +312,24 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		LeadID:      leadID,
 		Priority:    priority,
 	}
-
 	// Without resources, keep the simple non-tx path.
 	if len(req.Resources) == 0 {
 		project, err := h.Queries.CreateProject(r.Context(), createParams)
 		if err != nil {
 			h.writeProjectWriteError(w, r, err, "create")
 			return
+		}
+		creator, _ := h.parseUserUUIDOrZero(userID)
+		for i, trackerReq := range req.GitlabTrackers {
+			if _, err := h.createGitlabTracker(r.Context(), project, wsUUID, creator, trackerReq); err != nil {
+				var structured *gitlabTrackerCreateError
+				if errors.As(err, &structured) {
+					writeJSON(w, structured.status, map[string]any{"code": structured.code, "error": structured.message, "field": fmt.Sprintf("gitlab_trackers[%d]", i), "project_id": uuidToString(project.ID)})
+				} else {
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to attach GitLab tracker", "field": fmt.Sprintf("gitlab_trackers[%d]", i), "project_id": uuidToString(project.ID)})
+				}
+				return
+			}
 		}
 		resp := projectToResponse(project)
 		h.publish(protocol.EventProjectCreated, workspaceID, "member", userID, map[string]any{"project": resp})
@@ -372,6 +385,18 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	if err := tx.Commit(r.Context()); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to commit project create")
 		return
+	}
+	creator, _ = h.parseUserUUIDOrZero(userID)
+	for i, trackerReq := range req.GitlabTrackers {
+		if _, err := h.createGitlabTracker(r.Context(), project, wsUUID, creator, trackerReq); err != nil {
+			var structured *gitlabTrackerCreateError
+			if errors.As(err, &structured) {
+				writeJSON(w, structured.status, map[string]any{"code": structured.code, "error": structured.message, "field": fmt.Sprintf("gitlab_trackers[%d]", i), "project_id": uuidToString(project.ID)})
+			} else {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "failed to attach GitLab tracker", "field": fmt.Sprintf("gitlab_trackers[%d]", i), "project_id": uuidToString(project.ID)})
+			}
+			return
+		}
 	}
 
 	resourceResp := make([]ProjectResourceResponse, len(resourceRows))

@@ -30,6 +30,7 @@ export interface CreateProjectRequest {
   // Resources to attach in the same transaction as the project. Server returns
   // 4xx (and rolls back) if any one is invalid or duplicate.
   resources?: CreateProjectResourceRequest[];
+  gitlab_trackers?: Array<{ repository_url: string; access_token: string }>;
 }
 
 export interface UpdateProjectRequest {
@@ -55,9 +56,14 @@ export interface ListProjectsResponse {
 //   - github_repo: cloud-side git checkout, ref = { url, default_branch_hint? }
 //   - local_directory: in-place agent execution on a specific daemon,
 //     ref = { local_path, daemon_id, label? }
-export type ProjectResourceType = "github_repo" | "local_directory";
+export type ProjectResourceType = "github_repo" | "gitlab_repo" | "local_directory";
 
 export interface GithubRepoResourceRef {
+  url: string;
+  default_branch_hint?: string;
+}
+
+export interface GitlabRepoResourceRef {
   url: string;
   default_branch_hint?: string;
 }
@@ -70,6 +76,7 @@ export interface LocalDirectoryResourceRef {
 
 export type ProjectResourceRef =
   | GithubRepoResourceRef
+  | GitlabRepoResourceRef
   | LocalDirectoryResourceRef
   | Record<string, unknown>;
 

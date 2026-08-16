@@ -11,6 +11,7 @@ const webRepoUrl = "https://github.com/multica-ai/web";
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: [] }),
+  useMutation: () => ({ mutateAsync: vi.fn(), reset: vi.fn(), isPending: false, isError: false }),
 }));
 
 vi.mock("@rimedeck/core/projects/mutations", () => ({

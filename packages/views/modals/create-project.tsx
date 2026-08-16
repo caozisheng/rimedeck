@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { ChevronRight, FolderOpen, Maximize2, Minimize2, Search, X as XIcon, UserMinus } from "lucide-react";
+import { ChevronRight, FolderOpen, GitBranch, Maximize2, Minimize2, Search, X as XIcon, UserMinus } from "lucide-react";
 
 /**
  * GitHub mark — lucide-react v1 dropped brand icons, so we inline the
@@ -23,6 +23,8 @@ function GithubIcon({ className }: { className?: string }) {
 }
 import { useQuery } from "@tanstack/react-query";
 import { useCreateProject } from "@rimedeck/core/projects/mutations";
+import { useValidateGitlabTracker } from "@rimedeck/core";
+import type { ValidateGitlabTrackerResponse } from "@rimedeck/core/types";
 import { useProjectDraftStore } from "@rimedeck/core/projects";
 import {
   PROJECT_STATUS_CONFIG,
@@ -150,23 +152,29 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
     repo.url.toLowerCase().includes(repoQuery),
   );
 
-  // A project's source is binary: either a set of GitHub repos OR a local
-  // working directory — never both. Mode is the source of truth for what
-  // gets persisted on submit; switching mode does NOT clear the other
-  // side's stash, so toggling back and forth restores the user's prior
-  // selection. Only the mode-matching side is sent to the API. Local mode
-  // is hidden entirely on web (no daemon to bind the path to).
+  // Source mode determines the one code resource persisted with the project.
+  // GitLab mode also attaches an issue tracker after successful validation.
   const desktop = isDesktopShell();
   const daemonStatus = useLocalDaemonStatus();
-  const [sourceMode, setSourceMode] = useState<"repos" | "local">("repos");
+  const [sourceMode, setSourceMode] = useState<"repos" | "local" | "gitlab">("repos");
   const [selectedLocalPath, setSelectedLocalPath] = useState<string | null>(null);
   const [selectedLocalLabel, setSelectedLocalLabel] = useState<string | null>(null);
   const [localPickError, setLocalPickError] = useState<string | null>(null);
   const [localPicking, setLocalPicking] = useState(false);
+  const [gitlabUrl, setGitlabUrl] = useState("");
+  const [gitlabToken, setGitlabToken] = useState("");
+  const [validatedGitlab, setValidatedGitlab] = useState<ValidateGitlabTrackerResponse | null>(null);
+  const validateGitlab = useValidateGitlabTracker();
 
-  const handleSourceModeChange = (mode: "repos" | "local") => {
+  const handleSourceModeChange = (mode: "repos" | "local" | "gitlab") => {
     setSourceMode(mode);
     setLocalPickError(null);
+  };
+
+  const handleValidateGitlab = async () => {
+    setValidatedGitlab(null);
+    const result = await validateGitlab.mutateAsync({ repository_url: gitlabUrl.trim(), access_token: gitlabToken.trim() });
+    setValidatedGitlab(result);
   };
 
   const handlePickLocalDirectory = async () => {
@@ -233,28 +241,24 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
     // side is silently dropped, so repos picked then abandoned for local
     // mode don't leak into the project.
     let resources:
-      | Array<{ resource_type: "github_repo" | "local_directory"; resource_ref: Record<string, unknown> }>
+      | Array<{ resource_type: "github_repo" | "gitlab_repo" | "local_directory"; resource_ref: Record<string, unknown> }>
       | undefined;
     if (sourceMode === "repos" && selectedRepos.length > 0) {
-      resources = selectedRepos.map((url) => ({
-        resource_type: "github_repo" as const,
-        resource_ref: { url },
-      }));
-    } else if (
-      sourceMode === "local" &&
-      selectedLocalPath &&
-      daemonStatus.daemonId
-    ) {
-      resources = [
-        {
-          resource_type: "local_directory" as const,
-          resource_ref: {
-            local_path: selectedLocalPath,
-            daemon_id: daemonStatus.daemonId,
-            ...(selectedLocalLabel ? { label: selectedLocalLabel } : {}),
-          },
+      resources = selectedRepos.map((url) => ({ resource_type: "github_repo" as const, resource_ref: { url } }));
+    } else if (sourceMode === "gitlab" && validatedGitlab) {
+      resources = [{
+        resource_type: "gitlab_repo" as const,
+        resource_ref: { url: gitlabUrl.trim(), default_branch_hint: validatedGitlab.default_branch },
+      }];
+    } else if (sourceMode === "local" && selectedLocalPath && daemonStatus.daemonId) {
+      resources = [{
+        resource_type: "local_directory" as const,
+        resource_ref: {
+          local_path: selectedLocalPath,
+          daemon_id: daemonStatus.daemonId,
+          ...(selectedLocalLabel ? { label: selectedLocalLabel } : {}),
         },
-      ];
+      }];
     }
     setSubmitting(true);
     try {
@@ -268,6 +272,9 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
         lead_id: leadId,
         // Server attaches these in the same transaction as the project.
         resources,
+		gitlab_trackers: sourceMode === "gitlab" && validatedGitlab
+			? [{ repository_url: gitlabUrl.trim(), access_token: gitlabToken.trim() }]
+			: undefined,
       });
       clearDraft();
       onClose();
@@ -549,60 +556,21 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
               render={
                 <PillButton>
                   {sourceMode === "local" ? (
-                    <>
-                      <FolderOpen className="size-3" />
-                      <span className="max-w-[12rem] truncate">
-                        {selectedLocalPath
-                          ? selectedLocalLabel ?? selectedLocalPath
-                          : t(($) => $.create_project.source_pill_local)}
-                      </span>
-                    </>
+                    <><FolderOpen className="size-3" /><span className="max-w-[12rem] truncate">{selectedLocalPath ? selectedLocalLabel ?? selectedLocalPath : t(($) => $.create_project.source_pill_local)}</span></>
+                  ) : sourceMode === "gitlab" ? (
+                    <><GitBranch className="size-3" /><span className="max-w-[12rem] truncate">{validatedGitlab?.path_with_namespace ?? t(($) => $.create_project.source_tab_gitlab)}</span></>
                   ) : (
-                    <>
-                      <GithubIcon className="size-3" />
-                      <span>
-                        {selectedRepos.length === 0
-                          ? t(($) => $.create_project.repos_pill)
-                          : t(($) => $.create_project.repos_pill_count, { count: selectedRepos.length })}
-                      </span>
-                    </>
+                    <><GithubIcon className="size-3" /><span>{selectedRepos.length === 0 ? t(($) => $.create_project.repos_pill) : t(($) => $.create_project.repos_pill_count, { count: selectedRepos.length })}</span></>
                   )}
                 </PillButton>
               }
             />
             <PopoverContent side="top" align="start" className="w-72 p-2 space-y-2">
-              {/* Source mode is binary — repo OR local directory, never both.
-                  Local option is desktop-only because a local_directory
-                  resource has to be pinned to a daemon_id, which doesn't
-                  exist on the web. */}
-              {desktop && (
-                <div className="grid grid-cols-2 gap-1 rounded-md bg-muted/60 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSourceModeChange("repos")}
-                    className={cn(
-                      "rounded px-2 py-1 text-xs transition-colors",
-                      sourceMode === "repos"
-                        ? "bg-background shadow-sm font-medium"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {t(($) => $.create_project.source_tab_repos)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSourceModeChange("local")}
-                    className={cn(
-                      "rounded px-2 py-1 text-xs transition-colors",
-                      sourceMode === "local"
-                        ? "bg-background shadow-sm font-medium"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {t(($) => $.create_project.source_tab_local)}
-                  </button>
-                </div>
-              )}
+              <div className={cn("grid gap-1 rounded-md bg-muted/60 p-0.5", desktop ? "grid-cols-3" : "grid-cols-2")}>
+                <button type="button" onClick={() => handleSourceModeChange("repos")} className={cn("rounded px-2 py-1 text-xs transition-colors", sourceMode === "repos" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}>{t(($) => $.create_project.source_tab_repos)}</button>
+                <button type="button" onClick={() => handleSourceModeChange("gitlab")} className={cn("rounded px-2 py-1 text-xs transition-colors", sourceMode === "gitlab" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}>{t(($) => $.create_project.source_tab_gitlab)}</button>
+                {desktop && <button type="button" onClick={() => handleSourceModeChange("local")} className={cn("rounded px-2 py-1 text-xs transition-colors", sourceMode === "local" ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}>{t(($) => $.create_project.source_tab_local)}</button>}
+              </div>
 
               {sourceMode === "repos" ? (
                 <>
@@ -706,6 +674,35 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                     </div>
                   )}
                 </>
+              ) : sourceMode === "gitlab" ? (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-muted-foreground">{t(($) => $.create_project.gitlab_heading)}</div>
+                  <input
+                    type="url"
+                    value={gitlabUrl}
+                    onChange={(e) => { setGitlabUrl(e.target.value); setValidatedGitlab(null); validateGitlab.reset(); }}
+                    placeholder={t(($) => $.create_project.gitlab_url_placeholder)}
+                    className="h-8 w-full rounded-md border bg-transparent px-2 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <input
+                    type="password"
+                    value={gitlabToken}
+                    onChange={(e) => { setGitlabToken(e.target.value); setValidatedGitlab(null); validateGitlab.reset(); }}
+                    placeholder={t(($) => $.create_project.gitlab_token_placeholder)}
+                    className="h-8 w-full rounded-md border bg-transparent px-2 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <Button type="button" size="sm" variant="outline" className="h-7 w-full text-xs" onClick={() => void handleValidateGitlab()} disabled={!gitlabUrl.trim() || !gitlabToken.trim() || validateGitlab.isPending}>
+                    {validateGitlab.isPending ? t(($) => $.create_project.gitlab_validating) : t(($) => $.create_project.gitlab_validate)}
+                  </Button>
+                  {validateGitlab.isError && <p className="text-[11px] text-destructive">{validateGitlab.error.message}</p>}
+                  {validatedGitlab && (
+                    <div className="rounded-md border px-2.5 py-2 text-xs">
+                      <div className="flex items-center gap-2 font-medium"><GitBranch className="size-3.5" />{validatedGitlab.path_with_namespace}</div>
+                      <div className="mt-1 text-[10px] text-muted-foreground">{validatedGitlab.host} · {validatedGitlab.default_branch || "default"}</div>
+                      {!validatedGitlab.permissions.can_write_issues && <div className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">{t(($) => $.create_project.gitlab_read_only)}</div>}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <>
                   <div className="text-xs font-medium text-muted-foreground">
@@ -791,7 +788,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
           <Button
             size="sm"
             onClick={handleSubmit}
-            disabled={!title.trim() || submitting}
+            disabled={!title.trim() || submitting || (sourceMode === "gitlab" && !validatedGitlab)}
             className="shrink-0"
           >
             {submitting ? t(($) => $.create_project.submitting) : t(($) => $.create_project.submit)}

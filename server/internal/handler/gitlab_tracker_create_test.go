@@ -273,3 +273,44 @@ func TestCreateProjectGitlabTracker_CipherMissingIs503(t *testing.T) {
 		t.Errorf("code = %q, want encryption_unavailable", body["code"])
 	}
 }
+
+func TestCreateProject_WithBundledGitlabTracker(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	installGitlabCreateStub(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": int64(901), "path_with_namespace": "bundle/project",
+			"web_url": "https://gitlab.example.com/bundle/project", "default_branch": "main",
+			"permissions": map[string]any{"project_access": map[string]any{"access_level": 40}},
+		})
+	}), []string{"gitlab.example.com"})
+	w := httptest.NewRecorder()
+	req := newRequest("POST", "/api/projects?workspace_id="+testWorkspaceID, map[string]any{
+		"title":           "bundled-gitlab-project",
+		"resources":       []map[string]any{{"resource_type": "gitlab_repo", "resource_ref": map[string]any{"url": "https://gitlab.example.com/bundle/project", "default_branch_hint": "main"}}},
+		"gitlab_trackers": []map[string]any{{"repository_url": "https://gitlab.example.com/bundle/project", "access_token": "glpat-bundle"}},
+	})
+	testHandler.CreateProject(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("CreateProject: %d %s", w.Code, w.Body.String())
+	}
+	var project ProjectResponse
+	if err := json.NewDecoder(w.Body).Decode(&project); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM project WHERE id=$1`, parseUUID(project.ID))
+	})
+	var trackers, outbox int
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM gitlab_tracker_connection WHERE project_id=$1`, parseUUID(project.ID)).Scan(&trackers); err != nil {
+		t.Fatal(err)
+	}
+	if err := testPool.QueryRow(context.Background(), `SELECT count(*) FROM tracker_sync_outbox o JOIN gitlab_tracker_connection c ON c.id=o.tracker_connection_id WHERE c.project_id=$1`, parseUUID(project.ID)).Scan(&outbox); err != nil {
+		t.Fatal(err)
+	}
+	if trackers != 1 || outbox != 2 {
+		t.Fatalf("trackers=%d outbox=%d, want 1/2", trackers, outbox)
+	}
+}

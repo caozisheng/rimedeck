@@ -92,6 +92,7 @@ export type {
   ProjectResourceType,
   ProjectResourceRef,
   GithubRepoResourceRef,
+  GitlabRepoResourceRef,
   LocalDirectoryResourceRef,
   CreateProjectResourceRequest,
   UpdateProjectResourceRequest,
