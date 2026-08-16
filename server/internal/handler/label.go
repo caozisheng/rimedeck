@@ -423,6 +423,7 @@ func (h *Handler) AttachLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := labelsToResponse(labels)
+	h.enqueueGitlabSetLabelsIfNeeded(r, issue, labels)
 	h.publish(protocol.EventIssueLabelsChanged, uuidToString(issue.WorkspaceID), "member", userID, map[string]any{
 		"issue_id": uuidToString(issue.ID),
 		"labels":   resp,
@@ -479,9 +480,42 @@ func (h *Handler) DetachLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := labelsToResponse(labels)
+	h.enqueueGitlabSetLabelsIfNeeded(r, issue, labels)
 	h.publish(protocol.EventIssueLabelsChanged, uuidToString(issue.WorkspaceID), "member", userID, map[string]any{
 		"issue_id": uuidToString(issue.ID),
 		"labels":   resp,
 	})
 	writeJSON(w, http.StatusOK, map[string]any{"labels": resp})
+}
+
+// enqueueGitlabSetLabelsIfNeeded pushes a `set_labels` outbox row after
+// AttachLabel/DetachLabel commits on a GitLab-sourced issue. The
+// payload is the full desired set of GitLab label names (GitLab's PUT
+// with `labels=` is destructive-replace per design §8.3).
+//
+// Only labels sourced from the same tracker are pushed — local labels
+// stay local, and cross-tracker labels are inherently not a thing
+// because the picker only surfaces this project's tracker labels.
+func (h *Handler) enqueueGitlabSetLabelsIfNeeded(r *http.Request, issue db.Issue, labels []db.IssueLabel) {
+	if issue.SourceType != "gitlab" || !issue.TrackerConnectionID.Valid {
+		return
+	}
+	names := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if label.SourceType != "gitlab" {
+			continue
+		}
+		if !label.GitlabTrackerConnectionID.Valid || uuidToString(label.GitlabTrackerConnectionID) != uuidToString(issue.TrackerConnectionID) {
+			continue
+		}
+		names = append(names, label.Name)
+	}
+	payload, err := json.Marshal(map[string]any{"labels": names})
+	if err != nil {
+		slog.Warn("enqueue set_labels payload marshal failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+		return
+	}
+	if err := h.enqueueGitlabWriteOp(r.Context(), issue.ID, issue.WorkspaceID, issue.TrackerConnectionID, "set_labels", payload, false); err != nil {
+		slog.Warn("enqueue set_labels outbox failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+	}
 }

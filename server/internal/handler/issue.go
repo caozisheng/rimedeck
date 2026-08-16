@@ -27,25 +27,25 @@ import (
 
 // IssueResponse is the JSON response for an issue.
 type IssueResponse struct {
-	ID            string                  `json:"id"`
-	WorkspaceID   string                  `json:"workspace_id"`
-	Number        int32                   `json:"number"`
-	Identifier    string                  `json:"identifier"`
-	Title         string                  `json:"title"`
-	Description   *string                 `json:"description"`
-	Status        string                  `json:"status"`
-	Priority      string                  `json:"priority"`
-	AssigneeType  *string                 `json:"assignee_type"`
-	AssigneeID    *string                 `json:"assignee_id"`
-	CreatorType   string                  `json:"creator_type"`
-	CreatorID     string                  `json:"creator_id"`
-	ParentIssueID *string                 `json:"parent_issue_id"`
-	ProjectID     *string                 `json:"project_id"`
-	Position      float64                 `json:"position"`
-	StartDate     *string                 `json:"start_date"`
-	DueDate       *string                 `json:"due_date"`
-	CreatedAt     string                  `json:"created_at"`
-	UpdatedAt     string                  `json:"updated_at"`
+	ID            string  `json:"id"`
+	WorkspaceID   string  `json:"workspace_id"`
+	Number        int32   `json:"number"`
+	Identifier    string  `json:"identifier"`
+	Title         string  `json:"title"`
+	Description   *string `json:"description"`
+	Status        string  `json:"status"`
+	Priority      string  `json:"priority"`
+	AssigneeType  *string `json:"assignee_type"`
+	AssigneeID    *string `json:"assignee_id"`
+	CreatorType   string  `json:"creator_type"`
+	CreatorID     string  `json:"creator_id"`
+	ParentIssueID *string `json:"parent_issue_id"`
+	ProjectID     *string `json:"project_id"`
+	Position      float64 `json:"position"`
+	StartDate     *string `json:"start_date"`
+	DueDate       *string `json:"due_date"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
 	// Metadata is the per-issue KV map (see issue_metadata.go). Always emitted
 	// (empty object when unset) so frontend code can `issue.metadata[key]`
 	// without nil-guarding the parent field.
@@ -76,28 +76,28 @@ type IssueExternalRef struct {
 func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 	identifier := issuePrefix + "-" + strconv.Itoa(int(i.Number))
 	return IssueResponse{
-		ID:            uuidToString(i.ID),
-		WorkspaceID:   uuidToString(i.WorkspaceID),
-		Number:        i.Number,
-		Identifier:    identifier,
-		Title:         i.Title,
-		Description:   textToPtr(i.Description),
-		Status:        i.Status,
-		Priority:      i.Priority,
-		AssigneeType:  textToPtr(i.AssigneeType),
-		AssigneeID:    uuidToPtr(i.AssigneeID),
-		CreatorType:   i.CreatorType,
-		CreatorID:     uuidToString(i.CreatorID),
-		ParentIssueID: uuidToPtr(i.ParentIssueID),
-		ProjectID:     uuidToPtr(i.ProjectID),
-		Position:      i.Position,
-		StartDate:     dateToPtr(i.StartDate),
-		DueDate:       dateToPtr(i.DueDate),
-		CreatedAt:     timestampToString(i.CreatedAt),
-		UpdatedAt:     timestampToString(i.UpdatedAt),
-		Metadata:      parseIssueMetadata(i.Metadata),
-		SourceType:    i.SourceType,
-		SyncState:     i.SyncState,
+		ID:                  uuidToString(i.ID),
+		WorkspaceID:         uuidToString(i.WorkspaceID),
+		Number:              i.Number,
+		Identifier:          identifier,
+		Title:               i.Title,
+		Description:         textToPtr(i.Description),
+		Status:              i.Status,
+		Priority:            i.Priority,
+		AssigneeType:        textToPtr(i.AssigneeType),
+		AssigneeID:          uuidToPtr(i.AssigneeID),
+		CreatorType:         i.CreatorType,
+		CreatorID:           uuidToString(i.CreatorID),
+		ParentIssueID:       uuidToPtr(i.ParentIssueID),
+		ProjectID:           uuidToPtr(i.ProjectID),
+		Position:            i.Position,
+		StartDate:           dateToPtr(i.StartDate),
+		DueDate:             dateToPtr(i.DueDate),
+		CreatedAt:           timestampToString(i.CreatedAt),
+		UpdatedAt:           timestampToString(i.UpdatedAt),
+		Metadata:            parseIssueMetadata(i.Metadata),
+		SourceType:          i.SourceType,
+		SyncState:           i.SyncState,
 		TrackerConnectionID: uuidToPtr(i.TrackerConnectionID),
 	}
 }
@@ -106,28 +106,28 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueResponse {
 	identifier := issuePrefix + "-" + strconv.Itoa(int(i.Number))
 	return IssueResponse{
-		ID:            uuidToString(i.ID),
-		WorkspaceID:   uuidToString(i.WorkspaceID),
-		Number:        i.Number,
-		Identifier:    identifier,
-		Title:         i.Title,
-		Description:   textToPtr(i.Description),
-		Status:        i.Status,
-		Priority:      i.Priority,
-		AssigneeType:  textToPtr(i.AssigneeType),
-		AssigneeID:    uuidToPtr(i.AssigneeID),
-		CreatorType:   i.CreatorType,
-		CreatorID:     uuidToString(i.CreatorID),
-		ParentIssueID: uuidToPtr(i.ParentIssueID),
-		ProjectID:     uuidToPtr(i.ProjectID),
-		Position:      i.Position,
-		StartDate:     dateToPtr(i.StartDate),
-		DueDate:       dateToPtr(i.DueDate),
-		CreatedAt:     timestampToString(i.CreatedAt),
-		UpdatedAt:     timestampToString(i.UpdatedAt),
-		Metadata:      parseIssueMetadata(i.Metadata),
-		SourceType:    i.SourceType,
-		SyncState:     i.SyncState,
+		ID:                  uuidToString(i.ID),
+		WorkspaceID:         uuidToString(i.WorkspaceID),
+		Number:              i.Number,
+		Identifier:          identifier,
+		Title:               i.Title,
+		Description:         textToPtr(i.Description),
+		Status:              i.Status,
+		Priority:            i.Priority,
+		AssigneeType:        textToPtr(i.AssigneeType),
+		AssigneeID:          uuidToPtr(i.AssigneeID),
+		CreatorType:         i.CreatorType,
+		CreatorID:           uuidToString(i.CreatorID),
+		ParentIssueID:       uuidToPtr(i.ParentIssueID),
+		ProjectID:           uuidToPtr(i.ProjectID),
+		Position:            i.Position,
+		StartDate:           dateToPtr(i.StartDate),
+		DueDate:             dateToPtr(i.DueDate),
+		CreatedAt:           timestampToString(i.CreatedAt),
+		UpdatedAt:           timestampToString(i.UpdatedAt),
+		Metadata:            parseIssueMetadata(i.Metadata),
+		SourceType:          i.SourceType,
+		SyncState:           i.SyncState,
 		TrackerConnectionID: uuidToPtr(i.TrackerConnectionID),
 	}
 }
@@ -188,28 +188,28 @@ func (h *Handler) externalRefsByIssue(ctx context.Context, issueIDs []pgtype.UUI
 func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueResponse {
 	identifier := issuePrefix + "-" + strconv.Itoa(int(i.Number))
 	return IssueResponse{
-		ID:            uuidToString(i.ID),
-		WorkspaceID:   uuidToString(i.WorkspaceID),
-		Number:        i.Number,
-		Identifier:    identifier,
-		Title:         i.Title,
-		Description:   textToPtr(i.Description),
-		Status:        i.Status,
-		Priority:      i.Priority,
-		AssigneeType:  textToPtr(i.AssigneeType),
-		AssigneeID:    uuidToPtr(i.AssigneeID),
-		CreatorType:   i.CreatorType,
-		CreatorID:     uuidToString(i.CreatorID),
-		ParentIssueID: uuidToPtr(i.ParentIssueID),
-		ProjectID:     uuidToPtr(i.ProjectID),
-		Position:      i.Position,
-		StartDate:     dateToPtr(i.StartDate),
-		DueDate:       dateToPtr(i.DueDate),
-		CreatedAt:     timestampToString(i.CreatedAt),
-		UpdatedAt:     timestampToString(i.UpdatedAt),
-		Metadata:      parseIssueMetadata(i.Metadata),
-		SourceType:    i.SourceType,
-		SyncState:     i.SyncState,
+		ID:                  uuidToString(i.ID),
+		WorkspaceID:         uuidToString(i.WorkspaceID),
+		Number:              i.Number,
+		Identifier:          identifier,
+		Title:               i.Title,
+		Description:         textToPtr(i.Description),
+		Status:              i.Status,
+		Priority:            i.Priority,
+		AssigneeType:        textToPtr(i.AssigneeType),
+		AssigneeID:          uuidToPtr(i.AssigneeID),
+		CreatorType:         i.CreatorType,
+		CreatorID:           uuidToString(i.CreatorID),
+		ParentIssueID:       uuidToPtr(i.ParentIssueID),
+		ProjectID:           uuidToPtr(i.ProjectID),
+		Position:            i.Position,
+		StartDate:           dateToPtr(i.StartDate),
+		DueDate:             dateToPtr(i.DueDate),
+		CreatedAt:           timestampToString(i.CreatedAt),
+		UpdatedAt:           timestampToString(i.UpdatedAt),
+		Metadata:            parseIssueMetadata(i.Metadata),
+		SourceType:          i.SourceType,
+		SyncState:           i.SyncState,
 		TrackerConnectionID: uuidToPtr(i.TrackerConnectionID),
 	}
 }
@@ -241,10 +241,10 @@ func assigneeGroupID(assigneeType pgtype.Text, assigneeID pgtype.UUID) string {
 // SearchIssueResponse extends IssueResponse with search metadata.
 type SearchIssueResponse struct {
 	IssueResponse
-	MatchSource                string  `json:"match_source"`
-	MatchedSnippet             *string `json:"matched_snippet,omitempty"`
-	MatchedDescriptionSnippet  *string `json:"matched_description_snippet,omitempty"`
-	MatchedCommentSnippet      *string `json:"matched_comment_snippet,omitempty"`
+	MatchSource               string  `json:"match_source"`
+	MatchedSnippet            *string `json:"matched_snippet,omitempty"`
+	MatchedDescriptionSnippet *string `json:"matched_description_snippet,omitempty"`
+	MatchedCommentSnippet     *string `json:"matched_comment_snippet,omitempty"`
 }
 
 // extractSnippet extracts a snippet of text around the first occurrence of query.
@@ -2164,20 +2164,20 @@ func readRuntimeCLIVersion(metadata []byte) string {
 }
 
 type CreateIssueRequest struct {
-	Title         string   `json:"title"`
-	Description   *string  `json:"description"`
-	Status        string   `json:"status"`
-	Priority      string   `json:"priority"`
-	AssigneeType  *string  `json:"assignee_type"`
-	AssigneeID    *string  `json:"assignee_id"`
-	ParentIssueID *string  `json:"parent_issue_id"`
-	ProjectID     *string  `json:"project_id"`
-	StartDate     *string  `json:"start_date"`
-	DueDate       *string  `json:"due_date"`
-	AttachmentIDs []string `json:"attachment_ids,omitempty"`
-	OriginType *string `json:"origin_type,omitempty"`
-	OriginID   *string `json:"origin_id,omitempty"`
-	AllowDuplicate bool `json:"allow_duplicate,omitempty"`
+	Title          string   `json:"title"`
+	Description    *string  `json:"description"`
+	Status         string   `json:"status"`
+	Priority       string   `json:"priority"`
+	AssigneeType   *string  `json:"assignee_type"`
+	AssigneeID     *string  `json:"assignee_id"`
+	ParentIssueID  *string  `json:"parent_issue_id"`
+	ProjectID      *string  `json:"project_id"`
+	StartDate      *string  `json:"start_date"`
+	DueDate        *string  `json:"due_date"`
+	AttachmentIDs  []string `json:"attachment_ids,omitempty"`
+	OriginType     *string  `json:"origin_type,omitempty"`
+	OriginID       *string  `json:"origin_id,omitempty"`
+	AllowDuplicate bool     `json:"allow_duplicate,omitempty"`
 	// GitLab source fields (Phase 1).
 	SourceType          string  `json:"source_type,omitempty"`
 	TrackerConnectionID *string `json:"tracker_connection_id,omitempty"`
@@ -2846,6 +2846,40 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		h.notifyParentOfChildDone(r.Context(), prevIssue, issue, actorType, actorID)
 	}
 
+	// GitLab-sourced issue: enqueue the outbox push once local write has
+	// committed. Local-only fields (position/parent/project/assignee) are
+	// intentionally excluded from `payload` per design §7.2 (本地专有字段永
+	// 不 push). Status close/reopen rides state_event; done/cancelled →
+	// close, everything else → reopen only when the prior state was closed.
+	if issue.SourceType == "gitlab" && issue.TrackerConnectionID.Valid {
+		pushable := map[string]any{}
+		if titleChanged {
+			pushable["title"] = issue.Title
+		}
+		if descriptionChanged {
+			pushable["description"] = textToPtr(issue.Description)
+		}
+		if dueDateChanged {
+			pushable["due_date"] = dateToPtr(issue.DueDate)
+		}
+		if statusChanged {
+			switch issue.Status {
+			case "done", "cancelled":
+				pushable["state_event"] = "close"
+			default:
+				if prevIssue.Status == "done" || prevIssue.Status == "cancelled" {
+					pushable["state_event"] = "reopen"
+				}
+			}
+		}
+		if len(pushable) > 0 {
+			payloadBytes, _ := json.Marshal(pushable)
+			if err := h.enqueueGitlabWriteOp(r.Context(), issue.ID, issue.WorkspaceID, issue.TrackerConnectionID, "update_issue", payloadBytes, false); err != nil {
+				slog.Warn("enqueue GitLab update outbox failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -3027,11 +3061,37 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// GitLab-linked delete: keep the local row (pending_delete hides it)
+	// so the worker's canonical DELETE can drive local cleanup + broadcast.
+	// Unlinked mirror (create outbox never succeeded): cancel the queued
+	// create + fall through to the normal local delete — nothing on GitLab
+	// exists to remove.
+	if issue.SourceType == "gitlab" && issue.TrackerConnectionID.Valid {
+		if _, err := h.Queries.GetGitlabIssueLinkByIssueID(r.Context(), issue.ID); err == nil {
+			payload := []byte(`{}`)
+			if err := h.enqueueGitlabWriteOp(r.Context(), issue.ID, issue.WorkspaceID, issue.TrackerConnectionID, "delete_issue", payload, true); err != nil {
+				slog.Warn("enqueue GitLab delete outbox failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+				writeError(w, http.StatusInternalServerError, "failed to schedule delete")
+				return
+			}
+			// Cancel in-flight agent work; local row lingers as pending_delete.
+			h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
+			h.Queries.FailAutopilotRunsByIssue(r.Context(), issue.ID)
+			userID := requestUserID(r)
+			actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
+			h.publish(protocol.EventIssueUpdated, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"issue_id": uuidToString(issue.ID), "sync_state": "pending_delete"})
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		// Unlinked → cancel any pending create, then fall through to local delete.
+		if err := h.cancelUnlinkedGitlabIssue(r.Context(), issue.ID); err != nil {
+			slog.Warn("cancel unlinked GitLab outbox failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+		}
+	}
+
 	h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
-	// Fail any linked autopilot runs before delete (ON DELETE SET NULL clears issue_id).
 	h.Queries.FailAutopilotRunsByIssue(r.Context(), issue.ID)
 
-	// Collect all attachment URLs (issue-level + comment-level) before CASCADE delete.
 	attachmentURLs, _ := h.Queries.ListAttachmentURLsByIssueOrComments(r.Context(), issue.ID)
 
 	err := h.Queries.DeleteIssue(r.Context(), db.DeleteIssueParams{
@@ -3046,16 +3106,12 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 	h.deleteS3Objects(r.Context(), attachmentURLs)
 	userID := requestUserID(r)
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
-	// Always emit the resolved UUID — frontend caches key by UUID, so an
-	// identifier-style payload ("MUL-123") would leave stale entries on
-	// other clients after an identifier-path delete.
 	resolvedID := uuidToString(issue.ID)
 	h.publish(protocol.EventIssueDeleted, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"issue_id": resolvedID})
 	slog.Info("issue deleted", append(logger.RequestAttrs(r), "issue_id", resolvedID, "workspace_id", uuidToString(issue.WorkspaceID))...)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ---------------------------------------------------------------------------
 // Batch operations
 // ---------------------------------------------------------------------------
 

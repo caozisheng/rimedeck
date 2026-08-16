@@ -494,6 +494,54 @@ func enqueueTrackerOutbox(ctx context.Context, q *db.Queries, params db.CreateTr
 	return row, nil
 }
 
+// enqueueGitlabWriteOp is the post-write hook Issue CRUD handlers call
+// once their local mutation has committed. It bumps sync_revision (which
+// also flips sync_state to 'pending' or 'pending_delete') and enqueues
+// the matching outbox operation with compression applied. The bump +
+// insert + compress happen in one transaction so a concurrent update
+// cannot slip a revision in between.
+//
+// `payload` is JSON with the fields the worker will push (labels for
+// set_labels, {title,description,...} for update_issue, empty for
+// delete_issue). The worker re-reads the issue row at claim time so any
+// desired-state field it needs beyond payload can be looked up fresh.
+func (h *Handler) enqueueGitlabWriteOp(ctx context.Context, issueID, workspaceID, trackerID pgtype.UUID, operation string, payload []byte, deleting bool) error {
+	tx, err := h.TxStarter.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin write outbox tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	qtx := h.Queries.WithTx(tx)
+	nextState := "pending"
+	if deleting {
+		nextState = "pending_delete"
+	}
+	rev, err := qtx.BumpIssueSyncRevision(ctx, db.BumpIssueSyncRevisionParams{ID: issueID, Column2: nextState})
+	if err != nil {
+		return fmt.Errorf("bump sync_revision: %w", err)
+	}
+	if _, err := enqueueTrackerOutbox(ctx, qtx, db.CreateTrackerOutboxParams{
+		WorkspaceID:         workspaceID,
+		TrackerConnectionID: trackerID,
+		IssueID:             issueID,
+		Operation:           operation,
+		Payload:             payload,
+		IdempotencyKey:      newRandomUUID(),
+		DesiredRevision:     pgtype.Int8{Int64: rev, Valid: true},
+	}); err != nil {
+		return fmt.Errorf("enqueue write op: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
+// cancelUnlinkedGitlabIssue is the delete counterpart when the local
+// mirror was never successfully created remotely (no gitlab_issue_link
+// row). Cancels any lingering create_issue outbox rows for that issue
+// so the worker doesn't push a phantom create after the local delete.
+func (h *Handler) cancelUnlinkedGitlabIssue(ctx context.Context, issueID pgtype.UUID) error {
+	return h.Queries.CancelTrackerOutboxByIssue(ctx, issueID)
+}
+
 // ---------------------------------------------------------------------------
 // Lifecycle endpoints (Phase 2 Task 9)
 // ---------------------------------------------------------------------------
