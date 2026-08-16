@@ -392,7 +392,7 @@ function ProjectIssuesSurface({
 
   return (
     <>
-      <IssuesHeader scopedIssues={projectIssues} allowGantt />
+      <IssuesHeader scopedIssues={projectIssues} allowGantt projectId={projectId} />
       <ProjectIssuesContent
         projectId={projectId}
         projectIssues={projectIssues}

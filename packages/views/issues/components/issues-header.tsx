@@ -14,6 +14,7 @@ import {
   Filter,
   FolderKanban,
   FolderMinus,
+  GitBranch,
   List,
   SignalHigh,
   SlidersHorizontal,
@@ -56,6 +57,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@rimedeck/core/hooks";
 import { memberListOptions, agentListOptions, squadListOptions } from "@rimedeck/core/workspace/queries";
 import { projectListOptions } from "@rimedeck/core/projects/queries";
+import { projectGitlabTrackersOptions } from "@rimedeck/core/gitlab-tracker-queries";
 import { labelListOptions } from "@rimedeck/core/labels/queries";
 import { ProjectIcon } from "../../projects/components/project-icon";
 import { ActorAvatar } from "../../common/actor-avatar";
@@ -110,6 +112,7 @@ function getActiveFilterCount(state: {
   projectFilters: string[];
   includeNoProject: boolean;
   labelFilters: string[];
+  sourceFilters: string[];
 }) {
   let count = 0;
   if (state.statusFilters.length > 0) count++;
@@ -118,6 +121,7 @@ function getActiveFilterCount(state: {
   if (state.creatorFilters.length > 0) count++;
   if (state.projectFilters.length > 0 || state.includeNoProject) count++;
   if (state.labelFilters.length > 0) count++;
+  if (state.sourceFilters.length > 0) count++;
   return count;
 }
 
@@ -504,9 +508,11 @@ function LabelSubContent({
 export function IssuesHeader({
   scopedIssues,
   allowGantt = false,
+  projectId,
 }: {
   scopedIssues: Issue[];
   allowGantt?: boolean;
+  projectId?: string;
 }) {
   const { t } = useT("issues");
   const scope = useIssuesScopeStore((s) => s.scope);
@@ -603,7 +609,7 @@ export function IssuesHeader({
             onToggle={toggleAgentRunningFilter}
             scopedIssueIds={scopedIssueIds}
           />
-          <IssueDisplayControls scopedIssues={scopedIssues} allowGantt={allowGantt} />
+          <IssueDisplayControls scopedIssues={scopedIssues} allowGantt={allowGantt} projectId={projectId} />
         </div>
       </div>
     </div>
@@ -614,13 +620,12 @@ export function IssueDisplayControls({
   scopedIssues,
   hideViewToggle = false,
   allowGantt = false,
+  projectId,
 }: {
   scopedIssues: Issue[];
   hideViewToggle?: boolean;
-  // Only Project Detail renders <GanttView>; other surfaces (global /issues,
-  // /my-issues, actor panel) ignore viewMode === "gantt" and would silently
-  // fall back to List if the option were exposed there. Keep Gantt opt-in.
   allowGantt?: boolean;
+  projectId?: string;
 }) {
   const { t } = useT("issues");
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
@@ -633,11 +638,16 @@ export function IssueDisplayControls({
   const projectFilters = useViewStore((s) => s.projectFilters);
   const includeNoProject = useViewStore((s) => s.includeNoProject);
   const labelFilters = useViewStore((s) => s.labelFilters);
+  const sourceFilters = useViewStore((s) => s.sourceFilters ?? []);
   const sortBy = useViewStore((s) => s.sortBy);
   const sortDirection = useViewStore((s) => s.sortDirection);
   const grouping = useViewStore((s) => s.grouping);
   const swimlaneGrouping = useViewStore((s) => s.swimlaneGrouping);
   const cardProperties = useViewStore((s) => s.cardProperties);
+  const { data: projectTrackers = [] } = useQuery({
+    ...projectGitlabTrackersOptions(useWorkspaceId(), projectId ?? ""),
+    enabled: !!projectId,
+  });
   const act = useViewStoreApi().getState();
 
   const counts = useIssueCounts(scopedIssues);
@@ -651,6 +661,7 @@ export function IssueDisplayControls({
     projectFilters,
     includeNoProject,
     labelFilters,
+    sourceFilters,
   });
   const hasActiveFilters = activeFilterCount > 0;
 
@@ -862,14 +873,38 @@ export function IssueDisplayControls({
                 )}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-auto min-w-52 p-0">
-                <ProjectSubContent
-                  counts={counts.project}
-                  selected={projectFilters}
-                  onToggle={act.toggleProjectFilter}
-                  includeNoProject={includeNoProject}
-                  onToggleNoProject={act.toggleNoProject}
-                  noProjectCount={counts.noProject}
-                />
+                <ProjectSubContent counts={counts.project} selected={projectFilters} onToggle={act.toggleProjectFilter} includeNoProject={includeNoProject} onToggleNoProject={act.toggleNoProject} noProjectCount={counts.noProject} />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            {/* Source */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <GitBranch className="size-3.5" />
+                <span className="flex-1">{t(($) => $.filters.section_source)}</span>
+                {sourceFilters.length > 0 && <span className="text-xs text-primary font-medium">{sourceFilters.length}</span>}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-auto min-w-52">
+                {[{ value: "local", label: "Local" }, { value: "gitlab", label: "GitLab" }, { value: "detached", label: "Detached" }].map((item) => {
+                  const checked = sourceFilters[0] === item.value;
+                  return (
+                    <DropdownMenuCheckboxItem key={item.value} checked={checked} onCheckedChange={() => act.toggleSourceFilter(item.value)} className={FILTER_ITEM_CLASS}>
+                      <HoverCheck checked={checked} />{item.label}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+                {projectTrackers.length > 0 && <DropdownMenuSeparator />}
+                {projectTrackers.map((tracker) => {
+                  const key = `tracker:${tracker.id}`;
+                  const checked = sourceFilters[0] === key;
+                  return (
+                    <DropdownMenuCheckboxItem key={tracker.id} checked={checked} onCheckedChange={() => act.toggleSourceFilter(key)} className={FILTER_ITEM_CLASS}>
+                      <HoverCheck checked={checked} />
+                      <GitBranch className="size-3 text-muted-foreground" />
+                      <span className="truncate max-w-[220px]">{tracker.path_with_namespace}</span>
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
@@ -878,18 +913,10 @@ export function IssueDisplayControls({
               <DropdownMenuSubTrigger>
                 <Tag className="size-3.5" />
                 <span className="flex-1">{t(($) => $.filters.section_label)}</span>
-                {labelFilters.length > 0 && (
-                  <span className="text-xs text-primary font-medium">
-                    {labelFilters.length}
-                  </span>
-                )}
+                {labelFilters.length > 0 && <span className="text-xs text-primary font-medium">{labelFilters.length}</span>}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-auto min-w-52 p-0">
-                <LabelSubContent
-                  counts={counts.label}
-                  selected={labelFilters}
-                  onToggle={act.toggleLabelFilter}
-                />
+                <LabelSubContent counts={counts.label} selected={labelFilters} onToggle={act.toggleLabelFilter} />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 

@@ -44,6 +44,7 @@ export function IssuesPage() {
   const projectFilters = useIssueViewStore((s) => s.projectFilters);
   const includeNoProject = useIssueViewStore((s) => s.includeNoProject);
   const labelFilters = useIssueViewStore((s) => s.labelFilters);
+  const sourceFilters = useIssueViewStore((s) => s.sourceFilters ?? []);
   const sortBy = useIssueViewStore((s) => s.sortBy);
   const sortDirection = useIssueViewStore((s) => s.sortDirection);
   const agentRunningFilter = useIssueViewStore((s) => s.agentRunningFilter);
@@ -72,6 +73,7 @@ export function IssuesPage() {
     return ids;
   }, [snapshot]);
 
+  const selectedSource = sourceFilters[0];
   const assigneeGroupFilter = useMemo<AssigneeGroupedIssuesFilter>(() => {
     const filter: AssigneeGroupedIssuesFilter = {
       statuses: statusFilters.length > 0 ? statusFilters : [...BOARD_STATUSES],
@@ -82,15 +84,23 @@ export function IssuesPage() {
       project_ids: projectFilters,
       include_no_project: includeNoProject,
       label_ids: labelFilters,
+      ...(selectedSource?.startsWith("tracker:")
+        ? { tracker_id: selectedSource.slice("tracker:".length) }
+        : selectedSource ? { source: selectedSource as "local" | "gitlab" | "detached" } : {}),
     };
     if (scope === "members") filter.assignee_types = ["member"];
     if (scope === "agents") filter.assignee_types = ["agent", "squad"];
     return filter;
-  }, [assigneeFilters, creatorFilters, includeNoAssignee, includeNoProject, labelFilters, priorityFilters, projectFilters, scope, statusFilters]);
+  }, [assigneeFilters, creatorFilters, includeNoAssignee, includeNoProject, labelFilters, priorityFilters, projectFilters, scope, selectedSource, statusFilters]);
 
+  const sourceFilter = selectedSource?.startsWith("tracker:")
+    ? { tracker_id: selectedSource.slice("tracker:".length) }
+    : selectedSource
+      ? { source: selectedSource as "local" | "gitlab" | "detached" }
+      : {};
   const assigneeGroupsOptions = issueAssigneeGroupsOptions(wsId, assigneeGroupFilter, sort);
   const statusIssuesQuery = useQuery({
-    ...issueListOptions(wsId, sort),
+    ...issueListOptions(wsId, sort, sourceFilter),
     enabled: !usesAssigneeBoard,
   });
   const assigneeGroupsQuery = useQuery({
