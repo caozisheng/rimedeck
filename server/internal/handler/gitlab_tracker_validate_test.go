@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -190,4 +189,3 @@ func jsonContains(haystack, needle string) bool {
 	return false
 }
 
-var _ = context.Background

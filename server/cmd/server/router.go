@@ -487,6 +487,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
 					r.Get("/gitlab-trackers", h.ListProjectGitlabTrackers)
+					r.Post("/gitlab-trackers", h.CreateProjectGitlabTracker)
 					r.Get("/dependency-graph", h.GetProjectDependencyGraph)
 				})
 			})

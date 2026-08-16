@@ -1,19 +1,37 @@
 package handler
 
 import (
-	"context"
+	cryptorand "crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/gitlabtracker"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
+
+// cryptoRandReader is the concrete OS-RNG read wrapper the crypto path
+// uses. Kept as its own named function so cryptoRandRead can point at it
+// without an explicit indirection level in the assignment.
+func cryptoRandReader(p []byte) (int, error) { return cryptorand.Read(p) }
+
+// defaultRandomUUID mints a v4 UUID for outbox idempotency keys. Split
+// out so tests can pin the value without touching every callsite.
+func defaultRandomUUID() pgtype.UUID {
+	id := uuid.New()
+	var out pgtype.UUID
+	copy(out.Bytes[:], id[:])
+	out.Valid = true
+	return out
+}
 
 // GitlabTrackerResponse is the public tracker summary. Credential material is
 // intentionally absent; callers only learn whether a token is configured.
@@ -244,4 +262,222 @@ func writeStructuredGitlabError(w http.ResponseWriter, status int, code, message
 }
 
 // Ensure imports used only by ctx-shaped helpers stay referenced.
-var _ = context.Background
+
+// ---------------------------------------------------------------------------
+// Create tracker connection (Phase 2 Task 8)
+// ---------------------------------------------------------------------------
+
+// GitlabTrackerCipherProvider returns the cipher used to encrypt tokens
+// and webhook secrets. Tests replace it with an in-memory cipher; prod
+// loads keys from GITLAB_TRACKER_KEYS at startup.
+var GitlabTrackerCipherProvider = defaultGitlabCipherProvider
+
+// gitlabCipherOnce memoizes the env-derived cipher so we parse
+// GITLAB_TRACKER_KEYS at most once per process even if many endpoints
+// call for it. Zero value is safe.
+var gitlabCipherOnce struct {
+	c   *gitlabtracker.Cipher
+	err error
+	set bool
+}
+
+// defaultGitlabCipherProvider parses GITLAB_TRACKER_KEYS on first call.
+// Format: `v1=<base64>[,v2=<base64>...]`. A missing env fails-closed:
+// endpoints that require the cipher (create/rotate) refuse to accept
+// credentials, matching design §11.1 ("无 key 拒绝保存凭据").
+func defaultGitlabCipherProvider() (*gitlabtracker.Cipher, error) {
+	if gitlabCipherOnce.set {
+		return gitlabCipherOnce.c, gitlabCipherOnce.err
+	}
+	gitlabCipherOnce.set = true
+	raw := strings.TrimSpace(os.Getenv("GITLAB_TRACKER_KEYS"))
+	if raw == "" {
+		gitlabCipherOnce.err = errors.New("GITLAB_TRACKER_KEYS is not configured; refusing to accept GitLab credentials")
+		return nil, gitlabCipherOnce.err
+	}
+	entries := strings.Split(raw, ",")
+	keys := make(map[int16]string, len(entries))
+	for _, e := range entries {
+		parts := strings.SplitN(strings.TrimSpace(e), "=", 2)
+		if len(parts) != 2 {
+			gitlabCipherOnce.err = errors.New("GITLAB_TRACKER_KEYS: expected `vN=<base64>` entries")
+			return nil, gitlabCipherOnce.err
+		}
+		verStr := strings.TrimPrefix(strings.TrimSpace(parts[0]), "v")
+		var ver int16
+		if _, err := fmt.Sscanf(verStr, "%d", &ver); err != nil {
+			gitlabCipherOnce.err = fmt.Errorf("GITLAB_TRACKER_KEYS: invalid version %q", parts[0])
+			return nil, gitlabCipherOnce.err
+		}
+		keys[ver] = strings.TrimSpace(parts[1])
+	}
+	c, err := gitlabtracker.NewCipher(keys)
+	if err != nil {
+		gitlabCipherOnce.err = err
+		return nil, err
+	}
+	gitlabCipherOnce.c = c
+	return c, nil
+}
+
+// CreateProjectGitlabTrackerRequest is the body for `POST
+// /api/projects/{id}/gitlab-trackers`. Same shape as validate but with a
+// commit intent: after the same read-only preflight, the token and a
+// freshly minted webhook secret get encrypted and written to the row.
+type CreateProjectGitlabTrackerRequest struct {
+	RepositoryURL string `json:"repository_url"`
+	AccessToken   string `json:"access_token"`
+}
+
+// CreateProjectGitlabTracker persists a validated GitLab tracker under a
+// project. Owner/admin only. The request is idempotent by (project_id,
+// instance_url, remote_project_id): the second call surfaces 409 rather
+// than silently creating a duplicate row.
+func (h *Handler) CreateProjectGitlabTracker(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceID := h.resolveWorkspaceID(r)
+	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace_id")
+	if !ok {
+		return
+	}
+	projectID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "project_id")
+	if !ok {
+		return
+	}
+	project, err := h.Queries.GetProjectInWorkspace(ctx, db.GetProjectInWorkspaceParams{ID: projectID, WorkspaceID: wsUUID})
+	if err != nil {
+		writeError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
+	member, _ := middleware.MemberFromContext(ctx)
+	if !roleAllowed(member.Role, "owner", "admin") {
+		writeError(w, http.StatusForbidden, "insufficient permissions")
+		return
+	}
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+	userUUID, ok := parseUUIDOrBadRequest(w, userID, "user_id")
+	if !ok {
+		return
+	}
+
+	cipher, err := GitlabTrackerCipherProvider()
+	if err != nil {
+		writeStructuredGitlabError(w, http.StatusServiceUnavailable, "encryption_unavailable", err.Error())
+		return
+	}
+
+	var req CreateProjectGitlabTrackerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.RepositoryURL = strings.TrimSpace(req.RepositoryURL)
+	req.AccessToken = strings.TrimSpace(req.AccessToken)
+	if req.AccessToken == "" {
+		writeStructuredGitlabError(w, http.StatusBadRequest, "access_token_required", "access_token is required")
+		return
+	}
+
+	parsed, err := gitlabtracker.ParseProjectURL(req.RepositoryURL, GitlabTrackerAllowedHosts())
+	if err != nil {
+		var ue *gitlabtracker.URLError
+		if errors.As(err, &ue) {
+			writeStructuredGitlabError(w, http.StatusBadRequest, ue.Code, ue.Message)
+			return
+		}
+		writeStructuredGitlabError(w, http.StatusBadRequest, "invalid_url", err.Error())
+		return
+	}
+
+	client, err := gitlabTrackerClientFactory(parsed.InstanceURL, req.AccessToken)
+	if err != nil {
+		writeStructuredGitlabError(w, http.StatusInternalServerError, "internal", "failed to build GitLab client")
+		return
+	}
+	remote, err := client.GetProject(ctx, parsed.PathWithNamespace)
+	if err != nil {
+		status, code, msg := mapGitlabValidationError(err)
+		writeStructuredGitlabError(w, status, code, msg)
+		return
+	}
+
+	tokenCT, err := cipher.Encrypt([]byte(req.AccessToken))
+	if err != nil {
+		writeStructuredGitlabError(w, http.StatusInternalServerError, "internal", "failed to encrypt token")
+		return
+	}
+	webhookSecret := make([]byte, 32)
+	if _, err := cryptoRandRead(webhookSecret); err != nil {
+		writeStructuredGitlabError(w, http.StatusInternalServerError, "internal", "failed to generate webhook secret")
+		return
+	}
+	secretCT, err := cipher.Encrypt(webhookSecret)
+	if err != nil {
+		writeStructuredGitlabError(w, http.StatusInternalServerError, "internal", "failed to encrypt webhook secret")
+		return
+	}
+
+	defaultBranch := pgtype.Text{}
+	if remote.DefaultBranch != "" {
+		defaultBranch = pgtype.Text{String: remote.DefaultBranch, Valid: true}
+	}
+	created, err := h.Queries.CreateGitlabTrackerConnection(ctx, db.CreateGitlabTrackerConnectionParams{
+		ProjectID:               project.ID,
+		WorkspaceID:             wsUUID,
+		InstanceUrl:             parsed.InstanceURL,
+		RemoteProjectID:         remote.ID,
+		PathWithNamespace:       remote.PathWithNamespace,
+		WebUrl:                  remote.WebURL,
+		CloneUrl:                parsed.CloneURL,
+		DefaultBranch:           defaultBranch,
+		TokenCiphertext:         tokenCT,
+		TokenKeyVersion:         cipher.LatestVersion(),
+		WebhookSecretCiphertext: secretCT,
+		WebhookState:            "unavailable", // Phase 4 provisions the webhook; Phase 2 leaves it off.
+		CreatedBy:               userUUID,
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			writeStructuredGitlabError(w, http.StatusConflict, "tracker_already_exists", "a tracker for this GitLab project already exists on this RimeDeck project")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to create tracker connection")
+		return
+	}
+
+	// Enqueue the first-import outbox rows: labels first so newly
+	// imported issues can reference them, then a reconcile that Task 10's
+	// worker consumes as the "pull opened+closed issues" trigger.
+	for _, op := range []string{"pull_labels", "reconcile"} {
+		if _, err := h.Queries.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{
+			WorkspaceID:         wsUUID,
+			TrackerConnectionID: created.ID,
+			IssueID:             pgtype.UUID{},
+			Operation:           op,
+			Payload:             []byte("{}"),
+			IdempotencyKey:      newRandomUUID(),
+		}); err != nil {
+			// Row is already committed; log-and-continue would let the
+			// caller silently ship a tracker that never imports. Fail
+			// loudly so the operator retries — the retry hits the 409
+			// path and no duplicate row appears.
+			writeError(w, http.StatusInternalServerError, "failed to enqueue first import")
+			return
+		}
+	}
+
+	writeJSON(w, http.StatusCreated, gitlabTrackerToResponse(created, 2, 0, true))
+}
+
+// cryptoRandRead wraps crypto/rand.Read so tests can stub it if needed.
+// Kept private; production callers use it as a plain read of the OS RNG.
+var cryptoRandRead = cryptoRandReader
+
+// newRandomUUID returns a fresh idempotency key. Uses gen_random_uuid on
+// the DB side would be preferable, but the outbox insert wants the value
+// in the params so we mint it here.
+var newRandomUUID = defaultRandomUUID
