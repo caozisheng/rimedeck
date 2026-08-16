@@ -554,6 +554,28 @@ func (q *Queries) GetGitlabTrackerConnectionInWorkspace(ctx context.Context, arg
 	return i, err
 }
 
+const insertGitlabWebhookEvent = `-- name: InsertGitlabWebhookEvent :one
+INSERT INTO gitlab_webhook_event (tracker_connection_id, event_uuid)
+VALUES ($1, $2)
+ON CONFLICT (tracker_connection_id, event_uuid) DO NOTHING
+RETURNING (xmax = 0) AS inserted
+`
+
+type InsertGitlabWebhookEventParams struct {
+	TrackerConnectionID pgtype.UUID `json:"tracker_connection_id"`
+	EventUuid           string      `json:"event_uuid"`
+}
+
+// Idempotent record of a GitLab webhook delivery. Returns true when this
+// (tracker, event_uuid) pair is new — false marks a duplicate delivery
+// that the handler should ack with 200 but otherwise ignore.
+func (q *Queries) InsertGitlabWebhookEvent(ctx context.Context, arg InsertGitlabWebhookEventParams) (bool, error) {
+	row := q.db.QueryRow(ctx, insertGitlabWebhookEvent, arg.TrackerConnectionID, arg.EventUuid)
+	var inserted bool
+	err := row.Scan(&inserted)
+	return inserted, err
+}
+
 const listGitlabIssueLinksByIssues = `-- name: ListGitlabIssueLinksByIssues :many
 SELECT l.issue_id, l.tracker_connection_id, l.remote_issue_id, l.remote_iid, l.remote_web_url, l.remote_state, l.remote_updated_at, l.remote_author_name, l.remote_author_url, l.remote_position, l.last_remote_snapshot, l.last_pulled_at, l.last_pushed_at, c.instance_url AS connection_instance_url
 FROM gitlab_issue_link l

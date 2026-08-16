@@ -202,3 +202,12 @@ UPDATE issue
 SET sync_revision = synced_revision,
     sync_state = 'synced'
 WHERE id = $1 AND source_type = 'gitlab';
+
+-- name: InsertGitlabWebhookEvent :one
+-- Idempotent record of a GitLab webhook delivery. Returns true when this
+-- (tracker, event_uuid) pair is new — false marks a duplicate delivery
+-- that the handler should ack with 200 but otherwise ignore.
+INSERT INTO gitlab_webhook_event (tracker_connection_id, event_uuid)
+VALUES ($1, $2)
+ON CONFLICT (tracker_connection_id, event_uuid) DO NOTHING
+RETURNING (xmax = 0) AS inserted;

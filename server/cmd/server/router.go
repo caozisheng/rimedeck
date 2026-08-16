@@ -276,6 +276,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// GitHub App webhook (no Multica auth — requests are authenticated via
 	// HMAC-SHA256 signature in the handler) and post-install setup callback.
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)
+	r.Post("/api/webhooks/gitlab/{trackerId}", h.HandleGitlabWebhook)
 	r.Get("/api/github/setup", h.GitHubSetupCallback)
 
 	// SOP MCP Bridge — agent runtimes call this during task execution.

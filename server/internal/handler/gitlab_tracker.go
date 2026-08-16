@@ -3,9 +3,11 @@ package handler
 import (
 	"context"
 	cryptorand "crypto/rand"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/gitlabtracker"
 	"github.com/multica-ai/multica/server/internal/middleware"
@@ -742,4 +745,154 @@ func (h *Handler) DeleteGitlabTrackerMirrors(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---------------------------------------------------------------------------
+// Webhook ingress (Phase 4 Task 1)
+// ---------------------------------------------------------------------------
+
+// gitlabWebhookMaxBody caps every request body. GitLab issue payloads
+// are well under 1 MiB in practice; 4 MiB leaves headroom for
+// merge_request hooks that batch commits without exposing us to
+// memory-exhaustion attacks even under an authenticated caller.
+const gitlabWebhookMaxBody = 4 * 1024 * 1024
+
+// HandleGitlabWebhook is the public ingress for GitLab project hooks.
+// Authentication is entirely token-based: X-Gitlab-Token is compared in
+// constant time against the connection's stored (encrypted) webhook
+// secret. No session, no CSRF, no workspace middleware upstream.
+//
+// Per design §9.2 the handler is deliberately "record and enqueue":
+// no REST calls, no local writes past one outbox row. Every state
+// transition defers to the sync worker, which already owns the
+// canonical pull-through and revision-guard invariants from Phase 3.
+func (h *Handler) HandleGitlabWebhook(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	trackerID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "trackerId"), "trackerId")
+	if !ok {
+		return
+	}
+	eventUUID := strings.TrimSpace(r.Header.Get("X-Gitlab-Event-UUID"))
+	if eventUUID == "" {
+		writeError(w, http.StatusBadRequest, "missing X-Gitlab-Event-UUID")
+		return
+	}
+	tokenHeader := r.Header.Get("X-Gitlab-Token")
+	if tokenHeader == "" {
+		writeError(w, http.StatusUnauthorized, "missing token")
+		return
+	}
+
+	tracker, err := h.Queries.GetGitlabTrackerConnection(ctx, trackerID)
+	if err != nil {
+		// Unknown tracker returns 401 (not 404) to avoid enumeration of
+		// valid tracker IDs via response codes.
+		writeError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+
+	cipher, err := GitlabTrackerCipherProvider()
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "encryption unavailable")
+		return
+	}
+	secret, err := cipher.Decrypt(tracker.WebhookSecretCiphertext)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "webhook secret unreadable")
+		return
+	}
+	// Constant-time compare — string equality leaks length via timing.
+	if subtle.ConstantTimeCompare([]byte(tokenHeader), secret) != 1 {
+		writeError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+
+	// Body cap BEFORE decode so a 100 MiB payload cannot exhaust memory
+	// even under an already-authenticated client. MaxBytesReader replies
+	// with an error on read past the cap; we translate that into 413.
+	r.Body = http.MaxBytesReader(w, r.Body, gitlabWebhookMaxBody)
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "webhook body too large")
+		return
+	}
+	var payload struct {
+		Project struct {
+			ID int64 `json:"id"`
+		} `json:"project"`
+		ObjectAttributes struct {
+			IID int32 `json:"iid"`
+		} `json:"object_attributes"`
+	}
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if payload.Project.ID != tracker.RemoteProjectID {
+		// Misdirected webhook (someone posted our URL from a different
+		// repo) — drop before enqueue so the worker can't be tricked
+		// into pulling the wrong project.
+		writeError(w, http.StatusBadRequest, "project id mismatch")
+		return
+	}
+
+	inserted, err := h.Queries.InsertGitlabWebhookEvent(ctx, db.InsertGitlabWebhookEventParams{
+		TrackerConnectionID: tracker.ID,
+		EventUuid:           eventUUID,
+	})
+	if err != nil {
+		// ON CONFLICT DO NOTHING returns zero rows on duplicate delivery;
+		// pgx surfaces that as ErrNoRows. Treat as a benign replay so
+		// GitLab stops retrying.
+		if errors.Is(err, pgx.ErrNoRows) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to record webhook")
+		return
+	}
+	if !inserted {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	operation := gitlabEventToOperation(r.Header.Get("X-Gitlab-Event"))
+	if _, err := enqueueTrackerOutbox(ctx, h.Queries, db.CreateTrackerOutboxParams{
+		WorkspaceID:         tracker.WorkspaceID,
+		TrackerConnectionID: tracker.ID,
+		Operation:           operation,
+		Payload:             gitlabWebhookPayload(operation, payload.ObjectAttributes.IID),
+		IdempotencyKey:      newRandomUUID(),
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to enqueue webhook")
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// gitlabEventToOperation maps GitLab's `X-Gitlab-Event` header to one of
+// our outbox operations. Unknown events fall back to `pull_issue` so a
+// forward-compatible GitLab release doesn't silently drop the signal —
+// the worker pulls the canonical issue snapshot regardless of whether
+// the event was an update, comment, or something new.
+func gitlabEventToOperation(event string) string {
+	switch strings.ToLower(strings.TrimSpace(event)) {
+	case "issue hook", "confidential issue hook":
+		return "pull_issue"
+	case "note hook", "confidential note hook":
+		return "pull_issue"
+	default:
+		return "pull_issue"
+	}
+}
+
+// gitlabWebhookPayload builds the outbox payload the worker reads back.
+// pull_issue carries the remote iid so the worker can hit the single-
+// issue REST endpoint; other operations take an empty payload.
+func gitlabWebhookPayload(operation string, iid int32) []byte {
+	if operation == "pull_issue" && iid > 0 {
+		body, _ := json.Marshal(map[string]any{"iid": iid})
+		return body
+	}
+	return []byte("{}")
 }
