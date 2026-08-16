@@ -424,12 +424,17 @@ type IssueDependency struct {
 }
 
 type IssueLabel struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Name        string             `json:"name"`
-	Color       string             `json:"color"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID                        pgtype.UUID        `json:"id"`
+	WorkspaceID               pgtype.UUID        `json:"workspace_id"`
+	Name                      string             `json:"name"`
+	Color                     string             `json:"color"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	SourceType                string             `json:"source_type"`
+	GitlabTrackerConnectionID pgtype.UUID        `json:"gitlab_tracker_connection_id"`
+	GitlabLabelID             pgtype.Int8        `json:"gitlab_label_id"`
+	IsProjectLabel            bool               `json:"is_project_label"`
+	IsArchived                bool               `json:"is_archived"`
 }
 
 type IssuePullRequest struct {

@@ -44,7 +44,7 @@ func (q *Queries) AttachLabelToIssue(ctx context.Context, arg AttachLabelToIssue
 const createLabel = `-- name: CreateLabel :one
 INSERT INTO issue_label (workspace_id, name, color)
 VALUES ($1, $2, $3)
-RETURNING id, workspace_id, name, color, created_at, updated_at
+RETURNING id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived
 `
 
 type CreateLabelParams struct {
@@ -63,6 +63,11 @@ func (q *Queries) CreateLabel(ctx context.Context, arg CreateLabelParams) (Issue
 		&i.Color,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourceType,
+		&i.GitlabTrackerConnectionID,
+		&i.GitlabLabelID,
+		&i.IsProjectLabel,
+		&i.IsArchived,
 	)
 	return i, err
 }
@@ -112,7 +117,7 @@ func (q *Queries) DetachLabelFromIssue(ctx context.Context, arg DetachLabelFromI
 }
 
 const getLabel = `-- name: GetLabel :one
-SELECT id, workspace_id, name, color, created_at, updated_at FROM issue_label
+SELECT id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived FROM issue_label
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -131,12 +136,17 @@ func (q *Queries) GetLabel(ctx context.Context, arg GetLabelParams) (IssueLabel,
 		&i.Color,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourceType,
+		&i.GitlabTrackerConnectionID,
+		&i.GitlabLabelID,
+		&i.IsProjectLabel,
+		&i.IsArchived,
 	)
 	return i, err
 }
 
 const listLabels = `-- name: ListLabels :many
-SELECT id, workspace_id, name, color, created_at, updated_at FROM issue_label
+SELECT id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived FROM issue_label
 WHERE workspace_id = $1
 ORDER BY LOWER(name) ASC
 `
@@ -157,6 +167,11 @@ func (q *Queries) ListLabels(ctx context.Context, workspaceID pgtype.UUID) ([]Is
 			&i.Color,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SourceType,
+			&i.GitlabTrackerConnectionID,
+			&i.GitlabLabelID,
+			&i.IsProjectLabel,
+			&i.IsArchived,
 		); err != nil {
 			return nil, err
 		}
@@ -169,7 +184,7 @@ func (q *Queries) ListLabels(ctx context.Context, workspaceID pgtype.UUID) ([]Is
 }
 
 const listLabelsByIssue = `-- name: ListLabelsByIssue :many
-SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at
+SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived
 FROM issue_label l
 JOIN issue_to_label il ON il.label_id = l.id
 WHERE il.issue_id = $1::uuid
@@ -200,6 +215,11 @@ func (q *Queries) ListLabelsByIssue(ctx context.Context, arg ListLabelsByIssuePa
 			&i.Color,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SourceType,
+			&i.GitlabTrackerConnectionID,
+			&i.GitlabLabelID,
+			&i.IsProjectLabel,
+			&i.IsArchived,
 		); err != nil {
 			return nil, err
 		}
@@ -212,7 +232,7 @@ func (q *Queries) ListLabelsByIssue(ctx context.Context, arg ListLabelsByIssuePa
 }
 
 const listLabelsForIssues = `-- name: ListLabelsForIssues :many
-SELECT il.issue_id, l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at
+SELECT il.issue_id, l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived
 FROM issue_label l
 JOIN issue_to_label il ON il.label_id = l.id
 WHERE il.issue_id = ANY($1::uuid[])
@@ -226,13 +246,18 @@ type ListLabelsForIssuesParams struct {
 }
 
 type ListLabelsForIssuesRow struct {
-	IssueID     pgtype.UUID        `json:"issue_id"`
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Name        string             `json:"name"`
-	Color       string             `json:"color"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	IssueID                   pgtype.UUID        `json:"issue_id"`
+	ID                        pgtype.UUID        `json:"id"`
+	WorkspaceID               pgtype.UUID        `json:"workspace_id"`
+	Name                      string             `json:"name"`
+	Color                     string             `json:"color"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	SourceType                string             `json:"source_type"`
+	GitlabTrackerConnectionID pgtype.UUID        `json:"gitlab_tracker_connection_id"`
+	GitlabLabelID             pgtype.Int8        `json:"gitlab_label_id"`
+	IsProjectLabel            bool               `json:"is_project_label"`
+	IsArchived                bool               `json:"is_archived"`
 }
 
 // Bulk variant: fetch labels for many issues in one round-trip so the issue
@@ -255,6 +280,11 @@ func (q *Queries) ListLabelsForIssues(ctx context.Context, arg ListLabelsForIssu
 			&i.Color,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SourceType,
+			&i.GitlabTrackerConnectionID,
+			&i.GitlabLabelID,
+			&i.IsProjectLabel,
+			&i.IsArchived,
 		); err != nil {
 			return nil, err
 		}
@@ -272,7 +302,7 @@ UPDATE issue_label SET
     color = COALESCE($4, color),
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, name, color, created_at, updated_at
+RETURNING id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived
 `
 
 type UpdateLabelParams struct {
@@ -297,6 +327,11 @@ func (q *Queries) UpdateLabel(ctx context.Context, arg UpdateLabelParams) (Issue
 		&i.Color,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SourceType,
+		&i.GitlabTrackerConnectionID,
+		&i.GitlabLabelID,
+		&i.IsProjectLabel,
+		&i.IsArchived,
 	)
 	return i, err
 }
