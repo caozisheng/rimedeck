@@ -9,7 +9,21 @@ export const gitlabTrackerKeys = {
   all: (wsId: string) => ["gitlab-trackers", wsId] as const,
   project: (wsId: string, projectId: string) =>
     [...gitlabTrackerKeys.all(wsId), projectId] as const,
+  health: (wsId: string, projectId: string, trackerId: string) =>
+    [...gitlabTrackerKeys.project(wsId, projectId), trackerId, "health"] as const,
 };
+
+// Health poll is a 30 s stale window — opening the panel doesn't
+// hammer the backend, but retries surface changes quickly enough to
+// feel live.
+export function gitlabTrackerHealthOptions(wsId: string, projectId: string, trackerId: string) {
+  return queryOptions({
+    queryKey: gitlabTrackerKeys.health(wsId, projectId, trackerId),
+    queryFn: () => api.getGitlabTrackerHealth(projectId, trackerId),
+    staleTime: 30_000,
+    enabled: !!projectId && !!trackerId,
+  });
+}
 
 export function projectGitlabTrackersOptions(wsId: string, projectId: string) {
   return queryOptions({

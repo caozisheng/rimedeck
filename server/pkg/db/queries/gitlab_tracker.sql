@@ -266,3 +266,21 @@ SET state = CASE WHEN state = 'degraded' THEN 'active' ELSE state END,
     last_error_at = NULL,
     updated_at = now()
 WHERE id = $1;
+
+-- name: TouchLastWebhook :exec
+UPDATE gitlab_tracker_connection
+SET last_webhook_at = now(), updated_at = now()
+WHERE id = $1;
+
+-- name: GetGitlabTrackerHealth :one
+SELECT
+  gtc.id, gtc.state, gtc.webhook_state,
+  gtc.last_pull_at, gtc.last_full_reconcile_at, gtc.last_webhook_at,
+  gtc.last_error_code,
+  COALESCE(SUM(CASE WHEN o.status = 'pending' THEN 1 ELSE 0 END), 0)::bigint AS pending_count,
+  COALESCE(SUM(CASE WHEN o.status = 'retrying' THEN 1 ELSE 0 END), 0)::bigint AS retrying_count,
+  COALESCE(SUM(CASE WHEN o.status = 'failed' THEN 1 ELSE 0 END), 0)::bigint AS failed_count
+FROM gitlab_tracker_connection gtc
+LEFT JOIN tracker_sync_outbox o ON o.tracker_connection_id = gtc.id
+WHERE gtc.id = $1
+GROUP BY gtc.id;

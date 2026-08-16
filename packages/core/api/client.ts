@@ -81,6 +81,7 @@ import type {
   IssueLabelsResponse,
   ListGitlabTrackersResponse,
   GitlabTracker,
+  GitlabTrackerHealth,
   ValidateGitlabTrackerRequest,
   ValidateGitlabTrackerResponse,
   CreateGitlabTrackerRequest,
@@ -1689,6 +1690,10 @@ export class ApiClient {
       method: "DELETE",
       headers: { "X-Confirm-Delete-Mirrors": "true" },
     });
+  }
+
+  async getGitlabTrackerHealth(projectId: string, trackerId: string): Promise<GitlabTrackerHealth> {
+    return this.fetch(`/api/projects/${projectId}/gitlab-trackers/${trackerId}/health`);
   }
 
   async createProjectResource(

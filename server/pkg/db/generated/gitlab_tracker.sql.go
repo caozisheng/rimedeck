@@ -245,7 +245,7 @@ INSERT INTO gitlab_tracker_connection (
   project_id, workspace_id, instance_url, remote_project_id, path_with_namespace,
   web_url, clone_url, default_branch, token_ciphertext, token_key_version,
   webhook_secret_ciphertext, webhook_state, state, created_by
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13) RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active',$13) RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at, last_webhook_at
 `
 
 type CreateGitlabTrackerConnectionParams struct {
@@ -304,6 +304,7 @@ func (q *Queries) CreateGitlabTrackerConnection(ctx context.Context, arg CreateG
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastWebhookAt,
 	)
 	return i, err
 }
@@ -408,7 +409,7 @@ UPDATE gitlab_tracker_connection
 SET state = 'disabled',
     updated_at = now()
 WHERE id = $1
-RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at
+RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at, last_webhook_at
 `
 
 func (q *Queries) DisableGitlabTrackerConnection(ctx context.Context, id pgtype.UUID) (GitlabTrackerConnection, error) {
@@ -437,6 +438,7 @@ func (q *Queries) DisableGitlabTrackerConnection(ctx context.Context, id pgtype.
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastWebhookAt,
 	)
 	return i, err
 }
@@ -482,7 +484,7 @@ func (q *Queries) GetGitlabIssueLinkByIssueID(ctx context.Context, issueID pgtyp
 }
 
 const getGitlabTrackerConnection = `-- name: GetGitlabTrackerConnection :one
-SELECT id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at FROM gitlab_tracker_connection WHERE id = $1
+SELECT id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at, last_webhook_at FROM gitlab_tracker_connection WHERE id = $1
 `
 
 func (q *Queries) GetGitlabTrackerConnection(ctx context.Context, id pgtype.UUID) (GitlabTrackerConnection, error) {
@@ -511,12 +513,13 @@ func (q *Queries) GetGitlabTrackerConnection(ctx context.Context, id pgtype.UUID
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastWebhookAt,
 	)
 	return i, err
 }
 
 const getGitlabTrackerConnectionInWorkspace = `-- name: GetGitlabTrackerConnectionInWorkspace :one
-SELECT id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at FROM gitlab_tracker_connection WHERE id = $1 AND workspace_id = $2
+SELECT id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at, last_webhook_at FROM gitlab_tracker_connection WHERE id = $1 AND workspace_id = $2
 `
 
 type GetGitlabTrackerConnectionInWorkspaceParams struct {
@@ -550,6 +553,52 @@ func (q *Queries) GetGitlabTrackerConnectionInWorkspace(ctx context.Context, arg
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastWebhookAt,
+	)
+	return i, err
+}
+
+const getGitlabTrackerHealth = `-- name: GetGitlabTrackerHealth :one
+SELECT
+  gtc.id, gtc.state, gtc.webhook_state,
+  gtc.last_pull_at, gtc.last_full_reconcile_at, gtc.last_webhook_at,
+  gtc.last_error_code,
+  COALESCE(SUM(CASE WHEN o.status = 'pending' THEN 1 ELSE 0 END), 0)::bigint AS pending_count,
+  COALESCE(SUM(CASE WHEN o.status = 'retrying' THEN 1 ELSE 0 END), 0)::bigint AS retrying_count,
+  COALESCE(SUM(CASE WHEN o.status = 'failed' THEN 1 ELSE 0 END), 0)::bigint AS failed_count
+FROM gitlab_tracker_connection gtc
+LEFT JOIN tracker_sync_outbox o ON o.tracker_connection_id = gtc.id
+WHERE gtc.id = $1
+GROUP BY gtc.id
+`
+
+type GetGitlabTrackerHealthRow struct {
+	ID                  pgtype.UUID        `json:"id"`
+	State               string             `json:"state"`
+	WebhookState        string             `json:"webhook_state"`
+	LastPullAt          pgtype.Timestamptz `json:"last_pull_at"`
+	LastFullReconcileAt pgtype.Timestamptz `json:"last_full_reconcile_at"`
+	LastWebhookAt       pgtype.Timestamptz `json:"last_webhook_at"`
+	LastErrorCode       pgtype.Text        `json:"last_error_code"`
+	PendingCount        int64              `json:"pending_count"`
+	RetryingCount       int64              `json:"retrying_count"`
+	FailedCount         int64              `json:"failed_count"`
+}
+
+func (q *Queries) GetGitlabTrackerHealth(ctx context.Context, id pgtype.UUID) (GetGitlabTrackerHealthRow, error) {
+	row := q.db.QueryRow(ctx, getGitlabTrackerHealth, id)
+	var i GetGitlabTrackerHealthRow
+	err := row.Scan(
+		&i.ID,
+		&i.State,
+		&i.WebhookState,
+		&i.LastPullAt,
+		&i.LastFullReconcileAt,
+		&i.LastWebhookAt,
+		&i.LastErrorCode,
+		&i.PendingCount,
+		&i.RetryingCount,
+		&i.FailedCount,
 	)
 	return i, err
 }
@@ -714,7 +763,7 @@ func (q *Queries) ListGitlabIssueLinksByIssues(ctx context.Context, dollar_1 []p
 }
 
 const listGitlabTrackerConnectionsByProject = `-- name: ListGitlabTrackerConnectionsByProject :many
-SELECT id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at FROM gitlab_tracker_connection
+SELECT id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at, last_webhook_at FROM gitlab_tracker_connection
 WHERE project_id = $1 AND state <> 'disabled'
 ORDER BY created_at ASC
 `
@@ -751,6 +800,7 @@ func (q *Queries) ListGitlabTrackerConnectionsByProject(ctx context.Context, pro
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.LastWebhookAt,
 		); err != nil {
 			return nil, err
 		}
@@ -927,6 +977,17 @@ func (q *Queries) TouchLastFullReconcile(ctx context.Context, id pgtype.UUID) er
 	return err
 }
 
+const touchLastWebhook = `-- name: TouchLastWebhook :exec
+UPDATE gitlab_tracker_connection
+SET last_webhook_at = now(), updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) TouchLastWebhook(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, touchLastWebhook, id)
+	return err
+}
+
 const touchTrackerLastPull = `-- name: TouchTrackerLastPull :exec
 UPDATE gitlab_tracker_connection
 SET last_pull_at = now(), updated_at = now()
@@ -947,7 +1008,7 @@ SET token_ciphertext = $2,
     last_error_at = NULL,
     updated_at = now()
 WHERE id = $1
-RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at
+RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at, last_webhook_at
 `
 
 type UpdateGitlabTrackerTokenParams struct {
@@ -982,6 +1043,7 @@ func (q *Queries) UpdateGitlabTrackerToken(ctx context.Context, arg UpdateGitlab
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LastWebhookAt,
 	)
 	return i, err
 }

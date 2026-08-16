@@ -865,6 +865,7 @@ func (h *Handler) HandleGitlabWebhook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
+
 	if payload.Project.ID != tracker.RemoteProjectID {
 		// Misdirected webhook (someone posted our URL from a different
 		// repo) — drop before enqueue so the worker can't be tricked
@@ -904,6 +905,7 @@ func (h *Handler) HandleGitlabWebhook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to enqueue webhook")
 		return
 	}
+	_ = h.Queries.TouchLastWebhook(ctx, tracker.ID)
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -932,4 +934,74 @@ func gitlabWebhookPayload(operation string, iid int32) []byte {
 		return body
 	}
 	return []byte("{}")
+}
+
+// ---------------------------------------------------------------------------
+// Health endpoint (Phase 4 Task 5)
+// ---------------------------------------------------------------------------
+
+// GitlabTrackerHealthResponse exposes the safe counters the tracker
+// section renders in its dead-letter panel. No credentials, no error
+// messages — just numeric summaries and enums.
+type GitlabTrackerHealthResponse struct {
+	ID                  string  `json:"id"`
+	State               string  `json:"state"`
+	WebhookState        string  `json:"webhook_state"`
+	LastPullAt          *string `json:"last_pull_at"`
+	LastFullReconcileAt *string `json:"last_full_reconcile_at"`
+	LastWebhookAt       *string `json:"last_webhook_at"`
+	LastErrorCode       *string `json:"last_error_code"`
+	PendingOutboxCount  int64   `json:"pending_outbox_count"`
+	RetryingOutboxCount int64   `json:"retrying_outbox_count"`
+	FailedOutboxCount   int64   `json:"failed_outbox_count"`
+}
+
+// GetGitlabTrackerHealth is workspace-member readable. Returns only
+// safe numeric counters so the panel can render without leaking any
+// credential material or free-form error strings.
+func (h *Handler) GetGitlabTrackerHealth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceID := h.resolveWorkspaceID(r)
+	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace_id")
+	if !ok {
+		return
+	}
+	projectID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "project_id")
+	if !ok {
+		return
+	}
+	if _, err := h.Queries.GetProjectInWorkspace(ctx, db.GetProjectInWorkspaceParams{ID: projectID, WorkspaceID: wsUUID}); err != nil {
+		writeError(w, http.StatusNotFound, "project not found")
+		return
+	}
+	trackerID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "trackerId"), "trackerId")
+	if !ok {
+		return
+	}
+	tracker, err := h.Queries.GetGitlabTrackerConnectionInWorkspace(ctx, db.GetGitlabTrackerConnectionInWorkspaceParams{ID: trackerID, WorkspaceID: wsUUID})
+	if err != nil {
+		writeError(w, http.StatusNotFound, "tracker not found")
+		return
+	}
+	if uuidToString(tracker.ProjectID) != uuidToString(projectID) {
+		writeError(w, http.StatusNotFound, "tracker not found")
+		return
+	}
+	row, err := h.Queries.GetGitlabTrackerHealth(ctx, tracker.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load tracker health")
+		return
+	}
+	writeJSON(w, http.StatusOK, GitlabTrackerHealthResponse{
+		ID:                  uuidToString(row.ID),
+		State:               row.State,
+		WebhookState:        row.WebhookState,
+		LastPullAt:          timestampToPtr(row.LastPullAt),
+		LastFullReconcileAt: timestampToPtr(row.LastFullReconcileAt),
+		LastWebhookAt:       timestampToPtr(row.LastWebhookAt),
+		LastErrorCode:       textToPtr(row.LastErrorCode),
+		PendingOutboxCount:  row.PendingCount,
+		RetryingOutboxCount: row.RetryingCount,
+		FailedOutboxCount:   row.FailedCount,
+	})
 }

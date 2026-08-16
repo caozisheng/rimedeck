@@ -492,6 +492,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/gitlab-trackers", h.ListProjectGitlabTrackers)
 					r.Post("/gitlab-trackers", h.CreateProjectGitlabTracker)
 					r.Route("/gitlab-trackers/{trackerId}", func(r chi.Router) {
+						r.Get("/health", h.GetGitlabTrackerHealth)
 						r.Put("/token", h.RotateGitlabTrackerToken)
 						r.Post("/sync", h.SyncGitlabTracker)
 						r.Post("/retry", h.RetryGitlabTrackerFailedOutbox)

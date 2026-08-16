@@ -52,3 +52,19 @@ export interface ListLabelsParams {
   source?: "local" | "gitlab";
   tracker_id?: string;
 }
+
+// Health snapshot for the tracker section's dead-letter panel. Numbers
+// only — no free-form error strings and no credential material per
+// design §11.2.
+export interface GitlabTrackerHealth {
+  id: string;
+  state: "active" | "degraded" | "disabled";
+  webhook_state: "active" | "unavailable" | "error";
+  last_pull_at: string | null;
+  last_full_reconcile_at: string | null;
+  last_webhook_at: string | null;
+  last_error_code?: string | null;
+  pending_outbox_count: number;
+  retrying_outbox_count: number;
+  failed_outbox_count: number;
+}
