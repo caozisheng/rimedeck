@@ -140,7 +140,11 @@
     "local_clear": "クリア",
     "local_pick_failed": "ディレクトリ選択画面を開けませんでした。",
     "local_invalid_dir": "このディレクトリは使用できません。別のものを選択してください。",
-    "local_hint": "他のマシンのエージェントはこのパスを参照できず、起動に失敗します。共有作業にはリポジトリを使用してください。"
+    "local_hint": "他のマシンのエージェントはこのパスを参照できず、起動に失敗します。共有作業にはリポジトリを使用してください。",
+    "local_gitlab_detected": "GitLab イシュートラッカーを検出しました",
+    "local_gitlab_attach": "接続",
+    "local_gitlab_skip": "スキップ",
+    "local_gitlab_ready": "トラッカー準備完了"
   },
   "create_issue": {
     "sr_manual": "新規イシュー",

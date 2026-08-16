@@ -70,6 +70,11 @@ interface DesktopAPI {
       | "not_writable"
       | "error";
     error?: string;
+    gitRemote?: {
+      url: string;
+      host: string;
+      provider: "gitlab" | "github" | "unknown";
+    };
   }>;
   /** Disconnect from the remote server and restore the local backend. */
   disconnectRuntimeConfig: () => Promise<void>;

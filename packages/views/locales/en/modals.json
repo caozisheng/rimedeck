@@ -142,7 +142,11 @@
     "local_clear": "Clear",
     "local_pick_failed": "Could not open the directory picker.",
     "local_invalid_dir": "This directory can't be used. Pick another.",
-    "local_hint": "Agents on other machines won't see this path — they'll fail to start. Use repos for shared work."
+    "local_hint": "Agents on other machines won't see this path — they'll fail to start. Use repos for shared work.",
+    "local_gitlab_detected": "GitLab issue tracker detected",
+    "local_gitlab_attach": "Attach",
+    "local_gitlab_skip": "Skip",
+    "local_gitlab_ready": "Tracker ready"
   },
   "create_issue": {
     "sr_manual": "New Issue",

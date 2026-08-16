@@ -23,6 +23,11 @@ export type ValidateLocalDirectoryResult = {
     | "error"
     | "unsupported";
   error?: string;
+  gitRemote?: {
+    url: string;
+    host: string;
+    provider: "gitlab" | "github" | "unknown";
+  };
 };
 
 interface DesktopLocalDirectoryAPI {

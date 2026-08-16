@@ -2,6 +2,16 @@ import { ipcMain, dialog, BrowserWindow } from "electron";
 import { access, stat } from "fs/promises";
 import { constants as fsConstants } from "fs";
 import { basename, isAbsolute } from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
+
+export interface GitRemoteInfo {
+  url: string;
+  host: string;
+  provider: "gitlab" | "github" | "unknown";
+}
 
 export interface PickDirectoryResult {
   ok: boolean;
@@ -24,6 +34,7 @@ export interface ValidateLocalDirectoryResult {
     | "not_writable"
     | "error";
   error?: string;
+  gitRemote?: GitRemoteInfo;
 }
 
 async function validateLocalDirectory(
@@ -50,7 +61,32 @@ async function validateLocalDirectory(
   } catch {
     return { ok: false, reason: "not_writable" };
   }
-  return { ok: true };
+  const gitRemote = await detectGitRemote(path);
+  return gitRemote ? { ok: true, gitRemote } : { ok: true };
+}
+
+export async function detectGitRemote(path: string): Promise<GitRemoteInfo | undefined> {
+  try {
+    const { stdout } = await execFileAsync("git", ["-C", path, "config", "--get", "remote.origin.url"], {
+      timeout: 3000,
+      maxBuffer: 16 * 1024,
+      windowsHide: true,
+    });
+    const url = stdout.trim();
+    let host = "";
+    const scp = url.match(/^[^@\s]+@([^:\s]+):/);
+    if (scp?.[1]) {
+      host = scp[1].toLowerCase();
+    } else {
+      try { host = new URL(url).hostname.toLowerCase(); } catch { host = ""; }
+    }
+    if (!host) return { url, host: "", provider: "unknown" };
+    const allowed = new Set(["gitlab.com", ...String(process.env.GITLAB_ALLOWED_HOSTS ?? "").split(",").map((v) => v.trim().toLowerCase()).filter(Boolean)]);
+    const provider = allowed.has(host) ? "gitlab" : host === "github.com" ? "github" : "unknown";
+    return { url, host, provider };
+  } catch {
+    return undefined;
+  }
 }
 
 function errorMessage(err: unknown): string {

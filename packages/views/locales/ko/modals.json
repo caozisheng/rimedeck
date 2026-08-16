@@ -142,7 +142,11 @@
     "local_clear": "지우기",
     "local_pick_failed": "디렉터리 선택 창을 열 수 없습니다.",
     "local_invalid_dir": "이 디렉터리는 사용할 수 없습니다. 다른 디렉터리를 선택하세요.",
-    "local_hint": "다른 기기의 에이전트는 이 경로를 볼 수 없어 시작에 실패합니다. 공유 작업에는 저장소를 사용하세요."
+    "local_hint": "다른 기기의 에이전트는 이 경로를 볼 수 없어 시작에 실패합니다. 공유 작업에는 저장소를 사용하세요.",
+    "local_gitlab_detected": "GitLab 이슈 트래커 감지됨",
+    "local_gitlab_attach": "연결",
+    "local_gitlab_skip": "건너뛰기",
+    "local_gitlab_ready": "트래커 준비됨"
   },
   "create_issue": {
     "sr_manual": "새 이슈",

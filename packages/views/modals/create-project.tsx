@@ -163,6 +163,10 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
   const [localPicking, setLocalPicking] = useState(false);
   const [gitlabUrl, setGitlabUrl] = useState("");
   const [gitlabToken, setGitlabToken] = useState("");
+  const [detectedGitlabRemote, setDetectedGitlabRemote] = useState<string | null>(null);
+  const [attachDetectedGitlab, setAttachDetectedGitlab] = useState(false);
+  const [detectedGitlabToken, setDetectedGitlabToken] = useState("");
+  const [validatedDetectedGitlab, setValidatedDetectedGitlab] = useState<ValidateGitlabTrackerResponse | null>(null);
   const [validatedGitlab, setValidatedGitlab] = useState<ValidateGitlabTrackerResponse | null>(null);
   const validateGitlab = useValidateGitlabTracker();
 
@@ -198,6 +202,11 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
         );
         return;
       }
+      const remote = validation.gitRemote?.provider === "gitlab" ? validation.gitRemote.url : null;
+      setDetectedGitlabRemote(remote);
+      setAttachDetectedGitlab(false);
+      setDetectedGitlabToken("");
+      setValidatedDetectedGitlab(null);
       setSelectedLocalPath(picked.path);
       setSelectedLocalLabel(picked.basename ?? null);
     } finally {
@@ -209,6 +218,10 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
     setSelectedLocalPath(null);
     setSelectedLocalLabel(null);
     setLocalPickError(null);
+    setDetectedGitlabRemote(null);
+	setAttachDetectedGitlab(false);
+	setDetectedGitlabToken("");
+	setValidatedDetectedGitlab(null);
   };
 
   // Sync field changes to draft store
@@ -270,11 +283,12 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
         priority,
         lead_type: leadType,
         lead_id: leadId,
-        // Server attaches these in the same transaction as the project.
         resources,
-		gitlab_trackers: sourceMode === "gitlab" && validatedGitlab
-			? [{ repository_url: gitlabUrl.trim(), access_token: gitlabToken.trim() }]
-			: undefined,
+        gitlab_trackers: sourceMode === "gitlab" && validatedGitlab
+          ? [{ repository_url: gitlabUrl.trim(), access_token: gitlabToken.trim() }]
+          : sourceMode === "local" && attachDetectedGitlab && validatedDetectedGitlab && detectedGitlabRemote
+            ? [{ repository_url: detectedGitlabRemote, access_token: detectedGitlabToken.trim() }]
+            : undefined,
       });
       clearDraft();
       onClose();
@@ -774,6 +788,25 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
 
                   {localPickError && (
                     <p className="text-[11px] text-destructive">{localPickError}</p>
+                  )}
+
+                  {detectedGitlabRemote && (
+                    <div className="rounded-md border px-2.5 py-2 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <GitBranch className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1 text-xs">
+                          <div className="font-medium">{t(($) => $.create_project.local_gitlab_detected)}</div>
+                          <div className="truncate text-[10px] text-muted-foreground" title={detectedGitlabRemote}>{detectedGitlabRemote}</div>
+                        </div>
+                        <button type="button" className="text-xs text-primary" onClick={() => setAttachDetectedGitlab((value) => !value)}>{attachDetectedGitlab ? t(($) => $.create_project.local_gitlab_skip) : t(($) => $.create_project.local_gitlab_attach)}</button>
+                      </div>
+                      {attachDetectedGitlab && (
+                        <div className="space-y-1.5">
+                          <input type="password" value={detectedGitlabToken} onChange={(e) => { setDetectedGitlabToken(e.target.value); setValidatedDetectedGitlab(null); validateGitlab.reset(); }} placeholder={t(($) => $.create_project.gitlab_token_placeholder)} className="h-8 w-full rounded-md border bg-transparent px-2 text-xs outline-none" />
+                          <Button type="button" size="sm" variant="outline" className="h-7 w-full text-xs" disabled={!detectedGitlabToken.trim() || validateGitlab.isPending} onClick={() => void validateGitlab.mutateAsync({ repository_url: detectedGitlabRemote, access_token: detectedGitlabToken.trim() }).then(setValidatedDetectedGitlab)}>{validatedDetectedGitlab ? t(($) => $.create_project.local_gitlab_ready) : t(($) => $.create_project.gitlab_validate)}</Button>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   <p className="text-[10px] text-muted-foreground leading-snug">
