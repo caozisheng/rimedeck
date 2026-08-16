@@ -466,6 +466,34 @@ var cryptoRandRead = cryptoRandReader
 // in the params so we mint it here.
 var newRandomUUID = defaultRandomUUID
 
+// enqueueTrackerOutbox inserts an outbox row and immediately compresses
+// older pending/retrying rows in the same
+// (tracker_connection_id, issue_id, operation) group with strictly lower
+// desired_revision. Callers pass their transactional Queries handle
+// (`h.Queries.WithTx(tx)`) so the insert + compression happens atomically
+// with the caller's own local mutation.
+func enqueueTrackerOutbox(ctx context.Context, q *db.Queries, params db.CreateTrackerOutboxParams) (db.TrackerSyncOutbox, error) {
+	row, err := q.CreateTrackerOutbox(ctx, params)
+	if err != nil {
+		return db.TrackerSyncOutbox{}, err
+	}
+	// Compression only runs when the caller declared a desired revision;
+	// pull_labels/reconcile/pull_issue rows leave it null and are never
+	// compressed — they represent distinct pull attempts, not overlapping
+	// desired states.
+	if params.DesiredRevision.Valid {
+		if err := q.CompressPendingTrackerOutbox(ctx, db.CompressPendingTrackerOutboxParams{
+			TrackerConnectionID: params.TrackerConnectionID,
+			IssueID:             params.IssueID,
+			Operation:           params.Operation,
+			DesiredRevision:     params.DesiredRevision,
+		}); err != nil {
+			return db.TrackerSyncOutbox{}, fmt.Errorf("compress outbox: %w", err)
+		}
+	}
+	return row, nil
+}
+
 // ---------------------------------------------------------------------------
 // Lifecycle endpoints (Phase 2 Task 9)
 // ---------------------------------------------------------------------------

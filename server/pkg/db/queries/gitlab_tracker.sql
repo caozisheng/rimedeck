@@ -104,19 +104,46 @@ SELECT count(*) FROM tracker_sync_outbox
 WHERE tracker_connection_id = $1
   AND status IN ('pending','running','retrying');
 
+-- name: CompressPendingTrackerOutbox :exec
+-- Cancels older pending/retrying rows for the same
+-- (tracker_connection_id, issue_id, operation) group whose
+-- desired_revision is strictly less than the newest one just enqueued.
+-- Called right after CreateTrackerOutbox so only the latest desired
+-- state ever gets pushed. Rows already in flight (running) or terminal
+-- (failed/succeeded/cancelled) are never touched — they own the wire.
+UPDATE tracker_sync_outbox
+SET status = 'cancelled', updated_at = now()
+WHERE tracker_connection_id = $1
+  AND issue_id = $2
+  AND operation = $3
+  AND status IN ('pending','retrying')
+  AND desired_revision IS NOT NULL
+  AND desired_revision < $4;
+
 -- name: ClaimReadyTrackerOutbox :many
 -- Selects up to $1 ready outbox rows and atomically flips them to
--- 'running' with an incremented attempt count. FOR UPDATE SKIP LOCKED
--- lets multiple workers coexist safely. Only rows in pending/retrying
--- with available_at <= now() are considered.
-WITH ready AS (
-  SELECT id FROM tracker_sync_outbox
+-- 'running' with an incremented attempt count. Two invariants:
+--   1) FOR UPDATE SKIP LOCKED lets multiple workers coexist safely.
+--   2) DISTINCT ON (tracker_connection_id) hands out at most one row
+--      per connection per tick so writes on the same connection cannot
+--      interleave (design §11.6 single-writer contract).
+WITH candidates AS (
+  SELECT id, tracker_connection_id, available_at, created_at
+  FROM tracker_sync_outbox
   WHERE status IN ('pending','retrying')
-    AND operation IN ('pull_labels','pull_issue','reconcile')
     AND available_at <= now()
-  ORDER BY available_at, created_at
+),
+per_connection AS (
+  SELECT DISTINCT ON (tracker_connection_id) id
+  FROM candidates
+  ORDER BY tracker_connection_id, available_at, created_at
+),
+ready AS (
+  SELECT o.id FROM tracker_sync_outbox o
+  JOIN per_connection USING (id)
+  ORDER BY o.available_at, o.created_at
   LIMIT $1
-  FOR UPDATE SKIP LOCKED
+  FOR UPDATE OF o SKIP LOCKED
 )
 UPDATE tracker_sync_outbox o
 SET status = 'running', attempts = attempts + 1, updated_at = now()
