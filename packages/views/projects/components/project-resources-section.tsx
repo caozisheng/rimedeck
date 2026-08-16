@@ -21,11 +21,17 @@ import {
 import { runtimeListOptions } from "@rimedeck/core/runtimes/queries";
 import { useWorkspaceId } from "@rimedeck/core/hooks";
 import { useCurrentWorkspace } from "@rimedeck/core/paths";
+import {
+  useCreateProjectGitlabTracker,
+  useValidateGitlabTracker,
+} from "@rimedeck/core";
 import type {
   AgentRuntime,
   GithubRepoResourceRef,
+  GitlabRepoResourceRef,
   LocalDirectoryResourceRef,
   ProjectResource,
+  ValidateGitlabTrackerResponse,
 } from "@rimedeck/core/types";
 import { Button } from "@rimedeck/ui/components/ui/button";
 import {
@@ -97,6 +103,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   const createResource = useCreateProjectResource(wsId, projectId);
   const updateResource = useUpdateProjectResource(wsId, projectId);
   const deleteResource = useDeleteProjectResource(wsId, projectId);
+  const createGitlabTracker = useCreateProjectGitlabTracker(wsId ?? "", projectId);
 
   // Desktop-only entry points. We hide (not just disable) on web so users
   // there don't see an action they can never complete — the spec calls for
@@ -149,6 +156,61 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
         resource_ref: { url },
       });
       toast.success(t(($) => $.resources.toast_attached));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t(($) => $.resources.toast_attach_failed);
+      toast.error(msg);
+    }
+  };
+
+  type CustomAttachPayload =
+    | { provider: "github"; url: string }
+    | {
+        provider: "gitlab";
+        url: string;
+        token: string;
+        validated: ValidateGitlabTrackerResponse;
+      };
+
+  const handleAttachCustom = async (payload: CustomAttachPayload) => {
+    try {
+      if (payload.provider === "github") {
+        await createResource.mutateAsync({
+          resource_type: "github_repo",
+          resource_ref: { url: payload.url },
+        });
+        toast.success(t(($) => $.resources.toast_attached));
+        return;
+      }
+      // GitLab: attach the code resource first so the row appears even if
+      // the tracker POST fails (network blip / RBAC). Users can retry the
+      // tracker attach from Settings > GitLab. Keeping the two calls in
+      // this order matches the create-project flow where the resource is
+      // the load-bearing artifact and the tracker is the sync addition.
+      const ref: GitlabRepoResourceRef = {
+        url: payload.url,
+        ...(payload.validated.default_branch
+          ? { default_branch_hint: payload.validated.default_branch }
+          : {}),
+      };
+      await createResource.mutateAsync({
+        resource_type: "gitlab_repo",
+        resource_ref: ref,
+      });
+      try {
+        await createGitlabTracker.mutateAsync({
+          repository_url: payload.url,
+          access_token: payload.token,
+        });
+        toast.success(t(($) => $.resources.toast_gitlab_attached));
+      } catch (trackerErr) {
+        const msg =
+          trackerErr instanceof Error
+            ? trackerErr.message
+            : t(($) => $.resources.toast_gitlab_tracker_failed);
+        // Resource landed; only the tracker failed. Warn, don't clobber
+        // the successful resource attach.
+        toast.warning(msg);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : t(($) => $.resources.toast_attach_failed);
       toast.error(msg);
@@ -428,8 +490,8 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
                 </>
               )}
               <CustomRepoForm
-                onSubmit={async (url) => {
-                  await handleAttach(url);
+                onSubmit={async (payload) => {
+                  await handleAttachCustom(payload);
                   setAddOpen(false);
                 }}
               />
@@ -722,44 +784,186 @@ function LocalDirectoryRow({
   );
 }
 
+// Provider-aware "add repo" form. GitHub keeps the one-input fast path;
+// GitLab requires a PAT and a validation round-trip because we have to
+// prove the token can reach the repo before persisting a tracker row.
+type CustomRepoFormSubmit =
+  | { provider: "github"; url: string }
+  | {
+      provider: "gitlab";
+      url: string;
+      token: string;
+      validated: ValidateGitlabTrackerResponse;
+    };
+
 function CustomRepoForm({
   onSubmit,
 }: {
-  onSubmit: (url: string) => Promise<void> | void;
+  onSubmit: (payload: CustomRepoFormSubmit) => Promise<void> | void;
 }) {
   const { t } = useT("projects");
+  const [provider, setProvider] = useState<"github" | "gitlab">("github");
   const [url, setUrl] = useState("");
+  const [token, setToken] = useState("");
+  const [validated, setValidated] = useState<ValidateGitlabTrackerResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const validate = useValidateGitlabTracker();
+
+  const switchProvider = (next: "github" | "gitlab") => {
+    if (next === provider) return;
+    setProvider(next);
+    setValidated(null);
+    validate.reset();
+    // URL survives the switch so users retyping "gitlab.com/…" don't
+    // lose their input; token is cleared because it's provider-scoped.
+    setToken("");
+  };
+
+  const canValidate =
+    provider === "gitlab" && !!url.trim() && !!token.trim() && !validate.isPending;
+  const canSubmit =
+    provider === "github"
+      ? !!url.trim() && !submitting
+      : !!validated && !submitting;
+
+  const handleValidate = async () => {
+    setValidated(null);
+    try {
+      const result = await validate.mutateAsync({
+        repository_url: url.trim(),
+        access_token: token.trim(),
+      });
+      setValidated(result);
+    } catch {
+      // useMutation surfaces the error via validate.error; the inline
+      // <p> below renders it. Swallow here so React Query keeps the
+      // isError state intact.
+    }
+  };
+
   const handle = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = url.trim();
-    if (!trimmed) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await onSubmit(trimmed);
+      if (provider === "github") {
+        await onSubmit({ provider: "github", url: url.trim() });
+      } else if (validated) {
+        await onSubmit({
+          provider: "gitlab",
+          url: url.trim(),
+          token: token.trim(),
+          validated,
+        });
+      }
       setUrl("");
+      setToken("");
+      setValidated(null);
+      validate.reset();
     } finally {
       setSubmitting(false);
     }
   };
+
   return (
-    <form onSubmit={handle} className="flex items-center gap-1.5 pt-1 border-t">
+    <form onSubmit={handle} className="space-y-1.5 pt-1 border-t">
+      <div className="flex gap-1" role="tablist" aria-label={t(($) => $.resources.provider_tablist_label)}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={provider === "github"}
+          onClick={() => switchProvider("github")}
+          className={`h-6 rounded-md px-2 text-[11px] transition-colors ${
+            provider === "github" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          {t(($) => $.resources.provider_github)}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={provider === "gitlab"}
+          onClick={() => switchProvider("gitlab")}
+          className={`h-6 rounded-md px-2 text-[11px] transition-colors ${
+            provider === "gitlab" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
+          }`}
+        >
+          {t(($) => $.resources.provider_gitlab)}
+        </button>
+      </div>
       <input
         type="text"
         value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder={t(($) => $.resources.url_placeholder)}
-        className="flex-1 bg-transparent text-xs px-2 py-1 outline-none placeholder:text-muted-foreground"
+        onChange={(e) => {
+          setUrl(e.target.value);
+          if (provider === "gitlab") {
+            setValidated(null);
+            validate.reset();
+          }
+        }}
+        placeholder={
+          provider === "github"
+            ? t(($) => $.resources.url_placeholder)
+            : t(($) => $.resources.gitlab_url_placeholder)
+        }
+        className="h-8 w-full rounded-md border bg-transparent px-2 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
       />
-      <Button
-        type="submit"
-        size="sm"
-        variant="ghost"
-        className="h-6 px-2 text-xs"
-        disabled={!url.trim() || submitting}
-      >
-        {t(($) => $.resources.url_submit)}
-      </Button>
+      {provider === "gitlab" && (
+        <>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => {
+              setToken(e.target.value);
+              setValidated(null);
+              validate.reset();
+            }}
+            placeholder={t(($) => $.resources.gitlab_token_placeholder)}
+            className="h-8 w-full rounded-md border bg-transparent px-2 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 w-full text-xs"
+            disabled={!canValidate}
+            onClick={() => void handleValidate()}
+          >
+            {validated
+              ? t(($) => $.resources.gitlab_validated)
+              : validate.isPending
+                ? t(($) => $.resources.gitlab_validating)
+                : t(($) => $.resources.gitlab_validate)}
+          </Button>
+          {validate.isError && (
+            <p className="text-[11px] text-destructive">{validate.error.message}</p>
+          )}
+          {validated && (
+            <div className="rounded-md border px-2 py-1.5 text-[11px]">
+              <div className="font-medium">{validated.path_with_namespace}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {validated.host} · {validated.default_branch || "default"}
+              </div>
+              {!validated.permissions.can_write_issues && (
+                <div className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">
+                  {t(($) => $.resources.gitlab_read_only)}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs"
+          disabled={!canSubmit}
+        >
+          {t(($) => $.resources.url_submit)}
+        </Button>
+      </div>
     </form>
   );
 }
