@@ -183,3 +183,22 @@ WHERE id = $1;
 UPDATE gitlab_tracker_connection
 SET last_pull_at = now(), updated_at = now()
 WHERE id = $1;
+
+-- name: DetachSingleIssueFromTracker :exec
+-- Turns one mirrored issue into a local-only record. Used by the
+-- conflict dialog's "Convert to local" action so the user can escape
+-- a wedged push without losing local edits.
+UPDATE issue
+SET source_type = 'detached',
+    sync_state = 'detached',
+    tracker_connection_id = NULL
+WHERE id = $1 AND source_type = 'gitlab';
+
+-- name: DiscardPendingIssueRevision :exec
+-- Rolls the local sync_revision back to synced_revision so the next
+-- canonical pull is authoritative. Callers pair this with
+-- CancelTrackerOutboxByIssue to drop the queued push in the same tx.
+UPDATE issue
+SET sync_revision = synced_revision,
+    sync_state = 'synced'
+WHERE id = $1 AND source_type = 'gitlab';

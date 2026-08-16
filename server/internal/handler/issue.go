@@ -3398,7 +3398,6 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-
 	if len(req.IssueIDs) == 0 {
 		writeError(w, http.StatusBadRequest, "issue_ids is required")
 		return
@@ -3452,4 +3451,82 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("batch delete issues", append(logger.RequestAttrs(r), "count", deleted)...)
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": deleted})
+}
+
+// DetachIssueTracker converts a single GitLab-mirrored issue into a
+// local-only record. Owner/admin only. Cancels any non-terminal outbox
+// rows so the worker cannot push a stale desired state.
+func (h *Handler) DetachIssueTracker(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	prev, ok := h.loadIssueForUser(w, r, id)
+	if !ok {
+		return
+	}
+	member, _ := ctxMember(r.Context())
+	if !roleAllowed(member.Role, "owner", "admin") {
+		writeError(w, http.StatusForbidden, "insufficient permissions")
+		return
+	}
+	if prev.SourceType != "gitlab" {
+		writeError(w, http.StatusBadRequest, "issue is not GitLab-sourced")
+		return
+	}
+	if err := h.Queries.DetachSingleIssueFromTracker(r.Context(), prev.ID); err != nil {
+		slog.Warn("detach single issue failed", append(logger.RequestAttrs(r), "error", err, "issue_id", id)...)
+		writeError(w, http.StatusInternalServerError, "failed to detach issue")
+		return
+	}
+	if err := h.Queries.CancelTrackerOutboxByIssue(r.Context(), prev.ID); err != nil {
+		slog.Warn("cancel outbox after detach failed", append(logger.RequestAttrs(r), "error", err, "issue_id", id)...)
+	}
+	issue, err := h.Queries.GetIssue(r.Context(), prev.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to reload detached issue")
+		return
+	}
+	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
+	resp := issueToResponse(issue, prefix)
+	userID := requestUserID(r)
+	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
+	h.publish(protocol.EventIssueUpdated, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"issue": resp})
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// DiscardIssuePendingRevision rolls a failed GitLab issue's local
+// sync_revision back to synced_revision and cancels the queued outbox.
+// The next canonical pull becomes authoritative. Owner/admin only.
+func (h *Handler) DiscardIssuePendingRevision(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	prev, ok := h.loadIssueForUser(w, r, id)
+	if !ok {
+		return
+	}
+	member, _ := ctxMember(r.Context())
+	if !roleAllowed(member.Role, "owner", "admin") {
+		writeError(w, http.StatusForbidden, "insufficient permissions")
+		return
+	}
+	if prev.SourceType != "gitlab" {
+		writeError(w, http.StatusBadRequest, "issue is not GitLab-sourced")
+		return
+	}
+	if err := h.Queries.CancelTrackerOutboxByIssue(r.Context(), prev.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to cancel outbox")
+		return
+	}
+	if err := h.Queries.DiscardPendingIssueRevision(r.Context(), prev.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to discard revision")
+		return
+	}
+	issue, err := h.Queries.GetIssue(r.Context(), prev.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to reload issue")
+		return
+	}
+	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
+	resp := issueToResponse(issue, prefix)
+	userID := requestUserID(r)
+	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
+	h.publish(protocol.EventIssueUpdated, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{"issue": resp})
+	writeJSON(w, http.StatusOK, resp)
 }

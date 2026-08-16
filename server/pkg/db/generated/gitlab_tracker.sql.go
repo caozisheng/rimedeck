@@ -387,6 +387,22 @@ func (q *Queries) DetachIssuesFromTracker(ctx context.Context, trackerConnection
 	return err
 }
 
+const detachSingleIssueFromTracker = `-- name: DetachSingleIssueFromTracker :exec
+UPDATE issue
+SET source_type = 'detached',
+    sync_state = 'detached',
+    tracker_connection_id = NULL
+WHERE id = $1 AND source_type = 'gitlab'
+`
+
+// Turns one mirrored issue into a local-only record. Used by the
+// conflict dialog's "Convert to local" action so the user can escape
+// a wedged push without losing local edits.
+func (q *Queries) DetachSingleIssueFromTracker(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachSingleIssueFromTracker, id)
+	return err
+}
+
 const disableGitlabTrackerConnection = `-- name: DisableGitlabTrackerConnection :one
 UPDATE gitlab_tracker_connection
 SET state = 'disabled',
@@ -423,6 +439,21 @@ func (q *Queries) DisableGitlabTrackerConnection(ctx context.Context, id pgtype.
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const discardPendingIssueRevision = `-- name: DiscardPendingIssueRevision :exec
+UPDATE issue
+SET sync_revision = synced_revision,
+    sync_state = 'synced'
+WHERE id = $1 AND source_type = 'gitlab'
+`
+
+// Rolls the local sync_revision back to synced_revision so the next
+// canonical pull is authoritative. Callers pair this with
+// CancelTrackerOutboxByIssue to drop the queued push in the same tx.
+func (q *Queries) DiscardPendingIssueRevision(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, discardPendingIssueRevision, id)
+	return err
 }
 
 const getGitlabIssueLinkByIssueID = `-- name: GetGitlabIssueLinkByIssueID :one

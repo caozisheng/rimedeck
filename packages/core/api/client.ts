@@ -1731,6 +1731,14 @@ export class ApiClient {
     return this.fetch(`/api/labels${query ? `?${query}` : ""}`);
   }
 
+  async detachIssueTracker(issueId: string): Promise<Issue> {
+    return this.fetch(`/api/issues/${issueId}/detach-tracker`, { method: "POST" });
+  }
+
+  async discardIssuePending(issueId: string): Promise<Issue> {
+    return this.fetch(`/api/issues/${issueId}/discard-pending`, { method: "POST" });
+  }
+
   async getLabel(id: string): Promise<Label> {
     return this.fetch(`/api/labels/${id}`);
   }

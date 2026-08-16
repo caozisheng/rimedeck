@@ -394,6 +394,35 @@ export function useDeleteIssue() {
   });
 }
 
+// useDetachIssueTracker: "Convert to local" from the conflict dialog.
+// Returns the updated Issue so callers can splice it into detail cache.
+export function useDetachIssueTracker() {
+  const qc = useQueryClient();
+  const wsId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (id: string) => api.detachIssueTracker(id),
+    onSuccess: (issue) => {
+      qc.setQueryData(issueKeys.detail(wsId, issue.id), issue);
+      qc.invalidateQueries({ queryKey: issueKeys.list(wsId) });
+    },
+  });
+}
+
+// useDiscardIssuePending: "Discard local changes" from the conflict
+// dialog. Rolls sync_revision back to synced_revision so the next
+// canonical pull is authoritative.
+export function useDiscardIssuePending() {
+  const qc = useQueryClient();
+  const wsId = useWorkspaceId();
+  return useMutation({
+    mutationFn: (id: string) => api.discardIssuePending(id),
+    onSuccess: (issue) => {
+      qc.setQueryData(issueKeys.detail(wsId, issue.id), issue);
+      qc.invalidateQueries({ queryKey: issueKeys.list(wsId) });
+    },
+  });
+}
+
 export function useBatchUpdateIssues() {
   const qc = useQueryClient();
   const wsId = useWorkspaceId();
