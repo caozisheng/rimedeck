@@ -103,6 +103,9 @@ export interface ListGroupedIssuesParams {
   project_ids?: string[];
   include_no_project?: boolean;
   label_ids?: string[];
+  source?: IssueSource;
+  tracker_id?: string;
+  sync_state?: string;
   group_assignee_type?: IssueAssigneeType | "none";
   group_assignee_id?: string;
   sort_by?: "position" | "priority" | "title" | "created_at" | "start_date" | "due_date";

@@ -59,6 +59,7 @@
     "./agents/queries": "./agents/queries.ts",
     "./agents/derive-presence": "./agents/derive-presence.ts",
     "./agents/use-agent-presence": "./agents/use-agent-presence.ts",
+    "./gitlab-tracker-queries": "./gitlab-tracker-queries.ts",
     "./agents/visibility-label": "./agents/visibility-label.ts",
     "./agents/stores": "./agents/stores/index.ts",
     "./squads": "./squads/index.ts",

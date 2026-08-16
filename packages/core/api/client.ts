@@ -79,6 +79,7 @@ import type {
   UpdateLabelRequest,
   ListLabelsResponse,
   IssueLabelsResponse,
+  ListGitlabTrackersResponse,
   PinnedItem,
   CreatePinRequest,
   PinnedItemType,
@@ -479,8 +480,10 @@ export class ApiClient {
     if (params.project_ids?.length) search.set("project_ids", params.project_ids.join(","));
     if (params.include_no_project) search.set("include_no_project", "true");
     if (params.label_ids?.length) search.set("label_ids", params.label_ids.join(","));
+    if (params.source) search.set("source", params.source);
+    if (params.tracker_id) search.set("tracker_id", params.tracker_id);
+    if (params.sync_state) search.set("sync_state", params.sync_state);
     if (params.group_assignee_type) search.set("group_assignee_type", params.group_assignee_type);
-    if (params.group_assignee_id) search.set("group_assignee_id", params.group_assignee_id);
     if (params.sort_by) search.set("sort", params.sort_by);
     if (params.sort_direction) search.set("direction", params.sort_direction);
     const raw = await this.fetch<unknown>(`/api/issues/grouped?${search}`);
@@ -1637,6 +1640,9 @@ export class ApiClient {
     projectId: string,
   ): Promise<ListProjectResourcesResponse> {
     return this.fetch(`/api/projects/${projectId}/resources`);
+  }
+  async listProjectGitlabTrackers(projectId: string): Promise<ListGitlabTrackersResponse> {
+    return this.fetch(`/api/projects/${projectId}/gitlab-trackers`);
   }
 
   async createProjectResource(

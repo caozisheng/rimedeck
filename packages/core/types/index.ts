@@ -1,3 +1,4 @@
+export type { GitlabTracker, ListGitlabTrackersResponse } from "./gitlab-tracker";
 export type { Issue, IssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, IssueDependencyType, IssueDependency, DependencyGraphResponse, IssueDependenciesResponse, IssueSource, IssueSyncState, IssueExternalRef } from "./issue";
 export type {
   Agent,
