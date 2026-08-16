@@ -491,6 +491,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 
+			// GitLab tracker validate (workspace member; token stays in-memory
+			// for the request). Create/rotate/etc live at the project scope
+			// under /api/projects/{id}/gitlab-trackers.
+			r.Post("/api/gitlab-trackers/validate", h.ValidateGitlabTracker)
+
 			// Squads
 			r.Route("/api/squads", func(r chi.Router) {
 				r.Get("/", h.ListSquads)
