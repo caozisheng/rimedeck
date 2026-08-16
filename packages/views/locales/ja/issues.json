@@ -348,6 +348,14 @@
     "empty_hover": "現在作業中のエージェントはありません",
     "filter_active_label": "作業中のエージェントのみ表示中"
   },
+  "gitlab_sync": {
+    "button_label": "GitLab Issue を同期",
+    "tooltip_single": "GitLab Issue を今すぐ同期",
+    "tooltip_multi": "{{count}} 個の GitLab tracker を今すぐ同期",
+    "toast_queued": "GitLab 同期をキューに追加しました — Issue は 1 分以内に更新されます。",
+    "toast_partial": "一部の tracker で同期のキュー登録に失敗しました（{{failed}}/{{total}} 件失敗）。",
+    "toast_failed": "GitLab 同期をキューに追加できませんでした"
+  },
   "agent_live": {
     "is_working": "{{name}} が作業中",
     "is_queued": "{{name}} が待機中",

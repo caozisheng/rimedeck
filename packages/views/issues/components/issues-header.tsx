@@ -15,6 +15,7 @@ import {
   FolderKanban,
   FolderMinus,
   GitBranch,
+  RefreshCcw,
   List,
   SignalHigh,
   SlidersHorizontal,
@@ -53,11 +54,12 @@ import {
   PRIORITY_ORDER,
 } from "@rimedeck/core/issues/config";
 import { StatusIcon, PriorityIcon } from ".";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkspaceId } from "@rimedeck/core/hooks";
 import { memberListOptions, agentListOptions, squadListOptions } from "@rimedeck/core/workspace/queries";
 import { projectListOptions } from "@rimedeck/core/projects/queries";
-import { projectGitlabTrackersOptions } from "@rimedeck/core/gitlab-tracker-queries";
+import { projectGitlabTrackersOptions, useSyncGitlabTracker } from "@rimedeck/core/gitlab-tracker-queries";
+import { issueKeys } from "@rimedeck/core/issues/queries";
 import { labelListOptions } from "@rimedeck/core/labels/queries";
 import { ProjectIcon } from "../../projects/components/project-icon";
 import { ActorAvatar } from "../../common/actor-avatar";
@@ -80,6 +82,7 @@ import type { Issue } from "@rimedeck/core/types";
 import { useT } from "../../i18n";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 import { WorkspaceAgentWorkingChip } from "./workspace-agent-working-chip";
+import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
 // HoverCheck — shadcn official pattern (PR #6862)
@@ -609,10 +612,92 @@ export function IssuesHeader({
             onToggle={toggleAgentRunningFilter}
             scopedIssueIds={scopedIssueIds}
           />
+          {projectId && <GitlabSyncButton projectId={projectId} />}
           <IssueDisplayControls scopedIssues={scopedIssues} allowGantt={allowGantt} projectId={projectId} />
         </div>
       </div>
     </div>
+  );
+}
+
+// GitlabSyncButton force-triggers a `pull_labels + reconcile` on every
+// active GitLab tracker attached to this project. Only renders when at
+// least one tracker exists so the button never appears for pure-local
+// projects. The worker ticks every ~60s (see runTrackerImportWorker),
+// so the button surfaces "queued" semantics — invalidating the issue
+// list after mutation success gives the user an immediate refetch that
+// picks up whatever the previous tick already imported, and the WS
+// reconcile handler (or the user hitting the button again) covers the
+// rest.
+function GitlabSyncButton({ projectId }: { projectId: string }) {
+  const { t } = useT("issues");
+  const wsId = useWorkspaceId();
+  const qc = useQueryClient();
+  const { data: trackers = [] } = useQuery(projectGitlabTrackersOptions(wsId, projectId));
+  const activeTrackers = useMemo(
+    () => trackers.filter((t) => t.state === "active"),
+    [trackers],
+  );
+  const sync = useSyncGitlabTracker(wsId, projectId);
+
+  if (activeTrackers.length === 0) return null;
+
+  const isPending = sync.isPending;
+
+  const handleClick = async () => {
+    // Fire per-tracker in parallel; one bad tracker shouldn't cancel the
+    // others. Aggregate + toast the outcome so a partial success is
+    // still surfaced honestly.
+    const results = await Promise.allSettled(
+      activeTrackers.map((tr) => sync.mutateAsync(tr.id)),
+    );
+    const failures = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+    if (failures.length === 0) {
+      toast.success(t(($) => $.gitlab_sync.toast_queued));
+      // Nudge the issue list once immediately (picks up anything the
+      // worker already imported on its previous tick) and again after
+      // one worker tick + slack so the user sees the fresh pull without
+      // hunting for a refresh.
+      qc.invalidateQueries({ queryKey: issueKeys.list(wsId) });
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: issueKeys.list(wsId) });
+      }, 65_000);
+    } else if (failures.length < results.length) {
+      toast.warning(
+        t(($) => $.gitlab_sync.toast_partial, {
+          failed: failures.length,
+          total: results.length,
+        }),
+      );
+    } else {
+      const reason = failures[0]?.reason;
+      const msg = reason instanceof Error ? reason.message : t(($) => $.gitlab_sync.toast_failed);
+      toast.error(msg);
+    }
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground"
+            disabled={isPending}
+            onClick={() => void handleClick()}
+            aria-label={t(($) => $.gitlab_sync.button_label)}
+          >
+            <RefreshCcw className={`size-3.5 ${isPending ? "animate-spin" : ""}`} />
+          </Button>
+        }
+      />
+      <TooltipContent side="bottom">
+        {activeTrackers.length === 1
+          ? t(($) => $.gitlab_sync.tooltip_single)
+          : t(($) => $.gitlab_sync.tooltip_multi, { count: activeTrackers.length })}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

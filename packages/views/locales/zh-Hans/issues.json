@@ -353,6 +353,14 @@
     "empty_hover": "当前没有智能体在工作",
     "filter_active_label": "正在查看工作中的智能体"
   },
+  "gitlab_sync": {
+    "button_label": "同步 GitLab Issue",
+    "tooltip_single": "立即同步 GitLab Issue",
+    "tooltip_multi": "立即同步 {{count}} 个 GitLab tracker",
+    "toast_queued": "GitLab 同步已入队 — Issue 将在一分钟内刷新。",
+    "toast_partial": "部分 tracker 同步入队失败（{{failed}}/{{total}} 失败）。",
+    "toast_failed": "GitLab 同步入队失败"
+  },
   "agent_live": {
     "is_working": "{{name}} 在工作",
     "is_queued": "{{name}} 排队中",

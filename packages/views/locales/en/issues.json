@@ -362,6 +362,14 @@
     "empty_hover": "No agents currently working",
     "filter_active_label": "Viewing only working agents"
   },
+  "gitlab_sync": {
+    "button_label": "Sync GitLab issues",
+    "tooltip_single": "Sync GitLab issues now",
+    "tooltip_multi": "Sync {{count}} GitLab trackers now",
+    "toast_queued": "GitLab sync queued — issues will refresh within a minute.",
+    "toast_partial": "Sync queued for some trackers ({{failed}} of {{total}} failed).",
+    "toast_failed": "Failed to queue GitLab sync"
+  },
   "agent_live": {
     "is_working": "{{name}} is working",
     "is_queued": "{{name}} is queued",
