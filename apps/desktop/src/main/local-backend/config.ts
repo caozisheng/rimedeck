@@ -9,6 +9,13 @@ export interface LocalConfig {
   pgPort: number;
   backendPort: number;
   jwtSecret: string;
+  // Versioned keyring the embedded server expects at GITLAB_TRACKER_KEYS.
+  // Format: `v1=<base64(32 random bytes)>[,v2=…]`. Auto-provisioned on
+  // first run so the desktop user is never asked to paste a raw key
+  // before adding a GitLab tracker. Rotation is a future concern —
+  // ciphertexts store the version int, so appending `,v2=…` keeps old
+  // rows readable while new writes pick up the new key.
+  gitlabTrackerKey: string;
   firstRunAt: string;
 }
 
@@ -85,6 +92,11 @@ async function normalizeConfig(
     changed = true;
   }
 
+  if (typeof config.gitlabTrackerKey !== "string" || !isValidGitlabTrackerKey(config.gitlabTrackerKey)) {
+    config.gitlabTrackerKey = generateGitlabTrackerKey();
+    changed = true;
+  }
+
   if (typeof config.firstRunAt !== "string" || config.firstRunAt.length === 0) {
     config.firstRunAt = new Date().toISOString();
     changed = true;
@@ -98,10 +110,37 @@ async function createConfig(): Promise<LocalConfig> {
     pgPort: await findFreeLocalBackendPort(DEFAULT_PG_PORT),
     backendPort: await findFreeLocalBackendPort(DEFAULT_BACKEND_PORT),
     jwtSecret: randomBytes(32).toString("hex"),
+    gitlabTrackerKey: generateGitlabTrackerKey(),
     firstRunAt: new Date().toISOString(),
   };
   await saveConfig(config);
   return config;
+}
+
+// generateGitlabTrackerKey mints a v1 entry matching the server's
+// keyring parser (server/internal/handler/gitlab_tracker.go): 32 random
+// bytes, standard base64, prefixed with the version tag.
+function generateGitlabTrackerKey(): string {
+  return `v1=${randomBytes(32).toString("base64")}`;
+}
+
+// isValidGitlabTrackerKey is a defensive shape check so a hand-edited
+// config.json can't smuggle in a malformed entry that would make the
+// server fail-closed on every request. We accept multi-entry rings
+// (comma-separated) because rotation adds `,v2=…` without dropping v1.
+function isValidGitlabTrackerKey(raw: string): boolean {
+  const entries = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  if (entries.length === 0) return false;
+  for (const entry of entries) {
+    const match = entry.match(/^v(\d+)=([A-Za-z0-9+/=]+)$/);
+    if (!match) return false;
+    try {
+      if (Buffer.from(match[2], "base64").length !== 32) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 
 async function saveConfig(config: LocalConfig): Promise<void> {

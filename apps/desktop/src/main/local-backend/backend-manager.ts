@@ -34,6 +34,12 @@ export async function startBackend(
     DATABASE_URL: databaseUrl,
     PORT: String(port),
     JWT_SECRET: config.jwtSecret,
+    // Auto-provisioned on first run in config.ts; without this the
+    // embedded server fail-closes every GitLab tracker create/rotate
+    // with `GITLAB_TRACKER_KEYS is not configured; refusing to accept
+    // GitLab credentials`. The key never leaves the local machine —
+    // it's stored next to config.json under ~/.rimedeck/.
+    GITLAB_TRACKER_KEYS: config.gitlabTrackerKey,
     CORS_ALLOWED_ORIGINS: `*`,
     LOCAL_UPLOAD_DIR: uploadDir,
     MULTICA_DEV_VERIFICATION_CODE: "000000",
