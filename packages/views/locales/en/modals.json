@@ -144,6 +144,8 @@
     "agent_breadcrumb": "Create with agent",
     "title_placeholder": "Issue title",
     "description_placeholder": "Add description...",
+    "source_local": "Local Issue",
+    "source_gitlab": "GitLab · {{project}}",
     "more_options_aria": "More options",
     "title_required": "Enter a title to create",
     "submit": "Create Issue",

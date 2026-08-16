@@ -142,6 +142,8 @@
     "agent_breadcrumb": "エージェントで作成",
     "title_placeholder": "イシューのタイトル",
     "description_placeholder": "説明を追加...",
+    "source_local": "ローカルイシュー",
+    "source_gitlab": "GitLab · {{project}}",
     "more_options_aria": "その他のオプション",
     "title_required": "作成するにはタイトルを入力してください",
     "submit": "イシューを作成",

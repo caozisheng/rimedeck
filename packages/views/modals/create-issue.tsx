@@ -19,6 +19,7 @@ import {
 import { cn } from "@rimedeck/ui/lib/utils";
 import { toast } from "sonner";
 import type { Issue, IssueStatus, IssuePriority, IssueAssigneeType, Attachment } from "@rimedeck/core/types";
+import { projectGitlabTrackersOptions } from "@rimedeck/core/gitlab-tracker-queries";
 import { contentReferencesAttachment } from "@rimedeck/core/types";
 import {
   DialogContent,
@@ -137,6 +138,8 @@ export function ManualCreatePanel({
   const [projectId, setProjectId] = useState<string | undefined>(
     (data?.project_id as string) || undefined,
   );
+  const [sourceType, setSourceType] = useState<"local" | "gitlab" | undefined>();
+  const [trackerConnectionId, setTrackerConnectionId] = useState<string | undefined>();
   const [parentIssueId, setParentIssueId] = useState<string | undefined>(
     (data?.parent_issue_id as string) || undefined,
   );
@@ -150,13 +153,20 @@ export function ManualCreatePanel({
   // object, and we never need to hydrate from an ID the way we do for parent.
   const [childIssues, setChildIssues] = useState<Issue[]>([]);
   const [childPickerOpen, setChildPickerOpen] = useState(false);
-  // Fetch parent issue details for the chip (status/identifier/title).
-  // List cache usually has it already, so this resolves synchronously.
   const wsId = useWorkspaceId();
   const { data: parentIssue } = useQuery({
     ...issueDetailOptions(wsId, parentIssueId ?? ""),
     enabled: !!parentIssueId,
   });
+  const { data: gitlabTrackers = [] } = useQuery({
+    ...projectGitlabTrackersOptions(wsId, projectId ?? ""),
+    enabled: !!projectId,
+  });
+  const hasGitlabTrackers = gitlabTrackers.length > 0;
+  useEffect(() => {
+    setTrackerConnectionId(undefined);
+    setSourceType(undefined);
+  }, [projectId]);
 
   const draftAttachments = draft.attachments ?? [];
 
@@ -228,7 +238,7 @@ export function ManualCreatePanel({
   };
 
   const handleSubmit = async () => {
-    if (!title.trim() || submitting) return;
+    if (!title.trim() || submitting || (hasGitlabTrackers && !sourceType)) return;
     setSubmitting(true);
     try {
       const description = descEditorRef.current?.getMarkdown()?.trim() || undefined;
@@ -247,6 +257,7 @@ export function ManualCreatePanel({
         attachment_ids: activeAttachmentIds.length > 0 ? activeAttachmentIds : undefined,
         parent_issue_id: parentIssueId,
         project_id: projectId,
+        ...(hasGitlabTrackers && sourceType ? { source_type: sourceType, ...(sourceType === "gitlab" && trackerConnectionId ? { tracker_connection_id: trackerConnectionId } : {}) } : {}),
       });
 
       // Link queued children to the new parent. Deferred to after create
@@ -562,6 +573,19 @@ export function ManualCreatePanel({
                 align="start"
               />
 
+              {hasGitlabTrackers && (
+                <div className="flex items-center gap-1 rounded-full border px-1 py-0.5 text-xs">
+                  <button type="button" className={cn("rounded-full px-2 py-1", sourceType === "local" && "bg-accent")} onClick={() => { setSourceType("local"); setTrackerConnectionId(undefined); }}>
+                    Local Issue
+                  </button>
+                  {gitlabTrackers.map((tracker) => (
+                    <button key={tracker.id} type="button" className={cn("rounded-full px-2 py-1", sourceType === "gitlab" && trackerConnectionId === tracker.id && "bg-accent")} onClick={() => { setSourceType("gitlab"); setTrackerConnectionId(tracker.id); }}>
+                      GitLab · {tracker.path_with_namespace}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Project */}
               <ProjectPicker
                 projectId={projectId ?? null}
@@ -733,18 +757,14 @@ export function ManualCreatePanel({
                   {t(($) => $.create_issue.switch_to_agent)}
                 </button>
                 <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-                  <Switch
-                    size="sm"
-                    checked={keepOpen}
-                    onCheckedChange={setKeepOpen}
-                  />
+                  <Switch size="sm" checked={keepOpen} onCheckedChange={setKeepOpen} />
                   {t(($) => $.create_issue.create_another)}
                 </label>
-                {!title.trim() ? (
+                {!title.trim() || (hasGitlabTrackers && !sourceType) ? (
                   <TooltipProvider delay={200}>
                     <Tooltip>
                       <TooltipTrigger render={<span><Button size="sm" onClick={handleSubmit} disabled>{t(($) => $.create_issue.submit)}</Button></span>} />
-                      <TooltipContent side="top">{t(($) => $.create_issue.title_required)}</TooltipContent>
+                      <TooltipContent side="top">{!title.trim() ? t(($) => $.create_issue.title_required) : "Choose an issue source"}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 ) : (

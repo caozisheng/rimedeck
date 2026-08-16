@@ -144,6 +144,8 @@
     "agent_breadcrumb": "에이전트로 만들기",
     "title_placeholder": "이슈 제목",
     "description_placeholder": "설명 추가...",
+    "source_local": "로컬 이슈",
+    "source_gitlab": "GitLab · {{project}}",
     "more_options_aria": "추가 옵션",
     "title_required": "만들려면 제목을 입력하세요",
     "submit": "이슈 만들기",

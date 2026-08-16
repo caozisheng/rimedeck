@@ -144,6 +144,8 @@
     "agent_breadcrumb": "通过智能体创建",
     "title_placeholder": "issue 标题",
     "description_placeholder": "添加描述...",
+    "source_local": "本地 issue",
+    "source_gitlab": "GitLab · {{project}}",
     "more_options_aria": "更多选项",
     "title_required": "请输入标题后再创建",
     "submit": "创建 issue",
