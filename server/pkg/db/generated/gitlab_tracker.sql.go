@@ -42,6 +42,19 @@ func (q *Queries) CancelTrackerOutboxByIssue(ctx context.Context, issueID pgtype
 	return err
 }
 
+const countNonTerminalTrackerOutbox = `-- name: CountNonTerminalTrackerOutbox :one
+SELECT count(*) FROM tracker_sync_outbox
+WHERE tracker_connection_id = $1
+  AND status IN ('pending','running','retrying')
+`
+
+func (q *Queries) CountNonTerminalTrackerOutbox(ctx context.Context, trackerConnectionID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countNonTerminalTrackerOutbox, trackerConnectionID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countTrackerOutboxByStatus = `-- name: CountTrackerOutboxByStatus :many
 SELECT status, count(*)::bigint AS cnt
 FROM tracker_sync_outbox
@@ -235,6 +248,75 @@ func (q *Queries) CreateTrackerOutbox(ctx context.Context, arg CreateTrackerOutb
 		&i.DesiredRevision,
 		&i.LastErrorCode,
 		&i.LastErrorMessage,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteGitlabTrackerConnection = `-- name: DeleteGitlabTrackerConnection :exec
+DELETE FROM gitlab_tracker_connection WHERE id = $1
+`
+
+func (q *Queries) DeleteGitlabTrackerConnection(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGitlabTrackerConnection, id)
+	return err
+}
+
+const deleteMirroredIssuesForTracker = `-- name: DeleteMirroredIssuesForTracker :exec
+DELETE FROM issue WHERE tracker_connection_id = $1 AND source_type = 'gitlab'
+`
+
+func (q *Queries) DeleteMirroredIssuesForTracker(ctx context.Context, trackerConnectionID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMirroredIssuesForTracker, trackerConnectionID)
+	return err
+}
+
+const detachIssuesFromTracker = `-- name: DetachIssuesFromTracker :exec
+UPDATE issue
+SET source_type = 'detached',
+    sync_state = 'detached',
+    tracker_connection_id = NULL
+WHERE tracker_connection_id = $1
+`
+
+func (q *Queries) DetachIssuesFromTracker(ctx context.Context, trackerConnectionID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachIssuesFromTracker, trackerConnectionID)
+	return err
+}
+
+const disableGitlabTrackerConnection = `-- name: DisableGitlabTrackerConnection :one
+UPDATE gitlab_tracker_connection
+SET state = 'disabled',
+    updated_at = now()
+WHERE id = $1
+RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at
+`
+
+func (q *Queries) DisableGitlabTrackerConnection(ctx context.Context, id pgtype.UUID) (GitlabTrackerConnection, error) {
+	row := q.db.QueryRow(ctx, disableGitlabTrackerConnection, id)
+	var i GitlabTrackerConnection
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.WorkspaceID,
+		&i.InstanceUrl,
+		&i.RemoteProjectID,
+		&i.PathWithNamespace,
+		&i.WebUrl,
+		&i.CloneUrl,
+		&i.DefaultBranch,
+		&i.TokenCiphertext,
+		&i.TokenKeyVersion,
+		&i.WebhookSecretCiphertext,
+		&i.WebhookID,
+		&i.WebhookState,
+		&i.State,
+		&i.LastPullAt,
+		&i.LastFullReconcileAt,
+		&i.LastErrorCode,
+		&i.LastErrorAt,
+		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -445,6 +527,72 @@ func (q *Queries) ListGitlabTrackerConnectionsByProject(ctx context.Context, pro
 		return nil, err
 	}
 	return items, nil
+}
+
+const resetFailedTrackerOutbox = `-- name: ResetFailedTrackerOutbox :execrows
+UPDATE tracker_sync_outbox
+SET status = 'pending',
+    available_at = now(),
+    last_error_code = NULL,
+    last_error_message = NULL,
+    updated_at = now()
+WHERE tracker_connection_id = $1 AND status = 'failed'
+`
+
+func (q *Queries) ResetFailedTrackerOutbox(ctx context.Context, trackerConnectionID pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, resetFailedTrackerOutbox, trackerConnectionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateGitlabTrackerToken = `-- name: UpdateGitlabTrackerToken :one
+UPDATE gitlab_tracker_connection
+SET token_ciphertext = $2,
+    token_key_version = $3,
+    state = CASE WHEN state = 'disabled' THEN 'disabled' ELSE 'active' END,
+    last_error_code = NULL,
+    last_error_at = NULL,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, project_id, workspace_id, instance_url, remote_project_id, path_with_namespace, web_url, clone_url, default_branch, token_ciphertext, token_key_version, webhook_secret_ciphertext, webhook_id, webhook_state, state, last_pull_at, last_full_reconcile_at, last_error_code, last_error_at, created_by, created_at, updated_at
+`
+
+type UpdateGitlabTrackerTokenParams struct {
+	ID              pgtype.UUID `json:"id"`
+	TokenCiphertext []byte      `json:"token_ciphertext"`
+	TokenKeyVersion int16       `json:"token_key_version"`
+}
+
+func (q *Queries) UpdateGitlabTrackerToken(ctx context.Context, arg UpdateGitlabTrackerTokenParams) (GitlabTrackerConnection, error) {
+	row := q.db.QueryRow(ctx, updateGitlabTrackerToken, arg.ID, arg.TokenCiphertext, arg.TokenKeyVersion)
+	var i GitlabTrackerConnection
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.WorkspaceID,
+		&i.InstanceUrl,
+		&i.RemoteProjectID,
+		&i.PathWithNamespace,
+		&i.WebUrl,
+		&i.CloneUrl,
+		&i.DefaultBranch,
+		&i.TokenCiphertext,
+		&i.TokenKeyVersion,
+		&i.WebhookSecretCiphertext,
+		&i.WebhookID,
+		&i.WebhookState,
+		&i.State,
+		&i.LastPullAt,
+		&i.LastFullReconcileAt,
+		&i.LastErrorCode,
+		&i.LastErrorAt,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateIssueSyncState = `-- name: UpdateIssueSyncState :exec

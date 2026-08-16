@@ -481,3 +481,205 @@ var cryptoRandRead = cryptoRandReader
 // the DB side would be preferable, but the outbox insert wants the value
 // in the params so we mint it here.
 var newRandomUUID = defaultRandomUUID
+
+
+// ---------------------------------------------------------------------------
+// Lifecycle endpoints (Phase 2 Task 9)
+// ---------------------------------------------------------------------------
+
+// resolveTrackerForOwner is the common preamble: parses UUIDs, checks
+// role, loads the tracker row scoped to the URL project and workspace.
+// Returns zero values + false when the response has already been written.
+func (h *Handler) resolveTrackerForOwner(w http.ResponseWriter, r *http.Request) (db.GitlabTrackerConnection, pgtype.UUID, bool) {
+	ctx := r.Context()
+	workspaceID := h.resolveWorkspaceID(r)
+	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace_id")
+	if !ok {
+		return db.GitlabTrackerConnection{}, pgtype.UUID{}, false
+	}
+	projectID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "id"), "project_id")
+	if !ok {
+		return db.GitlabTrackerConnection{}, pgtype.UUID{}, false
+	}
+	if _, err := h.Queries.GetProjectInWorkspace(ctx, db.GetProjectInWorkspaceParams{ID: projectID, WorkspaceID: wsUUID}); err != nil {
+		writeError(w, http.StatusNotFound, "project not found")
+		return db.GitlabTrackerConnection{}, pgtype.UUID{}, false
+	}
+	member, _ := middleware.MemberFromContext(ctx)
+	if !roleAllowed(member.Role, "owner", "admin") {
+		writeError(w, http.StatusForbidden, "insufficient permissions")
+		return db.GitlabTrackerConnection{}, pgtype.UUID{}, false
+	}
+	trackerID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "trackerId"), "tracker_id")
+	if !ok {
+		return db.GitlabTrackerConnection{}, pgtype.UUID{}, false
+	}
+	tracker, err := h.Queries.GetGitlabTrackerConnectionInWorkspace(ctx, db.GetGitlabTrackerConnectionInWorkspaceParams{ID: trackerID, WorkspaceID: wsUUID})
+	if err != nil {
+		writeError(w, http.StatusNotFound, "tracker not found")
+		return db.GitlabTrackerConnection{}, pgtype.UUID{}, false
+	}
+	if uuidToString(tracker.ProjectID) != uuidToString(projectID) {
+		writeError(w, http.StatusNotFound, "tracker not found")
+		return db.GitlabTrackerConnection{}, pgtype.UUID{}, false
+	}
+	return tracker, wsUUID, true
+}
+
+// RotateGitlabTrackerToken re-validates a new PAT against the tracker's
+// GitLab project and, on success, replaces the stored ciphertext. State
+// stays 'active' (or the flow refuses to rotate a disabled connection).
+// Body: { access_token }.
+func (h *Handler) RotateGitlabTrackerToken(w http.ResponseWriter, r *http.Request) {
+	tracker, _, ok := h.resolveTrackerForOwner(w, r)
+	if !ok {
+		return
+	}
+	if tracker.State == "disabled" {
+		writeStructuredGitlabError(w, http.StatusConflict, "tracker_disabled", "re-enable the tracker before rotating the token")
+		return
+	}
+
+	cipher, err := GitlabTrackerCipherProvider()
+	if err != nil {
+		writeStructuredGitlabError(w, http.StatusServiceUnavailable, "encryption_unavailable", err.Error())
+		return
+	}
+	var req struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	req.AccessToken = strings.TrimSpace(req.AccessToken)
+	if req.AccessToken == "" {
+		writeStructuredGitlabError(w, http.StatusBadRequest, "access_token_required", "access_token is required")
+		return
+	}
+
+	client, err := gitlabTrackerClientFactory(tracker.InstanceUrl, req.AccessToken)
+	if err != nil {
+		writeStructuredGitlabError(w, http.StatusInternalServerError, "internal", "failed to build GitLab client")
+		return
+	}
+	if _, err := client.GetProject(r.Context(), tracker.PathWithNamespace); err != nil {
+		status, code, msg := mapGitlabValidationError(err)
+		writeStructuredGitlabError(w, status, code, msg)
+		return
+	}
+
+	newCT, err := cipher.Encrypt([]byte(req.AccessToken))
+	if err != nil {
+		writeStructuredGitlabError(w, http.StatusInternalServerError, "internal", "failed to encrypt token")
+		return
+	}
+	if _, err := h.Queries.UpdateGitlabTrackerToken(r.Context(), db.UpdateGitlabTrackerTokenParams{
+		ID:              tracker.ID,
+		TokenCiphertext: newCT,
+		TokenKeyVersion: cipher.LatestVersion(),
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to rotate token")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// SyncGitlabTracker enqueues a full re-import of labels + issues. The
+// worker (Phase 2 Task 10) picks up the `pull_labels` + `reconcile`
+// rows on its next tick.
+func (h *Handler) SyncGitlabTracker(w http.ResponseWriter, r *http.Request) {
+	tracker, wsUUID, ok := h.resolveTrackerForOwner(w, r)
+	if !ok {
+		return
+	}
+	if tracker.State == "disabled" {
+		writeStructuredGitlabError(w, http.StatusConflict, "tracker_disabled", "re-enable the tracker before syncing")
+		return
+	}
+	for _, op := range []string{"pull_labels", "reconcile"} {
+		if _, err := h.Queries.CreateTrackerOutbox(r.Context(), db.CreateTrackerOutboxParams{
+			WorkspaceID:         wsUUID,
+			TrackerConnectionID: tracker.ID,
+			IssueID:             pgtype.UUID{},
+			Operation:           op,
+			Payload:             []byte("{}"),
+			IdempotencyKey:      newRandomUUID(),
+		}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to enqueue sync")
+			return
+		}
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// RetryGitlabTrackerFailedOutbox flips this connection's `failed` outbox
+// rows back to `pending`. Response counts the rows reset so the UI can
+// surface "Retried N tasks".
+func (h *Handler) RetryGitlabTrackerFailedOutbox(w http.ResponseWriter, r *http.Request) {
+	tracker, _, ok := h.resolveTrackerForOwner(w, r)
+	if !ok {
+		return
+	}
+	rows, err := h.Queries.ResetFailedTrackerOutbox(r.Context(), tracker.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to retry outbox")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reset_count": rows})
+}
+
+// DisableGitlabTracker soft-disables the connection: state → 'disabled',
+// mirrored issues are detached, mirror data stays put. The tracker row
+// survives until DeleteGitlabTrackerMirrors is invoked with the
+// double-confirmation header.
+func (h *Handler) DisableGitlabTracker(w http.ResponseWriter, r *http.Request) {
+	tracker, _, ok := h.resolveTrackerForOwner(w, r)
+	if !ok {
+		return
+	}
+	if _, err := h.Queries.DisableGitlabTrackerConnection(r.Context(), tracker.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to disable tracker")
+		return
+	}
+	if err := h.Queries.DetachIssuesFromTracker(r.Context(), tracker.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to detach mirrored issues")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+// DeleteGitlabTrackerMirrors physically deletes mirrored issues and the
+// connection row itself. Requires the header
+// `X-Confirm-Delete-Mirrors: true` and refuses when any outbox row is
+// still non-terminal (pending/running/retrying) so the worker cannot
+// race the deletion.
+func (h *Handler) DeleteGitlabTrackerMirrors(w http.ResponseWriter, r *http.Request) {
+	tracker, _, ok := h.resolveTrackerForOwner(w, r)
+	if !ok {
+		return
+	}
+	if !strings.EqualFold(r.Header.Get("X-Confirm-Delete-Mirrors"), "true") {
+		writeStructuredGitlabError(w, http.StatusPreconditionRequired, "confirmation_required", "set X-Confirm-Delete-Mirrors: true to confirm destructive delete")
+		return
+	}
+	nonTerminal, err := h.Queries.CountNonTerminalTrackerOutbox(r.Context(), tracker.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to inspect outbox")
+		return
+	}
+	if nonTerminal > 0 {
+		writeStructuredGitlabError(w, http.StatusConflict, "outbox_not_drained", "outbox has non-terminal rows; disable the tracker and let the worker drain first")
+		return
+	}
+	if err := h.Queries.DeleteMirroredIssuesForTracker(r.Context(), tracker.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete mirrored issues")
+		return
+	}
+	// Outbox rows (all in terminal state at this point) cascade-delete
+	// with the tracker row via the FK.
+	if err := h.Queries.DeleteGitlabTrackerConnection(r.Context(), tracker.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete tracker row")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

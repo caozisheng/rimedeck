@@ -488,6 +488,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
 					r.Get("/gitlab-trackers", h.ListProjectGitlabTrackers)
 					r.Post("/gitlab-trackers", h.CreateProjectGitlabTracker)
+					r.Route("/gitlab-trackers/{trackerId}", func(r chi.Router) {
+						r.Put("/token", h.RotateGitlabTrackerToken)
+						r.Post("/sync", h.SyncGitlabTracker)
+						r.Post("/retry", h.RetryGitlabTrackerFailedOutbox)
+						r.Post("/disable", h.DisableGitlabTracker)
+						r.Delete("/mirrors", h.DeleteGitlabTrackerMirrors)
+					})
 					r.Get("/dependency-graph", h.GetProjectDependencyGraph)
 				})
 			})

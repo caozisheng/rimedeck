@@ -58,3 +58,48 @@ SET sync_revision = sync_revision + 1,
     sync_state = CASE WHEN $2::text = 'keep' THEN 'pending' ELSE $2::text END
 WHERE id = $1
 RETURNING sync_revision;
+
+-- name: UpdateGitlabTrackerToken :one
+UPDATE gitlab_tracker_connection
+SET token_ciphertext = $2,
+    token_key_version = $3,
+    state = CASE WHEN state = 'disabled' THEN 'disabled' ELSE 'active' END,
+    last_error_code = NULL,
+    last_error_at = NULL,
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: DisableGitlabTrackerConnection :one
+UPDATE gitlab_tracker_connection
+SET state = 'disabled',
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteGitlabTrackerConnection :exec
+DELETE FROM gitlab_tracker_connection WHERE id = $1;
+
+-- name: DetachIssuesFromTracker :exec
+UPDATE issue
+SET source_type = 'detached',
+    sync_state = 'detached',
+    tracker_connection_id = NULL
+WHERE tracker_connection_id = $1;
+
+-- name: DeleteMirroredIssuesForTracker :exec
+DELETE FROM issue WHERE tracker_connection_id = $1 AND source_type = 'gitlab';
+
+-- name: ResetFailedTrackerOutbox :execrows
+UPDATE tracker_sync_outbox
+SET status = 'pending',
+    available_at = now(),
+    last_error_code = NULL,
+    last_error_message = NULL,
+    updated_at = now()
+WHERE tracker_connection_id = $1 AND status = 'failed';
+
+-- name: CountNonTerminalTrackerOutbox :one
+SELECT count(*) FROM tracker_sync_outbox
+WHERE tracker_connection_id = $1
+  AND status IN ('pending','running','retrying');
