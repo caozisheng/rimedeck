@@ -291,6 +291,144 @@ func (c *RestClient) ListProjectIssues(ctx context.Context, projectID int64, opt
 	return out, nil
 }
 
+// CreateIssueRequest is the write-side counterpart of Issue. Only fields
+// RimeDeck actually pushes are here — every extra field would need
+// canonical-pull coverage in Task 5.
+type CreateIssueRequest struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+	DueDate     string   `json:"due_date,omitempty"`
+}
+
+// UpdateIssueRequest carries only the fields worth mutating. StateEvent
+// is the GitLab convention for close/reopen ("close" | "reopen"); we
+// keep it on the same struct so update+close can share one round-trip.
+type UpdateIssueRequest struct {
+	Title       *string   `json:"title,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Labels      *[]string `json:"labels,omitempty"`
+	DueDate     *string   `json:"due_date,omitempty"`
+	StateEvent  *string   `json:"state_event,omitempty"`
+}
+
+// CreateIssue posts a new issue and returns GitLab's canonical response.
+// Path uses the numeric project id so nested-subgroup URL encoding is
+// out of the picture on the write path.
+func (c *RestClient) CreateIssue(ctx context.Context, projectID int64, req CreateIssueRequest) (Issue, error) {
+	if c == nil {
+		return Issue{}, errors.New("gitlabtracker: nil RestClient")
+	}
+	return c.mutateIssue(ctx, http.MethodPost, fmt.Sprintf("/api/v4/projects/%d/issues", projectID), req)
+}
+
+// UpdateIssue mutates an existing issue by remote iid. Callers pass only
+// the fields they want changed; nil fields are omitted from the body.
+func (c *RestClient) UpdateIssue(ctx context.Context, projectID int64, iid int32, req UpdateIssueRequest) (Issue, error) {
+	if c == nil {
+		return Issue{}, errors.New("gitlabtracker: nil RestClient")
+	}
+	return c.mutateIssue(ctx, http.MethodPut, fmt.Sprintf("/api/v4/projects/%d/issues/%d", projectID, iid), req)
+}
+
+// CloseIssue is UpdateIssue with only state_event set. Kept as its own
+// method so the sync worker's dispatch stays a switch on operation, not
+// a switch on struct field presence.
+func (c *RestClient) CloseIssue(ctx context.Context, projectID int64, iid int32) (Issue, error) {
+	event := "close"
+	return c.UpdateIssue(ctx, projectID, iid, UpdateIssueRequest{StateEvent: &event})
+}
+
+// ReopenIssue: same shape as CloseIssue, opposite event.
+func (c *RestClient) ReopenIssue(ctx context.Context, projectID int64, iid int32) (Issue, error) {
+	event := "reopen"
+	return c.UpdateIssue(ctx, projectID, iid, UpdateIssueRequest{StateEvent: &event})
+}
+
+// DeleteIssue removes a remote issue. GitLab returns 204 on success and
+// 404 when the issue is already gone; both are terminal-success from the
+// worker's viewpoint — the worker maps 404 to the same local cleanup as
+// 204 so a race with a manual delete on GitLab doesn't strand the row.
+func (c *RestClient) DeleteIssue(ctx context.Context, projectID int64, iid int32) error {
+	if c == nil {
+		return errors.New("gitlabtracker: nil RestClient")
+	}
+	req, err := c.newRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/v4/projects/%d/issues/%d", projectID, iid), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.transport.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	return mapStatusError(resp.StatusCode)
+}
+
+// SetLabels is a UpdateIssue specialization: replaces the full label
+// set. Callers pass the desired final list — GitLab's PUT with `labels`
+// is destructive-replace, not merge, which matches design §8.3.
+func (c *RestClient) SetLabels(ctx context.Context, projectID int64, iid int32, labels []string) (Issue, error) {
+	safe := labels
+	if safe == nil {
+		safe = []string{}
+	}
+	return c.UpdateIssue(ctx, projectID, iid, UpdateIssueRequest{Labels: &safe})
+}
+
+// mutateIssue is the shared POST/PUT path. Encodes the body, sends,
+// decodes into Issue on 2xx. Same auth + error mapping as reads.
+func (c *RestClient) mutateIssue(ctx context.Context, method, path string, body any) (Issue, error) {
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return Issue{}, fmt.Errorf("%w: encode request: %w", ErrRemote, err)
+	}
+	req, err := c.newRequest(ctx, method, path, strings.NewReader(string(buf)))
+	if err != nil {
+		return Issue{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.transport.Do(req)
+	if err != nil {
+		return Issue{}, err
+	}
+	defer resp.Body.Close()
+	if err := mapStatusError(resp.StatusCode); err != nil {
+		return Issue{}, err
+	}
+	var payload struct {
+		ID          int64    `json:"id"`
+		IID         int32    `json:"iid"`
+		State       string   `json:"state"`
+		Title       string   `json:"title"`
+		Description string   `json:"description"`
+		WebURL      string   `json:"web_url"`
+		UpdatedAt   string   `json:"updated_at"`
+		Labels      []string `json:"labels"`
+		Author      struct {
+			Name   string `json:"name"`
+			WebURL string `json:"web_url"`
+		} `json:"author"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return Issue{}, fmt.Errorf("%w: decode issue: %w", ErrRemote, err)
+	}
+	return Issue{
+		ID:          payload.ID,
+		IID:         payload.IID,
+		State:       payload.State,
+		Title:       payload.Title,
+		Description: payload.Description,
+		WebURL:      payload.WebURL,
+		UpdatedAt:   payload.UpdatedAt,
+		Labels:      payload.Labels,
+		Author:      IssueAuthor{Name: payload.Author.Name, URL: payload.Author.WebURL},
+	}, nil
+}
+
 // newRequest attaches the PRIVATE-TOKEN header and joins the path onto
 // the base URL. Every REST call flows through here so the auth header
 // contract is enforced in one place.
