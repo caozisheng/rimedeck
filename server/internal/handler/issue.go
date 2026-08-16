@@ -58,10 +58,19 @@ type IssueResponse struct {
 	// WS broadcast) emit no `labels` field at all — the client merge then
 	// preserves whatever labels are already in cache. nil pointer = "field
 	// absent, do not touch"; non-nil (incl. empty slice) = authoritative list.
-	Labels      *[]LabelResponse        `json:"labels,omitempty"`
-	SourceType  string                  `json:"source_type"`
-	SyncState   string                  `json:"sync_state"`
-	TrackerConnectionID *string         `json:"tracker_connection_id,omitempty"`
+	Labels              *[]LabelResponse  `json:"labels,omitempty"`
+	SourceType          string            `json:"source_type"`
+	SyncState           string            `json:"sync_state"`
+	TrackerConnectionID *string           `json:"tracker_connection_id,omitempty"`
+	External            *IssueExternalRef `json:"external"`
+}
+
+type IssueExternalRef struct {
+	Provider            string  `json:"provider"`
+	TrackerConnectionID string  `json:"tracker_connection_id"`
+	IID                 int32   `json:"iid"`
+	URL                 *string `json:"url"`
+	AuthorName          *string `json:"author_name"`
 }
 
 func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
@@ -150,6 +159,28 @@ func (h *Handler) labelsByIssue(ctx context.Context, wsUUID pgtype.UUID, issueID
 			CreatedAt:   timestampToString(r.CreatedAt),
 			UpdatedAt:   timestampToString(r.UpdatedAt),
 		})
+	}
+	return out
+}
+func (h *Handler) externalRefsByIssue(ctx context.Context, issueIDs []pgtype.UUID) map[string]IssueExternalRef {
+	out := map[string]IssueExternalRef{}
+	if len(issueIDs) == 0 {
+		return out
+	}
+	rows, err := h.Queries.ListGitlabIssueLinksByIssues(ctx, issueIDs)
+	if err != nil {
+		slog.Warn("ListGitlabIssueLinksByIssues failed", "error", err)
+		return out
+	}
+	for _, row := range rows {
+		url := row.RemoteWebUrl
+		out[uuidToString(row.IssueID)] = IssueExternalRef{
+			Provider:            "gitlab",
+			TrackerConnectionID: uuidToString(row.TrackerConnectionID),
+			IID:                 row.RemoteIid,
+			URL:                 &url,
+			AuthorName:          textToPtr(row.RemoteAuthorName),
+		}
 	}
 	return out
 }
@@ -802,6 +833,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 			ids[i] = issue.ID
 		}
 		labelsMap := h.labelsByIssue(ctx, wsUUID, ids)
+		externals := h.externalRefsByIssue(ctx, ids)
 		resp := make([]IssueResponse, len(issues))
 		for i, issue := range issues {
 			resp[i] = openIssueRowToResponse(issue, prefix)
@@ -810,6 +842,9 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 				labels = []LabelResponse{}
 			}
 			resp[i].Labels = &labels
+			if external, exists := externals[resp[i].ID]; exists {
+				resp[i].External = &external
+			}
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -1054,6 +1089,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 		ids[i] = issue.ID
 	}
 	labelsMap := h.labelsByIssue(ctx, wsUUID, ids)
+	externals := h.externalRefsByIssue(ctx, ids)
 	resp := make([]IssueResponse, len(issues))
 	for i, issue := range issues {
 		resp[i] = issueListRowToResponse(issue, prefix)
@@ -1062,6 +1098,9 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			labels = []LabelResponse{}
 		}
 		resp[i].Labels = &labels
+		if external, exists := externals[resp[i].ID]; exists {
+			resp[i].External = &external
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1347,6 +1386,25 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 			addArg(labelIDs),
 		))
 	}
+	if source := r.URL.Query().Get("source"); source != "" {
+		switch source {
+		case "local", "gitlab", "detached":
+			where = append(where, fmt.Sprintf("i.source_type = %s::text", addArg(source)))
+		default:
+			writeError(w, http.StatusBadRequest, "invalid source value")
+			return
+		}
+	}
+	if rawTrackerID := r.URL.Query().Get("tracker_id"); rawTrackerID != "" {
+		trackerID, ok := parseUUIDOrBadRequest(w, rawTrackerID, "tracker_id")
+		if !ok {
+			return
+		}
+		where = append(where, fmt.Sprintf("i.tracker_connection_id = %s::uuid", addArg(trackerID)))
+	}
+	if syncState := r.URL.Query().Get("sync_state"); syncState != "" {
+		where = append(where, fmt.Sprintf("i.sync_state = %s::text", addArg(syncState)))
+	}
 
 	if groupAssigneeType := r.URL.Query().Get("group_assignee_type"); groupAssigneeType != "" {
 		if groupAssigneeType == "none" {
@@ -1419,6 +1477,7 @@ WITH ranked AS (
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.position, i.due_date, i.created_at, i.updated_at,
 		i.number, i.project_id, i.metadata,
+		i.source_type, i.sync_state, i.tracker_connection_id,
 		COUNT(*) OVER (PARTITION BY i.assignee_type, i.assignee_id) AS group_total,
 		ROW_NUMBER() OVER (
 			PARTITION BY i.assignee_type, i.assignee_id
@@ -1431,7 +1490,7 @@ SELECT
 	id, workspace_id, title, description, status, priority,
 	assignee_type, assignee_id, creator_type, creator_id,
 	parent_issue_id, position, due_date, created_at, updated_at,
-	number, project_id, metadata, group_total
+	number, project_id, metadata, source_type, sync_state, tracker_connection_id, group_total
 FROM ranked
 WHERE rn > %s AND rn <= %s + %s
 ORDER BY
@@ -1475,6 +1534,9 @@ ORDER BY
 			&row.Number,
 			&row.ProjectID,
 			&row.Metadata,
+			&row.SourceType,
+			&row.SyncState,
+			&row.TrackerConnectionID,
 			&row.GroupTotal,
 		); err != nil {
 			slog.Warn("ListGroupedIssues scan failed", "error", err)
@@ -1494,6 +1556,7 @@ ORDER BY
 		ids[i] = row.ID
 	}
 	labelsMap := h.labelsByIssue(ctx, wsUUID, ids)
+	externals := h.externalRefsByIssue(ctx, ids)
 	prefix := h.getIssuePrefix(ctx, wsUUID)
 
 	groups := []IssueAssigneeGroupResponse{}
@@ -1519,6 +1582,9 @@ ORDER BY
 			labels = []LabelResponse{}
 		}
 		issue.Labels = &labels
+		if external, exists := externals[issue.ID]; exists {
+			issue.External = &external
+		}
 		groups[idx].Issues = append(groups[idx].Issues, issue)
 	}
 
@@ -1538,6 +1604,9 @@ func (h *Handler) GetIssue(w http.ResponseWriter, r *http.Request) {
 		detailLabels = []LabelResponse{}
 	}
 	resp.Labels = &detailLabels
+	if external, exists := h.externalRefsByIssue(r.Context(), []pgtype.UUID{issue.ID})[resp.ID]; exists {
+		resp.External = &external
+	}
 
 	// Fetch issue reactions.
 	reactions, err := h.Queries.ListIssueReactions(r.Context(), issue.ID)
