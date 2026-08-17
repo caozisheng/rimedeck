@@ -3,6 +3,7 @@ import { ExternalLink, GitBranch } from "lucide-react";
 import type { Issue } from "@rimedeck/core/types";
 import { cn } from "@rimedeck/ui/lib/utils";
 import { GitlabConflictDialog } from "./gitlab-conflict-dialog";
+import { useT } from "../../i18n";
 
 const syncLabels: Record<string, string> = {
   pending: "Pending sync",
@@ -13,9 +14,10 @@ const syncLabels: Record<string, string> = {
 };
 
 export function IssueSourceBadge({ issue }: { issue: Issue }) {
+  const { t } = useT("issues");
   const [dialogOpen, setDialogOpen] = useState(false);
   if (issue.source_type === "local") {
-    return <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Local</span>;
+    return <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t(($) => $.source_badge.local)}</span>;
   }
 
   const external = issue.external;

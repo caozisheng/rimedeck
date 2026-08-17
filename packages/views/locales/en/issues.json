@@ -440,6 +440,9 @@
     "update_failed": "Failed to update issue",
     "updated_ago": "Updated {{time}}"
   },
+  "source_badge": {
+    "local": "Local"
+  },
   "gitlab_conflict": {
     "title": "GitLab sync failed",
     "description": "This issue's latest change could not be pushed to GitLab. Pick how to resolve the conflict.",

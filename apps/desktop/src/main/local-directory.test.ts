@@ -22,12 +22,18 @@ async function repoWithRemote(remote: string): Promise<string> {
 }
 
 describe("detectGitRemote", () => {
-  it("classifies well-known SaaS remotes", async () => {
+  it("classifies gitlab.com remotes", async () => {
     const gitlab = await repoWithRemote("git@gitlab.com:group/project.git");
-    const jihulab = await repoWithRemote("https://jihulab.com/team/app.git");
-    const github = await repoWithRemote("https://github.com/org/repo.git");
     await expect(detectGitRemote(gitlab)).resolves.toMatchObject({ host: "gitlab.com", provider: "gitlab" });
+  });
+
+  it("classifies jihulab.com remotes", async () => {
+    const jihulab = await repoWithRemote("https://jihulab.com/team/app.git");
     await expect(detectGitRemote(jihulab)).resolves.toMatchObject({ host: "jihulab.com", provider: "gitlab" });
+  });
+
+  it("classifies github.com remotes", async () => {
+    const github = await repoWithRemote("https://github.com/org/repo.git");
     await expect(detectGitRemote(github)).resolves.toMatchObject({ host: "github.com", provider: "github" });
   });
 

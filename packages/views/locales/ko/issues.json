@@ -439,6 +439,9 @@
     "update_failed": "이슈를 업데이트하지 못했습니다",
     "updated_ago": "{{time}} 수정됨"
   },
+  "source_badge": {
+    "local": "로컬"
+  },
   "gitlab_conflict": {
     "title": "GitLab 동기화 실패",
     "description": "최근 변경 사항을 GitLab에 푸시하지 못했습니다. 해결 방법을 선택하세요.",

@@ -576,11 +576,11 @@ export function ManualCreatePanel({
               {hasGitlabTrackers && (
                 <div className="flex items-center gap-1 rounded-full border px-1 py-0.5 text-xs">
                   <button type="button" className={cn("rounded-full px-2 py-1", sourceType === "local" && "bg-accent")} onClick={() => { setSourceType("local"); setTrackerConnectionId(undefined); }}>
-                    Local Issue
+                    {t(($) => $.create_issue.source_local)}
                   </button>
                   {gitlabTrackers.map((tracker) => (
                     <button key={tracker.id} type="button" className={cn("rounded-full px-2 py-1", sourceType === "gitlab" && trackerConnectionId === tracker.id && "bg-accent")} onClick={() => { setSourceType("gitlab"); setTrackerConnectionId(tracker.id); }}>
-                      GitLab · {tracker.path_with_namespace}
+                      {t(($) => $.create_issue.source_gitlab, { project: tracker.path_with_namespace })}
                     </button>
                   ))}
                 </div>

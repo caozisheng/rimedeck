@@ -426,6 +426,9 @@
     "update_failed": "更新 issue 失败",
     "updated_ago": "更新于 {{time}}"
   },
+  "source_badge": {
+    "local": "本地"
+  },
   "gitlab_conflict": {
     "title": "GitLab 同步失败",
     "description": "最新的修改未能推送到 GitLab，请选择解决方式。",

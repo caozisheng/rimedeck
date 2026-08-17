@@ -421,6 +421,9 @@
     "update_failed": "イシューを更新できませんでした",
     "updated_ago": "{{time}} に更新"
   },
+  "source_badge": {
+    "local": "ローカル"
+  },
   "gitlab_conflict": {
     "title": "GitLab 同期に失敗しました",
     "description": "最新の変更を GitLab にプッシュできませんでした。以下から対処を選択してください。",
