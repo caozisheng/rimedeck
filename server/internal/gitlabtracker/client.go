@@ -91,6 +91,8 @@ type Issue struct {
 	Description string
 	WebURL      string
 	UpdatedAt   string
+	StartDate   string
+	DueDate     string
 	Labels      []string
 	Author      IssueAuthor
 }
@@ -254,6 +256,8 @@ func (c *RestClient) ListProjectIssues(ctx context.Context, projectID int64, opt
 			Description string   `json:"description"`
 			WebURL      string   `json:"web_url"`
 			UpdatedAt   string   `json:"updated_at"`
+			StartDate   string   `json:"start_date"`
+			DueDate     string   `json:"due_date"`
 			Labels      []string `json:"labels"`
 			Author      struct {
 				Name   string `json:"name"`
@@ -273,6 +277,8 @@ func (c *RestClient) ListProjectIssues(ctx context.Context, projectID int64, opt
 				Description: p.Description,
 				WebURL:      p.WebURL,
 				UpdatedAt:   p.UpdatedAt,
+				StartDate:   p.StartDate,
+				DueDate:     p.DueDate,
 				Labels:      p.Labels,
 				Author:      IssueAuthor{Name: p.Author.Name, URL: p.Author.WebURL},
 			})
@@ -298,6 +304,7 @@ type CreateIssueRequest struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
 	Labels      []string `json:"labels,omitempty"`
+	StartDate   string   `json:"start_date,omitempty"`
 	DueDate     string   `json:"due_date,omitempty"`
 }
 
@@ -308,6 +315,7 @@ type UpdateIssueRequest struct {
 	Title       *string   `json:"title,omitempty"`
 	Description *string   `json:"description,omitempty"`
 	Labels      *[]string `json:"labels,omitempty"`
+	StartDate   *string   `json:"start_date,omitempty"`
 	DueDate     *string   `json:"due_date,omitempty"`
 	StateEvent  *string   `json:"state_event,omitempty"`
 }
@@ -407,6 +415,8 @@ func (c *RestClient) mutateIssue(ctx context.Context, method, path string, body 
 		Description string   `json:"description"`
 		WebURL      string   `json:"web_url"`
 		UpdatedAt   string   `json:"updated_at"`
+		StartDate   string   `json:"start_date"`
+		DueDate     string   `json:"due_date"`
 		Labels      []string `json:"labels"`
 		Author      struct {
 			Name   string `json:"name"`
@@ -424,6 +434,8 @@ func (c *RestClient) mutateIssue(ctx context.Context, method, path string, body 
 		Description: payload.Description,
 		WebURL:      payload.WebURL,
 		UpdatedAt:   payload.UpdatedAt,
+		StartDate:   payload.StartDate,
+		DueDate:     payload.DueDate,
 		Labels:      payload.Labels,
 		Author:      IssueAuthor{Name: payload.Author.Name, URL: payload.Author.WebURL},
 	}, nil

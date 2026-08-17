@@ -496,3 +496,76 @@ VALUES ($1,$2,'#222222','gitlab',$3,991)`, parseUUID(testWorkspaceID), gitlabNam
 		t.Fatalf("source=local must exclude gitlab: %+v", labels)
 	}
 }
+
+func TestMappedLabelsAreHiddenButRemainQueryable(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "mapped-label-project")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+
+	var issueID string
+	if err := testPool.QueryRow(context.Background(), `
+INSERT INTO issue(workspace_id,title,status,priority,creator_type,creator_id,project_id,source_type,tracker_connection_id)
+VALUES ($1,'mapped label issue','in_progress','high','member',$2,$3,'gitlab',$4)
+RETURNING id`, parseUUID(testWorkspaceID), parseUUID(testUserID), parseUUID(project.ID), parseUUID(trackerID)).Scan(&issueID); err != nil {
+		t.Fatalf("seed issue: %v", err)
+	}
+	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), `DELETE FROM issue WHERE id=$1`, issueID) })
+
+	type seededLabel struct {
+		name string
+		kind string
+	}
+	labels := []seededLabel{
+		{name: "visible-" + trackerID[:8], kind: "none"},
+		{name: "workflow::in-progress", kind: "workflow"},
+		{name: "priority::high", kind: "priority"},
+	}
+	for i, label := range labels {
+		var labelID string
+		if err := testPool.QueryRow(context.Background(), `
+INSERT INTO issue_label(workspace_id,name,color,source_type,gitlab_tracker_connection_id,gitlab_label_id,mapping_kind)
+VALUES ($1,$2,'#222222','gitlab',$3,$4,$5)
+RETURNING id`, parseUUID(testWorkspaceID), label.name, parseUUID(trackerID), 2000+i, label.kind).Scan(&labelID); err != nil {
+			t.Fatalf("seed %s label: %v", label.kind, err)
+		}
+		if _, err := testPool.Exec(context.Background(), `INSERT INTO issue_to_label(issue_id,label_id) VALUES ($1,$2)`, issueID, labelID); err != nil {
+			t.Fatalf("attach %s label: %v", label.kind, err)
+		}
+	}
+
+	req := newRequest("GET", "/api/labels?workspace_id="+testWorkspaceID+"&source=gitlab&tracker_id="+trackerID, nil)
+	w := httptest.NewRecorder()
+	testHandler.ListLabels(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("ListLabels: %d %s", w.Code, w.Body.String())
+	}
+	var body struct {
+		Labels []LabelResponse `json:"labels"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Labels) != 1 || body.Labels[0].Name != labels[0].name {
+		t.Fatalf("visible labels = %+v, want only %q", body.Labels, labels[0].name)
+	}
+
+	var completeCount int
+	if err := testPool.QueryRow(context.Background(), `
+SELECT count(*) FROM issue_to_label itl
+JOIN issue_label l ON l.id=itl.label_id
+WHERE itl.issue_id=$1 AND l.gitlab_tracker_connection_id=$2`, issueID, parseUUID(trackerID)).Scan(&completeCount); err != nil {
+		t.Fatal(err)
+	}
+	if completeCount != 3 {
+		t.Fatalf("complete label relation count = %d, want 3", completeCount)
+	}
+
+	if _, err := testPool.Exec(context.Background(), `
+INSERT INTO issue_label(workspace_id,name,color,source_type,gitlab_tracker_connection_id,gitlab_label_id,mapping_kind)
+VALUES ($1,'invalid-mapping-kind','#222222','gitlab',$2,2999,'invalid')`, parseUUID(testWorkspaceID), parseUUID(trackerID)); err == nil {
+		t.Fatal("invalid mapping_kind insert unexpectedly succeeded")
+	}
+}

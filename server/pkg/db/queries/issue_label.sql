@@ -21,11 +21,12 @@ WHERE l.workspace_id = sqlc.arg('workspace_id')::uuid
     OR l.source_type = 'local'
     OR (c.project_id = sqlc.narg('project_id')::uuid AND c.state <> 'disabled')
   )
+  AND l.mapping_kind = 'none'
 ORDER BY LOWER(l.name) ASC;
 
 -- name: GetLabel :one
 SELECT * FROM issue_label
-WHERE id = $1 AND workspace_id = $2;
+WHERE id = $1 AND workspace_id = $2 AND mapping_kind = 'none';
 
 -- name: CreateLabel :one
 INSERT INTO issue_label (workspace_id, name, color)
@@ -37,14 +38,14 @@ UPDATE issue_label SET
     name = COALESCE(sqlc.narg('name'), name),
     color = COALESCE(sqlc.narg('color'), color),
     updated_at = now()
-WHERE id = $1 AND workspace_id = $2
+WHERE id = $1 AND workspace_id = $2 AND mapping_kind = 'none'
 RETURNING *;
 
 -- name: DeleteLabel :one
 -- :one RETURNING id so the handler distinguishes pgx.ErrNoRows (→ 404) from
--- infrastructure errors (→ 500), and avoids a TOCTOU precheck.
+-- infrastructure errors (→ 500), and prevents mapped labels being mutated.
 DELETE FROM issue_label
-WHERE id = $1 AND workspace_id = $2
+WHERE id = $1 AND workspace_id = $2 AND mapping_kind = 'none'
 RETURNING id;
 
 -- name: AttachLabelToIssue :exec
@@ -77,7 +78,7 @@ WHERE issue_id = sqlc.arg('issue_id')::uuid
         AND i.workspace_id = sqlc.arg('workspace_id')::uuid
   );
 
--- name: ListLabelsByIssue :many
+-- name: ListVisibleLabelsByIssue :many
 -- Workspace filter at the SQL layer (mirrors GetProjectInWorkspace). Any caller
 -- that passes the wrong workspace gets an empty list rather than leaking labels.
 SELECT l.*
@@ -85,12 +86,28 @@ FROM issue_label l
 JOIN issue_to_label il ON il.label_id = l.id
 WHERE il.issue_id = sqlc.arg('issue_id')::uuid
   AND l.workspace_id = sqlc.arg('workspace_id')::uuid
+  AND l.mapping_kind = 'none'
 ORDER BY LOWER(l.name) ASC;
 
--- name: ListLabelsForIssues :many
--- Bulk variant: fetch labels for many issues in one round-trip so the issue
--- list endpoints can fold labels into each row without N+1 queries from the
--- client. Workspace-guarded the same way as ListLabelsByIssue.
+-- name: ListAllLabelsByIssue :many
+SELECT l.*
+FROM issue_label l
+JOIN issue_to_label il ON il.label_id = l.id
+WHERE il.issue_id = sqlc.arg('issue_id')::uuid
+  AND l.workspace_id = sqlc.arg('workspace_id')::uuid
+ORDER BY LOWER(l.name) ASC;
+
+-- name: ListVisibleLabelsForIssues :many
+-- Bulk variant used by public issue projections.
+SELECT il.issue_id, l.*
+FROM issue_label l
+JOIN issue_to_label il ON il.label_id = l.id
+WHERE il.issue_id = ANY(sqlc.arg('issue_ids')::uuid[])
+  AND l.workspace_id = sqlc.arg('workspace_id')::uuid
+  AND l.mapping_kind = 'none'
+ORDER BY il.issue_id, LOWER(l.name) ASC;
+
+-- name: ListAllLabelsForIssues :many
 SELECT il.issue_id, l.*
 FROM issue_label l
 JOIN issue_to_label il ON il.label_id = l.id

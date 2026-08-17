@@ -280,7 +280,179 @@ func TestAttachDetachLabel_EnqueuesSetLabels(t *testing.T) {
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}
-	if len(payload.Labels) != 1 || payload.Labels[0] != "feature" {
-		t.Fatalf("payload labels = %v, want [feature]", payload.Labels)
+	want := []string{"feature", "workflow::todo"}
+	if len(payload.Labels) != len(want) || payload.Labels[0] != want[0] || payload.Labels[1] != want[1] {
+		t.Fatalf("payload labels = %v, want %v", payload.Labels, want)
+	}
+}
+
+func TestUpdateIssueGitlab_EnqueuesMappedFieldsAndDates(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "gitlab-mapped-update")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
+
+	status := "in_review"
+	priority := "high"
+	startDate := "2026-08-17"
+	dueDate := "2026-08-20"
+	req := newRequest("PUT", "/api/issues/"+issueID, UpdateIssueRequest{
+		Status: &status, Priority: &priority, StartDate: &startDate, DueDate: &dueDate,
+	})
+	req = withURLParam(req, "id", issueID)
+	w := httptest.NewRecorder()
+	testHandler.UpdateIssue(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update: %d %s", w.Code, w.Body.String())
+	}
+
+	var raw []byte
+	if err := testPool.QueryRow(context.Background(), `
+SELECT payload FROM tracker_sync_outbox
+WHERE issue_id=$1 AND operation='update_issue' AND status='pending'
+ORDER BY desired_revision DESC LIMIT 1`, parseUUID(issueID)).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Labels    []string `json:"labels"`
+		StartDate *string  `json:"start_date"`
+		DueDate   *string  `json:"due_date"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	wantLabels := []string{"workflow::in-review", "priority::high"}
+	if len(payload.Labels) != len(wantLabels) || payload.Labels[0] != wantLabels[0] || payload.Labels[1] != wantLabels[1] {
+		t.Fatalf("labels = %v, want %v", payload.Labels, wantLabels)
+	}
+	if payload.StartDate == nil || *payload.StartDate != startDate || payload.DueDate == nil || *payload.DueDate != dueDate {
+		t.Fatalf("dates payload = %s", raw)
+	}
+}
+
+func TestUpdateIssueGitlab_UpdatesStoredMappedLabelRelations(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "gitlab-mapped-relations")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
+
+	for i, label := range []struct{ name, kind string }{
+		{"workflow::todo", "workflow"},
+		{"workflow::in-review", "workflow"},
+		{"priority::high", "priority"},
+	} {
+		if _, err := testPool.Exec(context.Background(), `
+INSERT INTO issue_label(workspace_id,name,color,source_type,gitlab_tracker_connection_id,gitlab_label_id,mapping_kind)
+VALUES ($1,$2,'#000000','gitlab',$3,$4,$5)`, parseUUID(testWorkspaceID), label.name, parseUUID(trackerID), 4000+i, label.kind); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	status, priority := "in_review", "high"
+	req := newRequest("PUT", "/api/issues/"+issueID, UpdateIssueRequest{Status: &status, Priority: &priority})
+	req = withURLParam(req, "id", issueID)
+	w := httptest.NewRecorder()
+	testHandler.UpdateIssue(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update: %d %s", w.Code, w.Body.String())
+	}
+
+	rows, err := testPool.Query(context.Background(), `
+SELECT l.name FROM issue_to_label itl JOIN issue_label l ON l.id=itl.label_id
+WHERE itl.issue_id=$1 AND l.mapping_kind <> 'none' ORDER BY l.name`, parseUUID(issueID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		names = append(names, name)
+	}
+	want := []string{"priority::high", "workflow::in-review"}
+	if len(names) != len(want) || names[0] != want[0] || names[1] != want[1] {
+		t.Fatalf("stored mapped labels = %v, want %v", names, want)
+	}
+}
+
+func TestBatchUpdateIssuesGitlab_EnqueuesMappedFields(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "gitlab-batch-mapped-update")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
+
+	req := newRequest("POST", "/api/issues/batch-update", map[string]any{
+		"issue_ids": []string{issueID},
+		"updates":   map[string]any{"status": "in_review", "priority": "medium", "due_date": "2026-08-20"},
+	})
+	w := httptest.NewRecorder()
+	testHandler.BatchUpdateIssues(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("batch update: %d %s", w.Code, w.Body.String())
+	}
+	var raw []byte
+	if err := testPool.QueryRow(context.Background(), `
+SELECT payload FROM tracker_sync_outbox
+WHERE issue_id=$1 AND operation='update_issue' AND status='pending'
+ORDER BY desired_revision DESC LIMIT 1`, parseUUID(issueID)).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Labels  []string `json:"labels"`
+		DueDate *string  `json:"due_date"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"workflow::in-review", "priority::medium"}
+	if len(payload.Labels) != len(want) || payload.Labels[0] != want[0] || payload.Labels[1] != want[1] {
+		t.Fatalf("labels = %v, want %v", payload.Labels, want)
+	}
+	if payload.DueDate == nil || *payload.DueDate != "2026-08-20" {
+		t.Fatalf("due date payload = %s", raw)
+	}
+}
+
+func TestBatchDeleteIssuesGitlab_EnqueuesDelete(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "gitlab-batch-delete")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
+
+	req := newRequest("POST", "/api/issues/batch-delete", map[string]any{"issue_ids": []string{issueID}})
+	w := httptest.NewRecorder()
+	testHandler.BatchDeleteIssues(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("batch delete: %d %s", w.Code, w.Body.String())
+	}
+	var exists bool
+	if err := testPool.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM issue WHERE id=$1)`, parseUUID(issueID)).Scan(&exists); err != nil {
+		t.Fatal(err)
+	}
+	if !exists {
+		t.Fatal("linked GitLab issue was hard-deleted before remote delete")
+	}
+	_, syncState, _, _ := loadIssueSync(t, issueID)
+	if syncState != "pending_delete" {
+		t.Fatalf("sync_state = %q, want pending_delete", syncState)
+	}
+	outbox := loadOutboxForIssue(t, issueID)
+	if len(outbox) != 1 || outbox[0].operation != "delete_issue" {
+		t.Fatalf("outbox = %+v", outbox)
 	}
 }

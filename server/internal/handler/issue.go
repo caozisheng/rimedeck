@@ -141,12 +141,12 @@ func (h *Handler) labelsByIssue(ctx context.Context, wsUUID pgtype.UUID, issueID
 	if len(issueIDs) == 0 {
 		return out
 	}
-	rows, err := h.Queries.ListLabelsForIssues(ctx, db.ListLabelsForIssuesParams{
+	rows, err := h.Queries.ListVisibleLabelsForIssues(ctx, db.ListVisibleLabelsForIssuesParams{
 		IssueIds:    issueIDs,
 		WorkspaceID: wsUUID,
 	})
 	if err != nil {
-		slog.Warn("ListLabelsForIssues failed", "error", err)
+		slog.Warn("ListVisibleLabelsForIssues failed", "error", err)
 		return out
 	}
 	for _, r := range rows {
@@ -2846,11 +2846,9 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		h.notifyParentOfChildDone(r.Context(), prevIssue, issue, actorType, actorID)
 	}
 
-	// GitLab-sourced issue: enqueue the outbox push once local write has
-	// committed. Local-only fields (position/parent/project/assignee) are
-	// intentionally excluded from `payload` per design §7.2 (本地专有字段永
-	// 不 push). Status close/reopen rides state_event; done/cancelled →
-	// close, everything else → reopen only when the prior state was closed.
+	// GitLab-sourced issue: enqueue one remote update containing every changed
+	// provider-managed field. Labels are destructive-replace, so status or
+	// priority changes always send a canonical full desired set.
 	if issue.SourceType == "gitlab" && issue.TrackerConnectionID.Valid {
 		pushable := map[string]any{}
 		if titleChanged {
@@ -2859,8 +2857,25 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		if descriptionChanged {
 			pushable["description"] = textToPtr(issue.Description)
 		}
+		if startDateChanged {
+			pushable["start_date"] = dateToPtr(issue.StartDate)
+		}
 		if dueDateChanged {
 			pushable["due_date"] = dateToPtr(issue.DueDate)
+		}
+		if statusChanged || priorityChanged {
+			allLabels, err := h.Queries.ListAllLabelsByIssue(r.Context(), db.ListAllLabelsByIssueParams{
+				IssueID: issue.ID, WorkspaceID: issue.WorkspaceID,
+			})
+			if err != nil {
+				slog.Warn("load GitLab labels for mapped update failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+			} else {
+				desired := canonicalGitlabLabelNames(issue, allLabels)
+				pushable["labels"] = desired
+				if err := h.syncStoredMappedLabels(r.Context(), issue, desired); err != nil {
+					slog.Warn("sync stored mapped labels failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+				}
+			}
 		}
 		if statusChanged {
 			switch issue.Status {
@@ -3381,6 +3396,52 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			h.notifyParentOfChildDone(r.Context(), prevIssue, issue, actorType, actorID)
 		}
 
+		if issue.SourceType == "gitlab" && issue.TrackerConnectionID.Valid {
+			pushable := map[string]any{}
+			if req.Updates.Title != nil && prevIssue.Title != issue.Title {
+				pushable["title"] = issue.Title
+			}
+			if req.Updates.Description != nil && prevIssue.Description.String != issue.Description.String {
+				pushable["description"] = textToPtr(issue.Description)
+			}
+			if _, ok := rawUpdates["start_date"]; ok && prevIssue.StartDate != issue.StartDate {
+				pushable["start_date"] = dateToPtr(issue.StartDate)
+			}
+			if _, ok := rawUpdates["due_date"]; ok && prevIssue.DueDate != issue.DueDate {
+				pushable["due_date"] = dateToPtr(issue.DueDate)
+			}
+			if statusChanged || priorityChanged {
+				allLabels, err := h.Queries.ListAllLabelsByIssue(r.Context(), db.ListAllLabelsByIssueParams{
+					IssueID: issue.ID, WorkspaceID: issue.WorkspaceID,
+				})
+				if err == nil {
+					desired := canonicalGitlabLabelNames(issue, allLabels)
+					pushable["labels"] = desired
+					if err := h.syncStoredMappedLabels(r.Context(), issue, desired); err != nil {
+						slog.Warn("batch sync stored mapped labels failed", "issue_id", issueID, "error", err)
+					}
+				} else {
+					slog.Warn("batch load GitLab labels failed", "issue_id", issueID, "error", err)
+				}
+			}
+			if statusChanged {
+				switch issue.Status {
+				case "done", "cancelled":
+					pushable["state_event"] = "close"
+				default:
+					if prevIssue.Status == "done" || prevIssue.Status == "cancelled" {
+						pushable["state_event"] = "reopen"
+					}
+				}
+			}
+			if len(pushable) > 0 {
+				payload, _ := json.Marshal(pushable)
+				if err := h.enqueueGitlabWriteOp(r.Context(), issue.ID, issue.WorkspaceID, issue.TrackerConnectionID, "update_issue", payload, false); err != nil {
+					slog.Warn("enqueue batch GitLab update failed", "issue_id", issueID, "error", err)
+				}
+			}
+		}
+
 		updated++
 	}
 
@@ -3425,6 +3486,24 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			continue
+		}
+
+		if issue.SourceType == "gitlab" && issue.TrackerConnectionID.Valid {
+			if _, err := h.Queries.GetGitlabIssueLinkByIssueID(r.Context(), issue.ID); err == nil {
+				if err := h.enqueueGitlabWriteOp(r.Context(), issue.ID, issue.WorkspaceID, issue.TrackerConnectionID, "delete_issue", []byte(`{}`), true); err != nil {
+					slog.Warn("batch enqueue GitLab delete failed", "issue_id", issueID, "error", err)
+					continue
+				}
+				h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)
+				h.Queries.FailAutopilotRunsByIssue(r.Context(), issue.ID)
+				actorType, actorID := h.resolveActor(r, userID, workspaceID)
+				h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{"issue_id": uuidToString(issue.ID), "sync_state": "pending_delete"})
+				deleted++
+				continue
+			}
+			if err := h.cancelUnlinkedGitlabIssue(r.Context(), issue.ID); err != nil {
+				slog.Warn("batch cancel unlinked GitLab outbox failed", "issue_id", issueID, "error", err)
+			}
 		}
 
 		h.TaskService.CancelTasksForIssue(r.Context(), issue.ID)

@@ -236,7 +236,7 @@ func TestListProjectIssues_HonorsStateFilter(t *testing.T) {
 			t.Errorf("state = %q, want all", got)
 		}
 		writeJSON(w, http.StatusOK, []map[string]any{
-			{"id": 1001, "iid": 12, "state": "opened", "title": "one", "web_url": "https://gitlab.example.com/g/p/-/issues/12", "updated_at": "2026-08-16T00:00:00Z", "labels": []string{"bug"}},
+			{"id": 1001, "iid": 12, "state": "opened", "title": "one", "web_url": "https://gitlab.example.com/g/p/-/issues/12", "updated_at": "2026-08-16T00:00:00Z", "start_date": "2026-08-17", "due_date": "2026-08-20", "labels": []string{"bug"}},
 			{"id": 1002, "iid": 13, "state": "closed", "title": "two", "web_url": "https://gitlab.example.com/g/p/-/issues/13", "updated_at": "2026-08-16T00:00:00Z", "labels": []string{}},
 		})
 	})
@@ -256,6 +256,9 @@ func TestListProjectIssues_HonorsStateFilter(t *testing.T) {
 	}
 	if got[0].State != "opened" || got[1].State != "closed" {
 		t.Fatalf("states mismatch: %+v", got)
+	}
+	if got[0].StartDate != "2026-08-17" || got[0].DueDate != "2026-08-20" {
+		t.Fatalf("dates mismatch: %+v", got[0])
 	}
 }
 

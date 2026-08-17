@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/gitlabtracker"
@@ -47,18 +48,28 @@ func TestTick_CreateIssueOp(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &seenBody)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":901,"iid":7,"state":"opened","title":"local","description":"body","web_url":"https://x/7","updated_at":"2026-08-16T00:00:00Z"}`))
+		_, _ = w.Write([]byte(`{"id":901,"iid":7,"state":"opened","title":"local","description":"body","web_url":"https://x/7","updated_at":"2026-08-16T00:00:00Z","start_date":"2026-08-17","due_date":"2026-08-20","labels":["workflow::in-progress","priority::high"]}`))
 	}))
 	defer upstream.Close()
 
 	issueID := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
-	issue := db.Issue{ID: issueID, Title: "local", Description: pgtype.Text{String: "body", Valid: true}}
+	trackerID := pgtype.UUID{Bytes: [16]byte{9}, Valid: true}
+	issue := db.Issue{
+		ID: issueID, WorkspaceID: pgtype.UUID{Bytes: [16]byte{8}, Valid: true},
+		Title: "local", Description: pgtype.Text{String: "body", Valid: true},
+		Status: "in_progress", Priority: "high", TrackerConnectionID: trackerID,
+		StartDate: pgtype.Date{Time: time.Date(2026, 8, 17, 0, 0, 0, 0, time.UTC), Valid: true},
+		DueDate:   pgtype.Date{Time: time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC), Valid: true},
+	}
 	row := newOutboxRow("create_issue")
 	row.IssueID = issueID
 
 	fq := &fakeQueries{
 		claim:  []db.TrackerSyncOutbox{row},
 		issues: map[string]db.Issue{string(issueID.Bytes[:]): issue},
+		labels: map[string][]db.IssueLabel{string(issueID.Bytes[:]): {
+			{Name: "bug", SourceType: "gitlab", MappingKind: "none", GitlabTrackerConnectionID: trackerID},
+		}},
 	}
 	var gotCreate db.Issue
 	var gotRemote gitlabtracker.Issue
@@ -66,8 +77,13 @@ func TestTick_CreateIssueOp(t *testing.T) {
 	if err != nil || res.Success != 1 || len(fq.success) != 1 {
 		t.Fatalf("res=%+v err=%v success=%d", res, err, len(fq.success))
 	}
-	if seenBody["title"] != "local" || seenBody["description"] != "body" {
-		t.Fatalf("POST body = %+v, want title/description", seenBody)
+	if seenBody["title"] != "local" || seenBody["description"] != "body" ||
+		seenBody["start_date"] != "2026-08-17" || seenBody["due_date"] != "2026-08-20" {
+		t.Fatalf("POST body = %+v", seenBody)
+	}
+	labels, ok := seenBody["labels"].([]any)
+	if !ok || len(labels) != 3 || labels[0] != "bug" || labels[1] != "workflow::in-progress" || labels[2] != "priority::high" {
+		t.Fatalf("POST labels = %+v", seenBody["labels"])
 	}
 	if gotCreate.ID != issueID || gotRemote.IID != 7 {
 		t.Fatalf("importer got issue=%+v remote=%+v", gotCreate, gotRemote)
@@ -85,12 +101,15 @@ func TestTick_UpdateIssueOp(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &seenBody)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":901,"iid":7,"state":"opened","title":"renamed","description":"","web_url":"https://x/7","updated_at":"2026-08-16T00:01:00Z"}`))
+		_, _ = w.Write([]byte(`{"id":901,"iid":7,"state":"opened","title":"renamed","description":"","web_url":"https://x/7","updated_at":"2026-08-16T00:01:00Z","start_date":"2026-08-17","due_date":"2026-08-20","labels":["workflow::in-review","priority::high"]}`))
 	}))
 	defer upstream.Close()
 
 	issueID := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
-	payload := map[string]any{"title": "renamed"}
+	payload := map[string]any{
+		"title": "renamed", "start_date": "2026-08-17", "due_date": "2026-08-20",
+		"labels": []string{"workflow::in-review", "priority::high"},
+	}
 	payloadBytes, _ := json.Marshal(payload)
 	row := newOutboxRow("update_issue")
 	row.IssueID = issueID
@@ -106,11 +125,44 @@ func TestTick_UpdateIssueOp(t *testing.T) {
 	if err != nil || res.Success != 1 {
 		t.Fatalf("res=%+v err=%v", res, err)
 	}
-	if seenBody["title"] != "renamed" {
-		t.Fatalf("PUT body = %+v, want title=renamed", seenBody)
+	if seenBody["title"] != "renamed" || seenBody["start_date"] != "2026-08-17" || seenBody["due_date"] != "2026-08-20" {
+		t.Fatalf("PUT body = %+v", seenBody)
 	}
-	if gotRemote.Title != "renamed" {
-		t.Fatalf("applier remote = %+v, want title=renamed", gotRemote)
+	labels, ok := seenBody["labels"].([]any)
+	if !ok || len(labels) != 2 || labels[0] != "workflow::in-review" || labels[1] != "priority::high" {
+		t.Fatalf("PUT labels = %+v", seenBody["labels"])
+	}
+	if gotRemote.Title != "renamed" || gotRemote.StartDate != "2026-08-17" || gotRemote.DueDate != "2026-08-20" {
+		t.Fatalf("applier remote = %+v", gotRemote)
+	}
+}
+
+func TestTick_UpdateIssueOp_ClearsDates(t *testing.T) {
+	var seenBody map[string]any
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &seenBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":901,"iid":7,"state":"opened","title":"x","start_date":null,"due_date":null}`))
+	}))
+	defer upstream.Close()
+
+	issueID := pgtype.UUID{Bytes: [16]byte{31}, Valid: true}
+	row := newOutboxRow("update_issue")
+	row.IssueID = issueID
+	row.Payload = []byte(`{"start_date":null,"due_date":null}`)
+	fq := &fakeQueries{
+		claim: []db.TrackerSyncOutbox{row},
+		links: map[string]db.GitlabIssueLink{string(issueID.Bytes[:]): {IssueID: issueID, RemoteIid: 7}},
+	}
+	var gotCreate db.Issue
+	var gotRemote gitlabtracker.Issue
+	res, err := writeOpsWorker(t, fq, upstream.URL, &gotCreate, &gotRemote).Tick(context.Background())
+	if err != nil || res.Success != 1 {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	if seenBody["start_date"] != "" || seenBody["due_date"] != "" {
+		t.Fatalf("date clears = %+v", seenBody)
 	}
 }
 

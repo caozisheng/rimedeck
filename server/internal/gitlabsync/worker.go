@@ -52,6 +52,7 @@ type Queries interface {
 	MarkTrackerOutboxFailed(ctx context.Context, arg db.MarkTrackerOutboxFailedParams) error
 	TouchTrackerLastPull(ctx context.Context, id pgtype.UUID) error
 	GetIssue(ctx context.Context, id pgtype.UUID) (db.Issue, error)
+	ListAllLabelsByIssue(ctx context.Context, arg db.ListAllLabelsByIssueParams) ([]db.IssueLabel, error)
 	GetGitlabIssueLinkByIssueID(ctx context.Context, issueID pgtype.UUID) (db.GitlabIssueLink, error)
 	CancelTrackerOutboxByIssue(ctx context.Context, issueID pgtype.UUID) error
 	DeleteIssue(ctx context.Context, arg db.DeleteIssueParams) error
@@ -334,9 +335,25 @@ func (w *Worker) handleCreateIssue(ctx context.Context, client *gitlabtracker.Re
 	if err != nil {
 		return fmt.Errorf("load issue for create: %w", err)
 	}
+	labels, err := w.Queries.ListAllLabelsByIssue(ctx, db.ListAllLabelsByIssueParams{
+		IssueID: issue.ID, WorkspaceID: issue.WorkspaceID,
+	})
+	if err != nil {
+		return fmt.Errorf("load labels for create: %w", err)
+	}
+	ordinary := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if label.SourceType == "gitlab" && label.MappingKind == string(gitlabtracker.MappingNone) &&
+			label.GitlabTrackerConnectionID == issue.TrackerConnectionID {
+			ordinary = append(ordinary, label.Name)
+		}
+	}
 	req := gitlabtracker.CreateIssueRequest{
 		Title:       issue.Title,
 		Description: issue.Description.String,
+		Labels:      gitlabtracker.CanonicalLabels(issue.Status, issue.Priority, ordinary),
+		StartDate:   gitlabDate(issue.StartDate),
+		DueDate:     gitlabDate(issue.DueDate),
 	}
 	remote, err := client.CreateIssue(ctx, tracker.RemoteProjectID, req)
 	if err != nil {
@@ -348,7 +365,7 @@ func (w *Worker) handleCreateIssue(ctx context.Context, client *gitlabtracker.Re
 	if w.TxStarter == nil {
 		return errors.New("gitlabtracker: importer transaction starter is not configured")
 	}
-	return gitlabtracker.CreateGitlabIssueLinkTx(ctx, tracker, issue.ID, remote, w.TxStarter)
+	return gitlabtracker.CreateGitlabIssueLinkTx(ctx, tracker, issue.ID, remote, w.TxStarter, row.DesiredRevision.Int64)
 }
 
 // handleUpdateIssue applies the payload fields against the remote issue
@@ -360,17 +377,32 @@ func (w *Worker) handleUpdateIssue(ctx context.Context, client *gitlabtracker.Re
 		return fmt.Errorf("load link for update: %w", err)
 	}
 	var payload struct {
-		Title       *string `json:"title"`
-		Description *string `json:"description"`
-		DueDate     *string `json:"due_date"`
-		StateEvent  *string `json:"state_event"`
+		Title       *string   `json:"title"`
+		Description *string   `json:"description"`
+		Labels      *[]string `json:"labels"`
+		StartDate   *string   `json:"start_date"`
+		DueDate     *string   `json:"due_date"`
+		StateEvent  *string   `json:"state_event"`
 	}
 	if err := json.Unmarshal(row.Payload, &payload); err != nil {
 		return fmt.Errorf("decode update payload: %w", err)
 	}
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(row.Payload, &rawFields); err != nil {
+		return fmt.Errorf("decode update fields: %w", err)
+	}
+	empty := ""
+	if _, present := rawFields["start_date"]; present && payload.StartDate == nil {
+		payload.StartDate = &empty
+	}
+	if _, present := rawFields["due_date"]; present && payload.DueDate == nil {
+		payload.DueDate = &empty
+	}
 	req := gitlabtracker.UpdateIssueRequest{
 		Title:       payload.Title,
 		Description: payload.Description,
+		Labels:      payload.Labels,
+		StartDate:   payload.StartDate,
 		DueDate:     payload.DueDate,
 		StateEvent:  payload.StateEvent,
 	}
@@ -384,7 +416,7 @@ func (w *Worker) handleUpdateIssue(ctx context.Context, client *gitlabtracker.Re
 	if w.TxStarter == nil {
 		return errors.New("gitlabtracker: importer transaction starter is not configured")
 	}
-	return gitlabtracker.ApplyCanonicalIssue(ctx, tracker, row.IssueID, remote, w.TxStarter)
+	return gitlabtracker.ApplyCanonicalIssueAtRevision(ctx, tracker, row.IssueID, remote, w.TxStarter, row.DesiredRevision.Int64)
 }
 
 // handleSetLabels replaces the full remote label set with the payload's
@@ -410,7 +442,7 @@ func (w *Worker) handleSetLabels(ctx context.Context, client *gitlabtracker.Rest
 	if w.TxStarter == nil {
 		return errors.New("gitlabtracker: importer transaction starter is not configured")
 	}
-	return gitlabtracker.ApplyCanonicalIssue(ctx, tracker, row.IssueID, remote, w.TxStarter)
+	return gitlabtracker.ApplyCanonicalIssueAtRevision(ctx, tracker, row.IssueID, remote, w.TxStarter, row.DesiredRevision.Int64)
 }
 
 // handleDeleteIssue removes the remote issue then the local mirror. 404
@@ -494,6 +526,13 @@ func isNetworkErr(err error) bool {
 // --- tiny pgtype helpers ---------------------------------------------------
 
 func pgText(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+func gitlabDate(value pgtype.Date) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.Time.Format("2006-01-02")
+}
+
 func pgTS(t time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: t, Valid: true}
 }

@@ -44,7 +44,7 @@ func (q *Queries) AttachLabelToIssue(ctx context.Context, arg AttachLabelToIssue
 const createLabel = `-- name: CreateLabel :one
 INSERT INTO issue_label (workspace_id, name, color)
 VALUES ($1, $2, $3)
-RETURNING id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived
+RETURNING id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived, mapping_kind
 `
 
 type CreateLabelParams struct {
@@ -68,13 +68,14 @@ func (q *Queries) CreateLabel(ctx context.Context, arg CreateLabelParams) (Issue
 		&i.GitlabLabelID,
 		&i.IsProjectLabel,
 		&i.IsArchived,
+		&i.MappingKind,
 	)
 	return i, err
 }
 
 const deleteLabel = `-- name: DeleteLabel :one
 DELETE FROM issue_label
-WHERE id = $1 AND workspace_id = $2
+WHERE id = $1 AND workspace_id = $2 AND mapping_kind = 'none'
 RETURNING id
 `
 
@@ -84,7 +85,7 @@ type DeleteLabelParams struct {
 }
 
 // :one RETURNING id so the handler distinguishes pgx.ErrNoRows (→ 404) from
-// infrastructure errors (→ 500), and avoids a TOCTOU precheck.
+// infrastructure errors (→ 500), and prevents mapped labels being mutated.
 func (q *Queries) DeleteLabel(ctx context.Context, arg DeleteLabelParams) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, deleteLabel, arg.ID, arg.WorkspaceID)
 	var id pgtype.UUID
@@ -117,8 +118,8 @@ func (q *Queries) DetachLabelFromIssue(ctx context.Context, arg DetachLabelFromI
 }
 
 const getLabel = `-- name: GetLabel :one
-SELECT id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived FROM issue_label
-WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived, mapping_kind FROM issue_label
+WHERE id = $1 AND workspace_id = $2 AND mapping_kind = 'none'
 `
 
 type GetLabelParams struct {
@@ -141,12 +142,124 @@ func (q *Queries) GetLabel(ctx context.Context, arg GetLabelParams) (IssueLabel,
 		&i.GitlabLabelID,
 		&i.IsProjectLabel,
 		&i.IsArchived,
+		&i.MappingKind,
 	)
 	return i, err
 }
 
+const listAllLabelsByIssue = `-- name: ListAllLabelsByIssue :many
+SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived, l.mapping_kind
+FROM issue_label l
+JOIN issue_to_label il ON il.label_id = l.id
+WHERE il.issue_id = $1::uuid
+  AND l.workspace_id = $2::uuid
+ORDER BY LOWER(l.name) ASC
+`
+
+type ListAllLabelsByIssueParams struct {
+	IssueID     pgtype.UUID `json:"issue_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) ListAllLabelsByIssue(ctx context.Context, arg ListAllLabelsByIssueParams) ([]IssueLabel, error) {
+	rows, err := q.db.Query(ctx, listAllLabelsByIssue, arg.IssueID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueLabel{}
+	for rows.Next() {
+		var i IssueLabel
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Color,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SourceType,
+			&i.GitlabTrackerConnectionID,
+			&i.GitlabLabelID,
+			&i.IsProjectLabel,
+			&i.IsArchived,
+			&i.MappingKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllLabelsForIssues = `-- name: ListAllLabelsForIssues :many
+SELECT il.issue_id, l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived, l.mapping_kind
+FROM issue_label l
+JOIN issue_to_label il ON il.label_id = l.id
+WHERE il.issue_id = ANY($1::uuid[])
+  AND l.workspace_id = $2::uuid
+ORDER BY il.issue_id, LOWER(l.name) ASC
+`
+
+type ListAllLabelsForIssuesParams struct {
+	IssueIds    []pgtype.UUID `json:"issue_ids"`
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+}
+
+type ListAllLabelsForIssuesRow struct {
+	IssueID                   pgtype.UUID        `json:"issue_id"`
+	ID                        pgtype.UUID        `json:"id"`
+	WorkspaceID               pgtype.UUID        `json:"workspace_id"`
+	Name                      string             `json:"name"`
+	Color                     string             `json:"color"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	SourceType                string             `json:"source_type"`
+	GitlabTrackerConnectionID pgtype.UUID        `json:"gitlab_tracker_connection_id"`
+	GitlabLabelID             pgtype.Int8        `json:"gitlab_label_id"`
+	IsProjectLabel            bool               `json:"is_project_label"`
+	IsArchived                bool               `json:"is_archived"`
+	MappingKind               string             `json:"mapping_kind"`
+}
+
+func (q *Queries) ListAllLabelsForIssues(ctx context.Context, arg ListAllLabelsForIssuesParams) ([]ListAllLabelsForIssuesRow, error) {
+	rows, err := q.db.Query(ctx, listAllLabelsForIssues, arg.IssueIds, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllLabelsForIssuesRow{}
+	for rows.Next() {
+		var i ListAllLabelsForIssuesRow
+		if err := rows.Scan(
+			&i.IssueID,
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Color,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SourceType,
+			&i.GitlabTrackerConnectionID,
+			&i.GitlabLabelID,
+			&i.IsProjectLabel,
+			&i.IsArchived,
+			&i.MappingKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLabels = `-- name: ListLabels :many
-SELECT id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived FROM issue_label
+SELECT id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived, mapping_kind FROM issue_label
 WHERE workspace_id = $1 AND source_type = 'local'
 ORDER BY LOWER(name) ASC
 `
@@ -172,54 +285,7 @@ func (q *Queries) ListLabels(ctx context.Context, workspaceID pgtype.UUID) ([]Is
 			&i.GitlabLabelID,
 			&i.IsProjectLabel,
 			&i.IsArchived,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listLabelsByIssue = `-- name: ListLabelsByIssue :many
-SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived
-FROM issue_label l
-JOIN issue_to_label il ON il.label_id = l.id
-WHERE il.issue_id = $1::uuid
-  AND l.workspace_id = $2::uuid
-ORDER BY LOWER(l.name) ASC
-`
-
-type ListLabelsByIssueParams struct {
-	IssueID     pgtype.UUID `json:"issue_id"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-}
-
-// Workspace filter at the SQL layer (mirrors GetProjectInWorkspace). Any caller
-// that passes the wrong workspace gets an empty list rather than leaking labels.
-func (q *Queries) ListLabelsByIssue(ctx context.Context, arg ListLabelsByIssueParams) ([]IssueLabel, error) {
-	rows, err := q.db.Query(ctx, listLabelsByIssue, arg.IssueID, arg.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []IssueLabel{}
-	for rows.Next() {
-		var i IssueLabel
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Name,
-			&i.Color,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.SourceType,
-			&i.GitlabTrackerConnectionID,
-			&i.GitlabLabelID,
-			&i.IsProjectLabel,
-			&i.IsArchived,
+			&i.MappingKind,
 		); err != nil {
 			return nil, err
 		}
@@ -232,7 +298,7 @@ func (q *Queries) ListLabelsByIssue(ctx context.Context, arg ListLabelsByIssuePa
 }
 
 const listLabelsFiltered = `-- name: ListLabelsFiltered :many
-SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived FROM issue_label l
+SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived, l.mapping_kind FROM issue_label l
 LEFT JOIN gitlab_tracker_connection c
   ON c.id = l.gitlab_tracker_connection_id
 WHERE l.workspace_id = $1::uuid
@@ -249,6 +315,7 @@ WHERE l.workspace_id = $1::uuid
     OR l.source_type = 'local'
     OR (c.project_id = $4::uuid AND c.state <> 'disabled')
   )
+  AND l.mapping_kind = 'none'
 ORDER BY LOWER(l.name) ASC
 `
 
@@ -285,6 +352,7 @@ func (q *Queries) ListLabelsFiltered(ctx context.Context, arg ListLabelsFiltered
 			&i.GitlabLabelID,
 			&i.IsProjectLabel,
 			&i.IsArchived,
+			&i.MappingKind,
 		); err != nil {
 			return nil, err
 		}
@@ -296,21 +364,72 @@ func (q *Queries) ListLabelsFiltered(ctx context.Context, arg ListLabelsFiltered
 	return items, nil
 }
 
-const listLabelsForIssues = `-- name: ListLabelsForIssues :many
-SELECT il.issue_id, l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived
+const listVisibleLabelsByIssue = `-- name: ListVisibleLabelsByIssue :many
+SELECT l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived, l.mapping_kind
+FROM issue_label l
+JOIN issue_to_label il ON il.label_id = l.id
+WHERE il.issue_id = $1::uuid
+  AND l.workspace_id = $2::uuid
+  AND l.mapping_kind = 'none'
+ORDER BY LOWER(l.name) ASC
+`
+
+type ListVisibleLabelsByIssueParams struct {
+	IssueID     pgtype.UUID `json:"issue_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Workspace filter at the SQL layer (mirrors GetProjectInWorkspace). Any caller
+// that passes the wrong workspace gets an empty list rather than leaking labels.
+func (q *Queries) ListVisibleLabelsByIssue(ctx context.Context, arg ListVisibleLabelsByIssueParams) ([]IssueLabel, error) {
+	rows, err := q.db.Query(ctx, listVisibleLabelsByIssue, arg.IssueID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueLabel{}
+	for rows.Next() {
+		var i IssueLabel
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Color,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SourceType,
+			&i.GitlabTrackerConnectionID,
+			&i.GitlabLabelID,
+			&i.IsProjectLabel,
+			&i.IsArchived,
+			&i.MappingKind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVisibleLabelsForIssues = `-- name: ListVisibleLabelsForIssues :many
+SELECT il.issue_id, l.id, l.workspace_id, l.name, l.color, l.created_at, l.updated_at, l.source_type, l.gitlab_tracker_connection_id, l.gitlab_label_id, l.is_project_label, l.is_archived, l.mapping_kind
 FROM issue_label l
 JOIN issue_to_label il ON il.label_id = l.id
 WHERE il.issue_id = ANY($1::uuid[])
   AND l.workspace_id = $2::uuid
+  AND l.mapping_kind = 'none'
 ORDER BY il.issue_id, LOWER(l.name) ASC
 `
 
-type ListLabelsForIssuesParams struct {
+type ListVisibleLabelsForIssuesParams struct {
 	IssueIds    []pgtype.UUID `json:"issue_ids"`
 	WorkspaceID pgtype.UUID   `json:"workspace_id"`
 }
 
-type ListLabelsForIssuesRow struct {
+type ListVisibleLabelsForIssuesRow struct {
 	IssueID                   pgtype.UUID        `json:"issue_id"`
 	ID                        pgtype.UUID        `json:"id"`
 	WorkspaceID               pgtype.UUID        `json:"workspace_id"`
@@ -323,20 +442,19 @@ type ListLabelsForIssuesRow struct {
 	GitlabLabelID             pgtype.Int8        `json:"gitlab_label_id"`
 	IsProjectLabel            bool               `json:"is_project_label"`
 	IsArchived                bool               `json:"is_archived"`
+	MappingKind               string             `json:"mapping_kind"`
 }
 
-// Bulk variant: fetch labels for many issues in one round-trip so the issue
-// list endpoints can fold labels into each row without N+1 queries from the
-// client. Workspace-guarded the same way as ListLabelsByIssue.
-func (q *Queries) ListLabelsForIssues(ctx context.Context, arg ListLabelsForIssuesParams) ([]ListLabelsForIssuesRow, error) {
-	rows, err := q.db.Query(ctx, listLabelsForIssues, arg.IssueIds, arg.WorkspaceID)
+// Bulk variant used by public issue projections.
+func (q *Queries) ListVisibleLabelsForIssues(ctx context.Context, arg ListVisibleLabelsForIssuesParams) ([]ListVisibleLabelsForIssuesRow, error) {
+	rows, err := q.db.Query(ctx, listVisibleLabelsForIssues, arg.IssueIds, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListLabelsForIssuesRow{}
+	items := []ListVisibleLabelsForIssuesRow{}
 	for rows.Next() {
-		var i ListLabelsForIssuesRow
+		var i ListVisibleLabelsForIssuesRow
 		if err := rows.Scan(
 			&i.IssueID,
 			&i.ID,
@@ -350,6 +468,7 @@ func (q *Queries) ListLabelsForIssues(ctx context.Context, arg ListLabelsForIssu
 			&i.GitlabLabelID,
 			&i.IsProjectLabel,
 			&i.IsArchived,
+			&i.MappingKind,
 		); err != nil {
 			return nil, err
 		}
@@ -366,8 +485,8 @@ UPDATE issue_label SET
     name = COALESCE($3, name),
     color = COALESCE($4, color),
     updated_at = now()
-WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived
+WHERE id = $1 AND workspace_id = $2 AND mapping_kind = 'none'
+RETURNING id, workspace_id, name, color, created_at, updated_at, source_type, gitlab_tracker_connection_id, gitlab_label_id, is_project_label, is_archived, mapping_kind
 `
 
 type UpdateLabelParams struct {
@@ -397,6 +516,7 @@ func (q *Queries) UpdateLabel(ctx context.Context, arg UpdateLabelParams) (Issue
 		&i.GitlabLabelID,
 		&i.IsProjectLabel,
 		&i.IsArchived,
+		&i.MappingKind,
 	)
 	return i, err
 }

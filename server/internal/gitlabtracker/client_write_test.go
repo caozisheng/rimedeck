@@ -23,10 +23,13 @@ func TestCreateIssue_HappyPath(t *testing.T) {
 		if got.Title != "hello" || got.Description != "world" || len(got.Labels) != 1 || got.Labels[0] != "bug" {
 			t.Fatalf("body = %+v", got)
 		}
+		if got.StartDate != "2026-08-17" || got.DueDate != "2026-08-20" {
+			t.Fatalf("request dates = %+v", got)
+		}
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"id": 900, "iid": 7, "state": "opened", "title": "hello",
 			"description": "world", "web_url": "https://gitlab/x/7", "updated_at": "2026-08-16T00:00:00Z",
-			"labels": []string{"bug"},
+			"start_date": "2026-08-17", "due_date": "2026-08-20", "labels": []string{"bug"},
 			"author": map[string]any{"name": "alice", "web_url": "https://gitlab/alice"},
 		})
 	})
@@ -34,7 +37,7 @@ func TestCreateIssue_HappyPath(t *testing.T) {
 	defer srv.Close()
 	client := clientFor(t, srv.URL, "glpat-x")
 
-	issue, err := client.CreateIssue(context.Background(), 42, CreateIssueRequest{Title: "hello", Description: "world", Labels: []string{"bug"}})
+	issue, err := client.CreateIssue(context.Background(), 42, CreateIssueRequest{Title: "hello", Description: "world", Labels: []string{"bug"}, StartDate: "2026-08-17", DueDate: "2026-08-20"})
 	if err != nil {
 		t.Fatalf("CreateIssue: %v", err)
 	}
@@ -43,6 +46,9 @@ func TestCreateIssue_HappyPath(t *testing.T) {
 	}
 	if issue.Author.Name != "alice" {
 		t.Fatalf("author = %+v", issue.Author)
+	}
+	if issue.StartDate != "2026-08-17" || issue.DueDate != "2026-08-20" {
+		t.Fatalf("response dates = %+v", issue)
 	}
 }
 
@@ -72,6 +78,28 @@ func TestUpdateIssue_SendsOnlySetFields(t *testing.T) {
 	title := "renamed"
 	if _, err := client.UpdateIssue(context.Background(), 42, 7, UpdateIssueRequest{Title: &title}); err != nil {
 		t.Fatalf("UpdateIssue: %v", err)
+	}
+}
+
+func TestUpdateIssue_SendsDateClears(t *testing.T) {
+	stub := newGitlabStub(t)
+	stub.on(http.MethodPut, "/api/v4/projects/42/issues/7", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var raw map[string]any
+		if err := json.Unmarshal(body, &raw); err != nil {
+			t.Fatal(err)
+		}
+		if raw["start_date"] != "" || raw["due_date"] != "" {
+			t.Fatalf("date clears = %s", body)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": 1, "iid": 7, "state": "opened"})
+	})
+	srv := stub.start()
+	defer srv.Close()
+	client := clientFor(t, srv.URL, "glpat-x")
+	empty := ""
+	if _, err := client.UpdateIssue(context.Background(), 42, 7, UpdateIssueRequest{StartDate: &empty, DueDate: &empty}); err != nil {
+		t.Fatal(err)
 	}
 }
 

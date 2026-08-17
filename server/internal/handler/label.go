@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/gitlabtracker"
 	"github.com/multica-ai/multica/server/internal/logger"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
@@ -332,12 +334,12 @@ type AttachLabelRequest struct {
 // empty list that would incorrectly overwrite every subscriber's optimistic
 // state.
 func (h *Handler) listLabelsForIssueSafe(r *http.Request, issueID, workspaceID pgtype.UUID) ([]db.IssueLabel, bool) {
-	labels, err := h.Queries.ListLabelsByIssue(r.Context(), db.ListLabelsByIssueParams{
+	labels, err := h.Queries.ListVisibleLabelsByIssue(r.Context(), db.ListVisibleLabelsByIssueParams{
 		IssueID:     issueID,
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
-		slog.Warn("ListLabelsByIssue failed after mutation", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issueID))...)
+		slog.Warn("ListVisibleLabelsByIssue failed after mutation", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issueID))...)
 		return nil, false
 	}
 	return labels, true
@@ -352,7 +354,7 @@ func (h *Handler) ListLabelsForIssue(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	labels, err := h.Queries.ListLabelsByIssue(r.Context(), db.ListLabelsByIssueParams{
+	labels, err := h.Queries.ListVisibleLabelsByIssue(r.Context(), db.ListVisibleLabelsByIssueParams{
 		IssueID:     issue.ID,
 		WorkspaceID: issue.WorkspaceID,
 	})
@@ -488,28 +490,12 @@ func (h *Handler) DetachLabel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"labels": resp})
 }
 
-// enqueueGitlabSetLabelsIfNeeded pushes a `set_labels` outbox row after
-// AttachLabel/DetachLabel commits on a GitLab-sourced issue. The
-// payload is the full desired set of GitLab label names (GitLab's PUT
-// with `labels=` is destructive-replace per design §8.3).
-//
-// Only labels sourced from the same tracker are pushed — local labels
-// stay local, and cross-tracker labels are inherently not a thing
-// because the picker only surfaces this project's tracker labels.
+// enqueueGitlabSetLabelsIfNeeded pushes a canonical full desired label set.
 func (h *Handler) enqueueGitlabSetLabelsIfNeeded(r *http.Request, issue db.Issue, labels []db.IssueLabel) {
 	if issue.SourceType != "gitlab" || !issue.TrackerConnectionID.Valid {
 		return
 	}
-	names := make([]string, 0, len(labels))
-	for _, label := range labels {
-		if label.SourceType != "gitlab" {
-			continue
-		}
-		if !label.GitlabTrackerConnectionID.Valid || uuidToString(label.GitlabTrackerConnectionID) != uuidToString(issue.TrackerConnectionID) {
-			continue
-		}
-		names = append(names, label.Name)
-	}
+	names := canonicalGitlabLabelNames(issue, labels)
 	payload, err := json.Marshal(map[string]any{"labels": names})
 	if err != nil {
 		slog.Warn("enqueue set_labels payload marshal failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
@@ -518,4 +504,46 @@ func (h *Handler) enqueueGitlabSetLabelsIfNeeded(r *http.Request, issue db.Issue
 	if err := h.enqueueGitlabWriteOp(r.Context(), issue.ID, issue.WorkspaceID, issue.TrackerConnectionID, "set_labels", payload, false); err != nil {
 		slog.Warn("enqueue set_labels outbox failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
 	}
+}
+
+func canonicalGitlabLabelNames(issue db.Issue, labels []db.IssueLabel) []string {
+	ordinary := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if label.SourceType != "gitlab" || label.MappingKind != string(gitlabtracker.MappingNone) {
+			continue
+		}
+		if !label.GitlabTrackerConnectionID.Valid || uuidToString(label.GitlabTrackerConnectionID) != uuidToString(issue.TrackerConnectionID) {
+			continue
+		}
+		ordinary = append(ordinary, label.Name)
+	}
+	return gitlabtracker.CanonicalLabels(issue.Status, issue.Priority, ordinary)
+}
+
+func (h *Handler) syncStoredMappedLabels(ctx context.Context, issue db.Issue, desired []string) error {
+	tx, err := h.TxStarter.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `
+DELETE FROM issue_to_label itl
+USING issue_label l
+WHERE itl.issue_id=$1 AND itl.label_id=l.id
+  AND l.gitlab_tracker_connection_id=$2 AND l.mapping_kind <> 'none'`, issue.ID, issue.TrackerConnectionID); err != nil {
+		return err
+	}
+	for _, name := range desired {
+		if gitlabtracker.ClassifyLabel(name) == gitlabtracker.MappingNone {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+INSERT INTO issue_to_label(issue_id,label_id)
+SELECT $1,id FROM issue_label
+WHERE gitlab_tracker_connection_id=$2 AND mapping_kind <> 'none' AND LOWER(name)=LOWER($3)
+ON CONFLICT DO NOTHING`, issue.ID, issue.TrackerConnectionID, name); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }

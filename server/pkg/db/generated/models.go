@@ -442,6 +442,7 @@ type IssueLabel struct {
 	GitlabLabelID             pgtype.Int8        `json:"gitlab_label_id"`
 	IsProjectLabel            bool               `json:"is_project_label"`
 	IsArchived                bool               `json:"is_archived"`
+	MappingKind               string             `json:"mapping_kind"`
 }
 
 type IssuePullRequest struct {

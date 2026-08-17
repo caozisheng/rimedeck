@@ -23,6 +23,7 @@ type fakeQueries struct {
 	touched              []pgtype.UUID
 	getErr               error
 	issues               map[string]db.Issue
+	labels               map[string][]db.IssueLabel
 	links                map[string]db.GitlabIssueLink
 	deleted              []pgtype.UUID
 	canceled             []pgtype.UUID
@@ -57,6 +58,9 @@ func (f *fakeQueries) GetIssue(_ context.Context, id pgtype.UUID) (db.Issue, err
 		return issue, nil
 	}
 	return db.Issue{}, errors.New("issue not found")
+}
+func (f *fakeQueries) ListAllLabelsByIssue(_ context.Context, arg db.ListAllLabelsByIssueParams) ([]db.IssueLabel, error) {
+	return f.labels[string(arg.IssueID.Bytes[:])], nil
 }
 func (f *fakeQueries) GetGitlabIssueLinkByIssueID(_ context.Context, id pgtype.UUID) (db.GitlabIssueLink, error) {
 	if link, ok := f.links[string(id.Bytes[:])]; ok {
@@ -116,7 +120,10 @@ func newTracker(t *testing.T, cipher *gitlabtracker.Cipher, baseURL string) db.G
 	}
 }
 func newOutboxRow(op string) db.TrackerSyncOutbox {
-	return db.TrackerSyncOutbox{ID: pgtype.UUID{Bytes: [16]byte{9}, Valid: true}, TrackerConnectionID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, Operation: op, Payload: []byte("{}")}
+	return db.TrackerSyncOutbox{
+		ID: pgtype.UUID{Bytes: [16]byte{9}, Valid: true}, TrackerConnectionID: pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
+		Operation: op, Payload: []byte("{}"), DesiredRevision: pgtype.Int8{Int64: 1, Valid: true},
+	}
 }
 func testWorker(fq *fakeQueries, cipher *gitlabtracker.Cipher) *Worker {
 	return &Worker{
