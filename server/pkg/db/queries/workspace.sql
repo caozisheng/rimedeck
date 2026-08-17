@@ -34,7 +34,11 @@ WHERE id = $1
 RETURNING *;
 
 -- name: IncrementIssueCounter :one
-UPDATE workspace SET issue_counter = issue_counter + 1
+UPDATE workspace
+SET issue_counter = GREATEST(
+    issue_counter,
+    COALESCE((SELECT MAX(number) FROM issue WHERE issue.workspace_id = $1), 0)
+) + 1
 WHERE id = $1
 RETURNING issue_counter;
 

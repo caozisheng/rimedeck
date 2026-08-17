@@ -59,8 +59,8 @@ func TestCreateIssueGitLabSource(t *testing.T) {
 		w := httptest.NewRecorder()
 		req := newRequest("POST", "/api/issues?workspace_id="+testWorkspaceID, map[string]any{
 			"title":                 "gitlab-issue-from-api",
-			"project_id":           project.ID,
-			"source_type":          "gitlab",
+			"project_id":            project.ID,
+			"source_type":           "gitlab",
 			"tracker_connection_id": trackerID,
 		})
 		testHandler.CreateIssue(w, req)
@@ -84,6 +84,24 @@ func TestCreateIssueGitLabSource(t *testing.T) {
 			issue.ID).Scan(&outboxCount)
 		if outboxCount != 1 {
 			t.Errorf("outbox create_issue count = %d, want 1", outboxCount)
+		}
+	})
+
+	t.Run("stale workspace counter is repaired before GitLab create", func(t *testing.T) {
+		if _, err := testPool.Exec(ctx, `
+UPDATE workspace SET issue_counter = 0 WHERE id=$1`, testWorkspaceID); err != nil {
+			t.Fatal(err)
+		}
+		w := httptest.NewRecorder()
+		req := newRequest("POST", "/api/issues?workspace_id="+testWorkspaceID, map[string]any{
+			"title":                 "gitlab-stale-counter",
+			"project_id":            project.ID,
+			"source_type":           "gitlab",
+			"tracker_connection_id": trackerID,
+		})
+		testHandler.CreateIssue(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("create with stale counter: %d %s", w.Code, w.Body.String())
 		}
 	})
 
@@ -121,8 +139,8 @@ func TestCreateIssueGitLabSource(t *testing.T) {
 		w := httptest.NewRecorder()
 		req := newRequest("POST", "/api/issues?workspace_id="+testWorkspaceID, map[string]any{
 			"title":                 "cross-project",
-			"project_id":           otherProject.ID,
-			"source_type":          "gitlab",
+			"project_id":            otherProject.ID,
+			"source_type":           "gitlab",
 			"tracker_connection_id": trackerID, // belongs to project, not otherProject
 		})
 		testHandler.CreateIssue(w, req)

@@ -1,0 +1,1 @@
+-- Counter repair is monotonic and intentionally irreversible.
