@@ -262,6 +262,27 @@ func TestListProjectIssues_HonorsStateFilter(t *testing.T) {
 	}
 }
 
+func TestListProjectIssues_DecodesReportedDueDate(t *testing.T) {
+	stub := newGitlabStub(t)
+	stub.on(http.MethodGet, "/api/v4/projects/42/issues", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, []map[string]any{{
+			"id": 1, "iid": 2, "state": "opened", "title": "dated",
+			"start_date": "2026-08-17", "due_date": "2026-08-20",
+			"labels": []string{"workflow::in-progress", "priority::high"},
+		}})
+	})
+	srv := stub.start()
+	defer srv.Close()
+	issues, err := clientFor(t, srv.URL, "token").ListProjectIssues(context.Background(), 42, ListIssuesOptions{State: "all"})
+	if err != nil || len(issues) != 1 {
+		t.Fatalf("issues=%+v err=%v", issues, err)
+	}
+	got := issues[0]
+	if got.StartDate != "2026-08-17" || got.DueDate != "2026-08-20" || len(got.Labels) != 2 {
+		t.Fatalf("decoded issue=%+v", got)
+	}
+}
+
 // TestNewRestClientRejectsEmptyBase catches an operator mis-config
 // early rather than sending unauthenticated requests to whoever
 // resolves an empty URL.

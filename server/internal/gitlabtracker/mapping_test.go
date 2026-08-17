@@ -56,6 +56,26 @@ func TestProjectIssueFields(t *testing.T) {
 	}
 }
 
+func TestProjectIssueFields_ReportedLabels(t *testing.T) {
+	tests := []struct {
+		name, label, wantStatus, wantPriority string
+	}{
+		{"backlog", "workflow::backlog", "backlog", "none"},
+		{"in progress", "workflow::in-progress", "in_progress", "none"},
+		{"high priority", "priority::high", "backlog", "high"},
+		{"medium priority", "priority::medium", "backlog", "medium"},
+		{"due-date payload unaffected", "workflow::in-progress", "in_progress", "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, priority := ProjectIssueFields("opened", []string{tt.label})
+			if status != tt.wantStatus || priority != tt.wantPriority {
+				t.Fatalf("ProjectIssueFields(%q) = %q,%q, want %q,%q", tt.label, status, priority, tt.wantStatus, tt.wantPriority)
+			}
+		})
+	}
+}
+
 func TestCanonicalLabels(t *testing.T) {
 	got := CanonicalLabels("in_review", "high", []string{"bug", "workflow::todo", "priority::low", "bug"})
 	want := []string{"bug", "workflow::in-review", "priority::high"}
