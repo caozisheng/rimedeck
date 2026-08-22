@@ -280,8 +280,8 @@ func TestAttachDetachLabel_EnqueuesSetLabels(t *testing.T) {
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("decode payload: %v", err)
 	}
-	want := []string{"feature", "workflow::todo"}
-	if len(payload.Labels) != len(want) || payload.Labels[0] != want[0] || payload.Labels[1] != want[1] {
+	want := []string{"feature", "workflow::todo", "priority::none"}
+	if len(payload.Labels) != len(want) || !reflect.DeepEqual(payload.Labels, want) {
 		t.Fatalf("payload labels = %v, want %v", payload.Labels, want)
 	}
 }
@@ -325,7 +325,7 @@ ORDER BY desired_revision DESC LIMIT 1`, parseUUID(issueID)).Scan(&raw); err != 
 		t.Fatal(err)
 	}
 	wantLabels := []string{"workflow::in-review", "priority::high"}
-	if len(payload.Labels) != len(wantLabels) || payload.Labels[0] != wantLabels[0] || payload.Labels[1] != wantLabels[1] {
+	if !reflect.DeepEqual(payload.Labels, wantLabels) {
 		t.Fatalf("labels = %v, want %v", payload.Labels, wantLabels)
 	}
 	if payload.StartDate == nil || *payload.StartDate != startDate || payload.DueDate == nil || *payload.DueDate != dueDate {
@@ -417,7 +417,7 @@ ORDER BY desired_revision DESC LIMIT 1`, parseUUID(issueID)).Scan(&raw); err != 
 		t.Fatal(err)
 	}
 	want := []string{"workflow::in-review", "priority::medium"}
-	if len(payload.Labels) != len(want) || payload.Labels[0] != want[0] || payload.Labels[1] != want[1] {
+	if !reflect.DeepEqual(payload.Labels, want) {
 		t.Fatalf("labels = %v, want %v", payload.Labels, want)
 	}
 	if payload.DueDate == nil || *payload.DueDate != "2026-08-20" {
@@ -476,6 +476,7 @@ func TestUpdateIssueGitlab_PriorityOnlyPreservesCanonicalLabels(t *testing.T) {
 		{"bug", "none", 6101},
 		{"workflow::in-review", "workflow", 6102},
 		{"priority::high", "priority", 6103},
+		{"priority::none", "priority", 6104},
 	}
 	labelIDs := make([]pgtype.UUID, len(labels))
 	for i, label := range labels {
@@ -522,7 +523,7 @@ ORDER BY desired_revision DESC LIMIT 1`, parseUUID(issueID)).Scan(&raw); err != 
 	if got := updatePriority("urgent"); !reflect.DeepEqual(got, []string{"bug", "workflow::in-review", "priority::urgent"}) {
 		t.Fatalf("urgent payload labels = %v", got)
 	}
-	if got := updatePriority("none"); !reflect.DeepEqual(got, []string{"bug", "workflow::in-review"}) {
+	if got := updatePriority("none"); !reflect.DeepEqual(got, []string{"bug", "workflow::in-review", "priority::none"}) {
 		t.Fatalf("none payload labels = %v", got)
 	}
 
@@ -541,7 +542,7 @@ WHERE itl.issue_id=$1 AND l.mapping_kind <> 'none' ORDER BY l.name`, parseUUID(i
 		}
 		mapped = append(mapped, name)
 	}
-	if !reflect.DeepEqual(mapped, []string{"workflow::in-review"}) {
+	if !reflect.DeepEqual(mapped, []string{"priority::none", "workflow::in-review"}) {
 		t.Fatalf("stored mapped labels = %v", mapped)
 	}
 }

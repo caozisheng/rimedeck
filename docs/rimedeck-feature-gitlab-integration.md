@@ -261,9 +261,9 @@ CREATE INDEX idx_tracker_outbox_ready
 - `mapping_kind`: `none | workflow | priority`。映射标签仍保存在 `issue_label` / `issue_to_label`，供内部检索和同步使用，但不出现在用户可见标签 API、Picker、筛选器、卡片和导出中。
 - 唯一约束改为：`UNIQUE (workspace_id, lower(name)) WHERE source_type='local'`；`UNIQUE (gitlab_tracker_connection_id, gitlab_label_id) WHERE source_type='gitlab'`。
 
-字段映射：无 workflow 标签或 `workflow::backlog` → `backlog`；`workflow::todo` → `todo`；`workflow::in-progress` → `in_progress`；`workflow::in-review` → `in_review`；`workflow::done` → `done`。`priority::urgent|high|medium|low` 分别映射本地同名 priority；无 priority 标签 → `none`。GitLab closed 始终投影为 `done`。
+字段映射：`workflow::backlog|todo|in-progress|in-review|done` 分别映射本地 `backlog|todo|in_progress|in_review|done`；`priority::none|low|medium|high|urgent` 分别映射本地同名 priority。GitLab closed 始终投影为 `done`。没有对应映射标签时，本地投影仍使用 `backlog`/`none` 默认值。
 
-GitLab priority 与 RimeDeck priority 双向同步：本地 `urgent/high/medium/low` 更新会通过现有 `update_issue` outbox 生成对应的 `priority::urgent/high/medium/low` 标签；本地 `none` 会移除所有 priority 映射标签，不生成 `priority::none`。由于 GitLab 标签更新是完整替换，远端 payload 始终包含同 tracker 普通标签、当前 workflow 映射标签和当前 priority 映射标签，避免 priority 更新丢失其他标签。
+GitLab workflow 与 RimeDeck status、priority 与 RimeDeck priority 均双向同步：本地五个 workflow 值会生成对应的 `workflow::` 标签，本地五个 priority 值会生成对应的 `priority::` 标签，包括 `workflow::backlog` 和 `priority::none`。由于 GitLab 标签更新是完整替换，远端 payload 始终包含同 tracker 普通标签、当前 workflow 映射标签和当前 priority 映射标签，避免字段更新丢失其他标签。
 
 `GET /api/labels?project_id=&source=&tracker_id=` 只返回目标来源的普通可见标签。GitLab 标签定义由 pull 镜像；RimeDeck 不创建/改名/改色/删除远端 taxonomy。GitLab Issue 的 attach/detach = 本地事务 + canonical 完整 desired label 集 outbox，集合由普通标签 + 当前 status/priority 映射标签组成。
 
@@ -301,7 +301,7 @@ Worker 完成旧 revision 时只写 remote identity/snapshot/outbox 结果；仅
 - GitLab 管理字段：title、description、start/due date、opened/closed、远端标签，以及由标签编码的 status/priority。本地修改递增 `sync_revision`；pull 到达且 `sync_revision > synced_revision` 时只更新 `last_remote_snapshot`，不覆盖未推送的本地字段或标签关系。
 - 无 pending 本地 revision 时 canonical pull 覆盖镜像；write response 仅在 `issue.sync_revision = outbox.desired_revision` 时推进 `synced_revision`。
 - `done/cancelled` 关闭远端；closed→活动列重新打开。活动列之间通过 workflow 标签同步，不改变 GitLab opened 状态。
-- `backlog`/`blocked` 不发送 workflow 标签；`cancelled` 清除 workflow 标签并关闭；`urgent`/`none` 不发送 priority 标签。
+- `backlog`/`todo`/`in_progress`/`in_review`/`done` 始终发送对应 workflow 标签；`none`/`low`/`medium`/`high`/`urgent` 始终发送对应 priority 标签。`blocked` 没有 workflow 映射，仍保持 opened；`cancelled` 清除 workflow 映射并关闭。
 - GitLab 19.1 起支持写 `start_date`；旧服务器拒绝该字段时同步进入可见失败状态，不静默丢值。
 - 本地专有字段永不 push/不被覆盖。
 - 永久冲突不静默丢数据：标记 `failed`，用户可选“以本地覆盖远端”或“采用远端”；决议入 audit log。

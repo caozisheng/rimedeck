@@ -20,6 +20,7 @@ var workflowByLabel = map[string]string{
 }
 
 var labelByWorkflow = map[string]string{
+	"backlog":     "workflow::backlog",
 	"todo":        "workflow::todo",
 	"in_progress": "workflow::in-progress",
 	"in_review":   "workflow::in-review",
@@ -27,17 +28,19 @@ var labelByWorkflow = map[string]string{
 }
 
 var priorityByLabel = map[string]string{
-	"priority::urgent": "urgent",
-	"priority::high":   "high",
-	"priority::medium": "medium",
+	"priority::none":   "none",
 	"priority::low":    "low",
+	"priority::medium": "medium",
+	"priority::high":   "high",
+	"priority::urgent": "urgent",
 }
 
 var labelByPriority = map[string]string{
-	"urgent": "priority::urgent",
-	"high":   "priority::high",
-	"medium": "priority::medium",
+	"none":   "priority::none",
 	"low":    "priority::low",
+	"medium": "priority::medium",
+	"high":   "priority::high",
+	"urgent": "priority::urgent",
 }
 
 // ClassifyLabel returns the native-field dimension consumed by an exact label.
