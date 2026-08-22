@@ -82,8 +82,8 @@ func TestTick_CreateIssueOp(t *testing.T) {
 		seenBody["start_date"] != "2026-08-17" || seenBody["due_date"] != "2026-08-20" {
 		t.Fatalf("POST body = %+v", seenBody)
 	}
-	labels, ok := seenBody["labels"].([]any)
-	if !ok || len(labels) != 3 || labels[0] != "bug" || labels[1] != "workflow::in-progress" || labels[2] != "priority::high" {
+	labels, ok := seenBody["labels"].(string)
+	if !ok || labels != "bug,workflow::in-progress,priority::high" {
 		t.Fatalf("POST labels = %+v", seenBody["labels"])
 	}
 	if gotCreate.ID != issueID || gotRemote.IID != 7 {
@@ -129,8 +129,8 @@ func TestTick_UpdateIssueOp(t *testing.T) {
 	if seenBody["title"] != "renamed" || seenBody["start_date"] != "2026-08-17" || seenBody["due_date"] != "2026-08-20" {
 		t.Fatalf("PUT body = %+v", seenBody)
 	}
-	labels, ok := seenBody["labels"].([]any)
-	if !ok || len(labels) != 2 || labels[0] != "workflow::in-review" || labels[1] != "priority::high" {
+	labels, ok := seenBody["labels"].(string)
+	if !ok || labels != "workflow::in-review,priority::high" {
 		t.Fatalf("PUT labels = %+v", seenBody["labels"])
 	}
 	if gotRemote.Title != "renamed" || gotRemote.StartDate != "2026-08-17" || gotRemote.DueDate != "2026-08-20" {
@@ -170,13 +170,13 @@ func TestTick_UpdateIssueOp_ClearsDates(t *testing.T) {
 // TestTick_SetLabelsOp: worker PUTs the desired labels list and the
 // canonical response feeds the applier hook.
 func TestTick_SetLabelsOp(t *testing.T) {
-	var seenLabels []any
+	var seenLabels string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		var raw map[string]any
 		_ = json.Unmarshal(body, &raw)
-		if l, ok := raw["labels"].([]any); ok {
-			seenLabels = l
+		if labels, ok := raw["labels"].(string); ok {
+			seenLabels = labels
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":901,"iid":7,"state":"opened","title":"x","labels":["bug"],"updated_at":"2026-08-16T00:00:00Z"}`))
@@ -199,8 +199,8 @@ func TestTick_SetLabelsOp(t *testing.T) {
 	if err != nil || res.Success != 1 {
 		t.Fatalf("res=%+v err=%v", res, err)
 	}
-	if len(seenLabels) != 1 || seenLabels[0] != "bug" {
-		t.Fatalf("labels sent = %v, want [bug]", seenLabels)
+	if seenLabels != "bug" {
+		t.Fatalf("labels sent = %q, want bug", seenLabels)
 	}
 	if len(gotRemote.Labels) != 1 || gotRemote.Labels[0] != "bug" {
 		t.Fatalf("applier remote labels = %v", gotRemote.Labels)
@@ -312,8 +312,8 @@ func TestTick_UpdateIssueOp_UrgentPriorityLabels(t *testing.T) {
 	if err != nil || res.Success != 1 || calls != 1 {
 		t.Fatalf("res=%+v err=%v calls=%d", res, err, calls)
 	}
-	labels, ok := seenBody["labels"].([]any)
-	if !ok || !reflect.DeepEqual(labels, []any{"bug", "workflow::in-review", "priority::urgent"}) {
+	labels, ok := seenBody["labels"].(string)
+	if !ok || labels != "bug,workflow::in-review,priority::urgent" {
 		t.Fatalf("PUT labels = %v", seenBody["labels"])
 	}
 	if !reflect.DeepEqual(seenRemote.Labels, []string{"bug", "workflow::in-review", "priority::urgent"}) {

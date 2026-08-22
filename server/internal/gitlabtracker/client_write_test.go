@@ -16,15 +16,15 @@ func TestCreateIssue_HappyPath(t *testing.T) {
 	stub := newGitlabStub(t)
 	stub.on(http.MethodPost, "/api/v4/projects/42/issues", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		var got CreateIssueRequest
-		if err := json.Unmarshal(body, &got); err != nil {
+		var raw map[string]any
+		if err := json.Unmarshal(body, &raw); err != nil {
 			t.Fatalf("decode body: %v", err)
 		}
-		if got.Title != "hello" || got.Description != "world" || len(got.Labels) != 1 || got.Labels[0] != "bug" {
-			t.Fatalf("body = %+v", got)
+		if raw["title"] != "hello" || raw["description"] != "world" || raw["labels"] != "bug" {
+			t.Fatalf("body = %+v", raw)
 		}
-		if got.StartDate != "2026-08-17" || got.DueDate != "2026-08-20" {
-			t.Fatalf("request dates = %+v", got)
+		if raw["start_date"] != "2026-08-17" || raw["due_date"] != "2026-08-20" {
+			t.Fatalf("request dates = %+v", raw)
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"id": 900, "iid": 7, "state": "opened", "title": "hello",
@@ -125,21 +125,16 @@ func TestCloseIssue_SendsStateEvent(t *testing.T) {
 	}
 }
 
-// TestSetLabels_ReplacesFullSet asserts the request always sends the
-// desired final label list; a nil slice becomes [] so GitLab clears the
-// labels rather than merging (design §8.3).
+// TestSetLabels_ReplacesFullSet asserts the request sends GitLab's
+// comma-separated label parameter; an empty string clears all labels.
 func TestSetLabels_ReplacesFullSet(t *testing.T) {
 	stub := newGitlabStub(t)
 	stub.on(http.MethodPut, "/api/v4/projects/42/issues/7", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		var raw map[string]any
 		_ = json.Unmarshal(body, &raw)
-		labels, ok := raw["labels"].([]any)
-		if !ok {
-			t.Fatalf("labels missing: %s", body)
-		}
-		if len(labels) != 0 {
-			t.Fatalf("nil labels should send [], got %v", labels)
+		if labels, ok := raw["labels"].(string); !ok || labels != "" {
+			t.Fatalf("nil labels should send empty string, got %v", raw["labels"])
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"id": 1, "iid": 7, "state": "opened", "labels": []string{}})
 	})

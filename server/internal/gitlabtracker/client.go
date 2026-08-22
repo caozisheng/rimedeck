@@ -446,24 +446,23 @@ func (c *RestClient) DeleteIssueNote(ctx context.Context, projectID int64, iid i
 	return mapStatusError(resp.StatusCode)
 }
 
-// CreateIssueRequest is the write-side counterpart of Issue. Only fields
-// RimeDeck actually pushes are here — every extra field would need
-// canonical-pull coverage in Task 5.
+// CreateIssueRequest is the write-side counterpart of Issue. GitLab's REST
+// API accepts `labels` as a comma-separated string on write; the client keeps
+// the typed slice at this boundary and serializes it in mutateIssue.
 type CreateIssueRequest struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
-	Labels      []string `json:"labels,omitempty"`
+	Labels      []string `json:"-"`
 	StartDate   string   `json:"start_date,omitempty"`
 	DueDate     string   `json:"due_date,omitempty"`
 }
 
 // UpdateIssueRequest carries only the fields worth mutating. StateEvent
-// is the GitLab convention for close/reopen ("close" | "reopen"); we
-// keep it on the same struct so update+close can share one round-trip.
+// is the GitLab convention for close/reopen ("close" | "reopen").
 type UpdateIssueRequest struct {
 	Title       *string   `json:"title,omitempty"`
 	Description *string   `json:"description,omitempty"`
-	Labels      *[]string `json:"labels,omitempty"`
+	Labels      *[]string `json:"-"`
 	StartDate   *string   `json:"start_date,omitempty"`
 	DueDate     *string   `json:"due_date,omitempty"`
 	StateEvent  *string   `json:"state_event,omitempty"`
@@ -539,7 +538,38 @@ func (c *RestClient) SetLabels(ctx context.Context, projectID int64, iid int32, 
 // mutateIssue is the shared POST/PUT path. Encodes the body, sends,
 // decodes into Issue on 2xx. Same auth + error mapping as reads.
 func (c *RestClient) mutateIssue(ctx context.Context, method, path string, body any) (Issue, error) {
-	buf, err := json.Marshal(body)
+	wireBody := body
+	switch request := body.(type) {
+	case CreateIssueRequest:
+		wireBody = struct {
+			Title       string `json:"title"`
+			Description string `json:"description,omitempty"`
+			Labels      string `json:"labels,omitempty"`
+			StartDate   string `json:"start_date,omitempty"`
+			DueDate     string `json:"due_date,omitempty"`
+		}{
+			Title: request.Title, Description: request.Description,
+			Labels: strings.Join(request.Labels, ","), StartDate: request.StartDate, DueDate: request.DueDate,
+		}
+	case UpdateIssueRequest:
+		var labels *string
+		if request.Labels != nil {
+			joined := strings.Join(*request.Labels, ",")
+			labels = &joined
+		}
+		wireBody = struct {
+			Title       *string `json:"title,omitempty"`
+			Description *string `json:"description,omitempty"`
+			Labels      *string `json:"labels,omitempty"`
+			StartDate   *string `json:"start_date,omitempty"`
+			DueDate     *string `json:"due_date,omitempty"`
+			StateEvent  *string `json:"state_event,omitempty"`
+		}{
+			Title: request.Title, Description: request.Description, Labels: labels,
+			StartDate: request.StartDate, DueDate: request.DueDate, StateEvent: request.StateEvent,
+		}
+	}
+	buf, err := json.Marshal(wireBody)
 	if err != nil {
 		return Issue{}, fmt.Errorf("%w: encode request: %w", ErrRemote, err)
 	}
