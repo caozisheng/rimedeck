@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgtype"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // seedGitlabIssue creates a bare-minimum gitlab-sourced issue row + optional
@@ -454,5 +454,94 @@ func TestBatchDeleteIssuesGitlab_EnqueuesDelete(t *testing.T) {
 	outbox := loadOutboxForIssue(t, issueID)
 	if len(outbox) != 1 || outbox[0].operation != "delete_issue" {
 		t.Fatalf("outbox = %+v", outbox)
+	}
+}
+func TestUpdateIssueGitlab_PriorityOnlyPreservesCanonicalLabels(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "gitlab-priority-only")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
+
+	if _, err := testPool.Exec(context.Background(), `UPDATE issue SET status='in_review' WHERE id=$1`, parseUUID(issueID)); err != nil {
+		t.Fatal(err)
+	}
+	labels := []struct {
+		name string
+		kind string
+		id   int
+	}{
+		{"bug", "none", 6101},
+		{"workflow::in-review", "workflow", 6102},
+		{"priority::high", "priority", 6103},
+	}
+	labelIDs := make([]pgtype.UUID, len(labels))
+	for i, label := range labels {
+		if err := testPool.QueryRow(context.Background(), `
+INSERT INTO issue_label(workspace_id,name,color,source_type,gitlab_tracker_connection_id,gitlab_label_id,mapping_kind)
+VALUES ($1,$2,'#000000','gitlab',$3,$4,$5) RETURNING id`,
+			parseUUID(testWorkspaceID), label.name, parseUUID(trackerID), label.id, label.kind).Scan(&labelIDs[i]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := testPool.Exec(context.Background(), `INSERT INTO issue_to_label(issue_id,label_id) VALUES ($1,$2)`, parseUUID(issueID), labelIDs[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() {
+		for _, id := range labelIDs {
+			_, _ = testPool.Exec(context.Background(), `DELETE FROM issue_label WHERE id=$1`, id)
+		}
+	})
+
+	updatePriority := func(value string) []string {
+		req := newRequest("PUT", "/api/issues/"+issueID, UpdateIssueRequest{Priority: &value})
+		req = withURLParam(req, "id", issueID)
+		w := httptest.NewRecorder()
+		testHandler.UpdateIssue(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("priority update %q: %d %s", value, w.Code, w.Body.String())
+		}
+		var raw []byte
+		if err := testPool.QueryRow(context.Background(), `
+SELECT payload FROM tracker_sync_outbox
+WHERE issue_id=$1 AND operation='update_issue' AND status='pending'
+ORDER BY desired_revision DESC LIMIT 1`, parseUUID(issueID)).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		var payload struct {
+			Labels []string `json:"labels"`
+		}
+		if err := json.Unmarshal(raw, &payload); err != nil {
+			t.Fatal(err)
+		}
+		return payload.Labels
+	}
+
+	if got := updatePriority("urgent"); !reflect.DeepEqual(got, []string{"bug", "workflow::in-review", "priority::urgent"}) {
+		t.Fatalf("urgent payload labels = %v", got)
+	}
+	if got := updatePriority("none"); !reflect.DeepEqual(got, []string{"bug", "workflow::in-review"}) {
+		t.Fatalf("none payload labels = %v", got)
+	}
+
+	var mapped []string
+	rows, err := testPool.Query(context.Background(), `
+SELECT l.name FROM issue_to_label itl JOIN issue_label l ON l.id=itl.label_id
+WHERE itl.issue_id=$1 AND l.mapping_kind <> 'none' ORDER BY l.name`, parseUUID(issueID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatal(err)
+		}
+		mapped = append(mapped, name)
+	}
+	if !reflect.DeepEqual(mapped, []string{"workflow::in-review"}) {
+		t.Fatalf("stored mapped labels = %v", mapped)
 	}
 }

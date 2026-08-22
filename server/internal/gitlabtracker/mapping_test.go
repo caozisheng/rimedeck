@@ -13,7 +13,7 @@ func TestClassifyLabel(t *testing.T) {
 		{"workflow todo", "workflow"},
 		{"workflow case insensitive", "workflow"},
 		{"workflow backlog", "workflow"},
-		{"priority high", "priority"},
+		{"priority urgent", "priority"},
 		{"unknown workflow prefix", "none"},
 		{"ordinary", "none"},
 	}
@@ -22,8 +22,8 @@ func TestClassifyLabel(t *testing.T) {
 			input := map[string]string{
 				"workflow todo":             "workflow::todo",
 				"workflow case insensitive": "WORKFLOW::IN-PROGRESS",
-				"priority high":             "priority::high",
 				"workflow backlog":          "workflow::backlog",
+				"priority urgent":           "priority::urgent",
 				"unknown workflow prefix":   "workflow::blocked",
 				"ordinary":                  "bug",
 			}[tt.name]
@@ -43,6 +43,7 @@ func TestProjectIssueFields(t *testing.T) {
 	}{
 		{"defaults", "opened", nil, "backlog", "none"},
 		{"workflow and priority", "opened", []string{"workflow::in-progress", "priority::high"}, "in_progress", "high"},
+		{"urgent priority precedence", "opened", []string{"priority::low", "priority::high", "priority::urgent", "priority::medium"}, "backlog", "urgent"},
 		{"precedence", "opened", []string{"workflow::todo", "workflow::done", "priority::low", "priority::medium"}, "done", "medium"},
 		{"closed override", "closed", []string{"workflow::todo"}, "done", "none"},
 	}
@@ -61,9 +62,9 @@ func TestProjectIssueFields_ReportedLabels(t *testing.T) {
 		name, label, wantStatus, wantPriority string
 	}{
 		{"backlog", "workflow::backlog", "backlog", "none"},
-		{"in progress", "workflow::in-progress", "in_progress", "none"},
 		{"high priority", "priority::high", "backlog", "high"},
 		{"medium priority", "priority::medium", "backlog", "medium"},
+		{"urgent priority", "priority::urgent", "backlog", "urgent"},
 		{"due-date payload unaffected", "workflow::in-progress", "in_progress", "none"},
 	}
 	for _, tt := range tests {
@@ -82,7 +83,15 @@ func TestCanonicalLabels(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CanonicalLabels() = %#v, want %#v", got, want)
 	}
-	if got := CanonicalLabels("backlog", "urgent", []string{"bug", "workflow::done", "priority::high"}); !reflect.DeepEqual(got, []string{"bug"}) {
-		t.Fatalf("unmapped fields should remove mapping labels: %#v", got)
+	if got := CanonicalLabels("backlog", "urgent", []string{"bug", "workflow::done", "priority::high"}); !reflect.DeepEqual(got, []string{"bug", "priority::urgent"}) {
+		t.Fatalf("canonical urgent should preserve the new remote mapping: %#v", got)
+	}
+}
+func TestCanonicalLabels_UrgentAndNone(t *testing.T) {
+	if got := CanonicalLabels("todo", "urgent", []string{"bug", "priority::low"}); !reflect.DeepEqual(got, []string{"bug", "workflow::todo", "priority::urgent"}) {
+		t.Fatalf("urgent canonical labels = %#v", got)
+	}
+	if got := CanonicalLabels("todo", "none", []string{"priority::none", "priority::high"}); !reflect.DeepEqual(got, []string{"priority::none", "workflow::todo"}) {
+		t.Fatalf("none canonical labels = %#v", got)
 	}
 }

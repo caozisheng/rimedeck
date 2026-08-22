@@ -27,12 +27,14 @@ var labelByWorkflow = map[string]string{
 }
 
 var priorityByLabel = map[string]string{
+	"priority::urgent": "urgent",
 	"priority::high":   "high",
 	"priority::medium": "medium",
 	"priority::low":    "low",
 }
 
 var labelByPriority = map[string]string{
+	"urgent": "priority::urgent",
 	"high":   "priority::high",
 	"medium": "priority::medium",
 	"low":    "priority::low",
@@ -108,7 +110,6 @@ func workflowRank(value string) int {
 		return 0
 	}
 }
-
 func priorityRank(value string) int {
 	switch value {
 	case "low":
@@ -117,6 +118,8 @@ func priorityRank(value string) int {
 		return 2
 	case "high":
 		return 3
+	case "urgent":
+		return 4
 	default:
 		return 0
 	}

@@ -32,7 +32,7 @@ func TestApplyCanonicalIssue_RevisionMatchWritesCanonical(t *testing.T) {
 		Title: "canonical", Description: "from remote",
 		WebURL: "https://gitlab.example.com/x/42", UpdatedAt: "2026-08-16T00:05:00Z",
 		StartDate: "2026-08-17", DueDate: "2026-08-20",
-		Labels: []string{"workflow::in-progress", "priority::high"},
+		Labels: []string{"workflow::in-progress", "priority::urgent"},
 	}
 	if err := gitlabtracker.ApplyCanonicalIssueAtRevision(context.Background(), tracker, parseUUID(issueID), remote, testPool, 1); err != nil {
 		t.Fatalf("ApplyCanonicalIssue: %v", err)
@@ -50,7 +50,7 @@ func TestApplyCanonicalIssue_RevisionMatchWritesCanonical(t *testing.T) {
 		t.Fatalf("title=%q sync=%q rev=%d synced=%d, want canonical/synced/1/1",
 			title, syncState, rev, synced)
 	}
-	if status != "done" || priority != "high" || !startDate.Valid || !dueDate.Valid ||
+	if status != "done" || priority != "urgent" || !startDate.Valid || !dueDate.Valid ||
 		startDate.Time.Format("2006-01-02") != "2026-08-17" || dueDate.Time.Format("2006-01-02") != "2026-08-20" {
 		t.Fatalf("mapped fields status=%q priority=%q start=%v due=%v", status, priority, startDate, dueDate)
 	}
@@ -154,7 +154,7 @@ func TestImportIssues_MapsFieldsAndKeepsCompleteLabels(t *testing.T) {
 	}
 	labels := []gitlabtracker.Label{
 		{ID: 5101, Name: "workflow::in-progress", Color: "#111111", IsProjectLabel: true},
-		{ID: 5102, Name: "priority::high", Color: "#222222", IsProjectLabel: true},
+		{ID: 5102, Name: "priority::urgent", Color: "#222222", IsProjectLabel: true},
 		{ID: 5103, Name: "bug", Color: "#333333", IsProjectLabel: true},
 	}
 	if err := gitlabtracker.ImportLabels(context.Background(), tracker, labels, testPool, parseUUID(testWorkspaceID)); err != nil {
@@ -163,7 +163,7 @@ func TestImportIssues_MapsFieldsAndKeepsCompleteLabels(t *testing.T) {
 	remote := gitlabtracker.Issue{
 		ID: 5100, IID: 5100, State: "opened", Title: "mapped import", UpdatedAt: "2026-08-17T00:00:00Z",
 		StartDate: "2026-08-17", DueDate: "2026-08-20",
-		Labels: []string{"workflow::in-progress", "priority::high", "bug"},
+		Labels: []string{"workflow::in-progress", "priority::urgent", "bug"},
 	}
 	if err := gitlabtracker.ImportIssues(context.Background(), tracker, []gitlabtracker.Issue{remote}, testPool, parseUUID(testWorkspaceID)); err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ WHERE tracker_connection_id=$1 AND title='mapped import'`, parseUUID(trackerID))
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), `DELETE FROM issue WHERE id=$1`, issueID) })
-	if status != "in_progress" || priority != "high" || startDate.Time.Format("2006-01-02") != "2026-08-17" || dueDate.Time.Format("2006-01-02") != "2026-08-20" {
+	if status != "in_progress" || priority != "urgent" || startDate.Time.Format("2006-01-02") != "2026-08-17" || dueDate.Time.Format("2006-01-02") != "2026-08-20" {
 		t.Fatalf("fields = %s/%s/%v/%v", status, priority, startDate, dueDate)
 	}
 	var relationCount, visibleCount int

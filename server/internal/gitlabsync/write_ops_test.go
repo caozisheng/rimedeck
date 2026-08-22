@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -279,3 +280,43 @@ func TestTick_UpdateAuthErrorTerminates(t *testing.T) {
 }
 
 var _ = errors.New // pin errors import
+func TestTick_UpdateIssueOp_UrgentPriorityLabels(t *testing.T) {
+	var seenBody map[string]any
+	calls := 0
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method != http.MethodPut || r.URL.Path != "/api/v4/projects/42/issues/7" {
+			t.Errorf("expected PUT /api/v4/projects/42/issues/7, got %s %s", r.Method, r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &seenBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":901,"iid":7,"state":"opened","title":"x","labels":["bug","workflow::in-review","priority::urgent"],"updated_at":"2026-08-16T00:01:00Z"}`))
+	}))
+	defer upstream.Close()
+
+	issueID := pgtype.UUID{Bytes: [16]byte{33}, Valid: true}
+	payloadBytes, _ := json.Marshal(map[string]any{
+		"labels": []string{"bug", "workflow::in-review", "priority::urgent"},
+	})
+	row := newOutboxRow("update_issue")
+	row.IssueID = issueID
+	row.Payload = payloadBytes
+	fq := &fakeQueries{
+		claim: []db.TrackerSyncOutbox{row},
+		links: map[string]db.GitlabIssueLink{string(issueID.Bytes[:]): {IssueID: issueID, RemoteIid: 7}},
+	}
+	var seenCreate db.Issue
+	var seenRemote gitlabtracker.Issue
+	res, err := writeOpsWorker(t, fq, upstream.URL, &seenCreate, &seenRemote).Tick(context.Background())
+	if err != nil || res.Success != 1 || calls != 1 {
+		t.Fatalf("res=%+v err=%v calls=%d", res, err, calls)
+	}
+	labels, ok := seenBody["labels"].([]any)
+	if !ok || !reflect.DeepEqual(labels, []any{"bug", "workflow::in-review", "priority::urgent"}) {
+		t.Fatalf("PUT labels = %v", seenBody["labels"])
+	}
+	if !reflect.DeepEqual(seenRemote.Labels, []string{"bug", "workflow::in-review", "priority::urgent"}) {
+		t.Fatalf("canonical labels = %v", seenRemote.Labels)
+	}
+}
