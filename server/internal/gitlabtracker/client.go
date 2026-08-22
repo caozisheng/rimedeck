@@ -49,6 +49,23 @@ func NewRestClient(transport *Client, baseURL, token string) *RestClient {
 	}
 }
 
+// FetchMedia retrieves a same-origin GitLab upload with tracker credentials.
+// Callers validate the URL against the tracker instance before calling.
+func (c *RestClient) FetchMedia(ctx context.Context, rawURL string) (*http.Response, error) {
+	if c == nil {
+		return nil, errors.New("gitlabtracker: nil RestClient")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.token)
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "image/*")
+	req.Header.Set("X-RimeDeck-Same-Origin-Redirect", "1")
+	return c.transport.Do(req)
+}
+
 // Project is the subset of GitLab's project payload we read. Anything
 // beyond these fields is intentionally dropped — every extra field is a
 // snapshot the sync worker would then have to track for revision-based
@@ -102,6 +119,43 @@ type Issue struct {
 type IssueAuthor struct {
 	Name string
 	URL  string
+}
+
+// Note is the subset of an issue note required for bidirectional comment sync.
+type Note struct {
+	ID        int64
+	Body      string
+	System    bool
+	CreatedAt string
+	UpdatedAt string
+	Author    NoteAuthor
+}
+
+type NoteAuthor struct {
+	ID   int64
+	Name string
+	URL  string
+}
+
+type notePayload struct {
+	ID        int64  `json:"id"`
+	Body      string `json:"body"`
+	System    bool   `json:"system"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Author    struct {
+		ID     int64  `json:"id"`
+		Name   string `json:"name"`
+		WebURL string `json:"web_url"`
+	} `json:"author"`
+}
+
+func noteFromPayload(p notePayload) Note {
+	return Note{
+		ID: p.ID, Body: p.Body, System: p.System,
+		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		Author: NoteAuthor{ID: p.Author.ID, Name: p.Author.Name, URL: p.Author.WebURL},
+	}
 }
 
 // ListIssuesOptions filters the /issues call. Zero values fall back to
@@ -295,6 +349,101 @@ func (c *RestClient) ListProjectIssues(ctx context.Context, projectID int64, opt
 		page = n
 	}
 	return out, nil
+}
+
+// ListIssueNotes returns every user-visible note for an issue in GitLab order.
+func (c *RestClient) ListIssueNotes(ctx context.Context, projectID int64, iid int32) ([]Note, error) {
+	if c == nil {
+		return nil, errors.New("gitlabtracker: nil RestClient")
+	}
+	out := []Note{}
+	page := 1
+	for {
+		path := fmt.Sprintf("/api/v4/projects/%d/issues/%d/notes?per_page=%d&sort=asc&order_by=created_at&page=%d", projectID, iid, DefaultPerPage, page)
+		req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.transport.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if err := mapStatusError(resp.StatusCode); err != nil {
+			resp.Body.Close()
+			return nil, err
+		}
+		var payload []notePayload
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			resp.Body.Close()
+			return nil, fmt.Errorf("%w: decode notes: %w", ErrRemote, err)
+		}
+		next := strings.TrimSpace(resp.Header.Get("X-Next-Page"))
+		resp.Body.Close()
+		for _, p := range payload {
+			out = append(out, noteFromPayload(p))
+		}
+		if next == "" {
+			break
+		}
+		n, err := strconv.Atoi(next)
+		if err != nil || n <= page {
+			break
+		}
+		page = n
+	}
+	return out, nil
+}
+
+func (c *RestClient) CreateIssueNote(ctx context.Context, projectID int64, iid int32, body string) (Note, error) {
+	return c.mutateIssueNote(ctx, http.MethodPost, fmt.Sprintf("/api/v4/projects/%d/issues/%d/notes", projectID, iid), body)
+}
+
+func (c *RestClient) UpdateIssueNote(ctx context.Context, projectID int64, iid int32, noteID int64, body string) (Note, error) {
+	return c.mutateIssueNote(ctx, http.MethodPut, fmt.Sprintf("/api/v4/projects/%d/issues/%d/notes/%d", projectID, iid, noteID), body)
+}
+
+func (c *RestClient) mutateIssueNote(ctx context.Context, method, path, body string) (Note, error) {
+	buf, err := json.Marshal(map[string]string{"body": body})
+	if err != nil {
+		return Note{}, fmt.Errorf("%w: encode note: %w", ErrRemote, err)
+	}
+	req, err := c.newRequest(ctx, method, path, strings.NewReader(string(buf)))
+	if err != nil {
+		return Note{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.transport.Do(req)
+	if err != nil {
+		return Note{}, err
+	}
+	defer resp.Body.Close()
+	if err := mapStatusError(resp.StatusCode); err != nil {
+		return Note{}, err
+	}
+	var payload notePayload
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return Note{}, fmt.Errorf("%w: decode note: %w", ErrRemote, err)
+	}
+	return noteFromPayload(payload), nil
+}
+
+func (c *RestClient) DeleteIssueNote(ctx context.Context, projectID int64, iid int32, noteID int64) error {
+	if c == nil {
+		return errors.New("gitlabtracker: nil RestClient")
+	}
+	req, err := c.newRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/v4/projects/%d/issues/%d/notes/%d", projectID, iid, noteID), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.transport.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	return mapStatusError(resp.StatusCode)
 }
 
 // CreateIssueRequest is the write-side counterpart of Issue. Only fields

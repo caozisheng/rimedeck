@@ -194,7 +194,7 @@ const createGitlabIssueLink = `-- name: CreateGitlabIssueLink :one
 INSERT INTO gitlab_issue_link (
   issue_id, tracker_connection_id, remote_issue_id, remote_iid,
   remote_web_url, remote_state, remote_updated_at, remote_author_name, remote_author_url
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING issue_id, tracker_connection_id, remote_issue_id, remote_iid, remote_web_url, remote_state, remote_updated_at, remote_author_name, remote_author_url, remote_position, last_remote_snapshot, last_pulled_at, last_pushed_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING issue_id, tracker_connection_id, remote_issue_id, remote_iid, remote_web_url, remote_state, remote_updated_at, remote_author_name, remote_author_url, remote_position, last_remote_snapshot, last_pulled_at, last_pushed_at, notes_initialized_at
 `
 
 type CreateGitlabIssueLinkParams struct {
@@ -236,6 +236,7 @@ func (q *Queries) CreateGitlabIssueLink(ctx context.Context, arg CreateGitlabIss
 		&i.LastRemoteSnapshot,
 		&i.LastPulledAt,
 		&i.LastPushedAt,
+		&i.NotesInitializedAt,
 	)
 	return i, err
 }
@@ -357,6 +358,30 @@ func (q *Queries) CreateTrackerOutbox(ctx context.Context, arg CreateTrackerOutb
 	return i, err
 }
 
+const deleteGitlabNoteLinkByCommentID = `-- name: DeleteGitlabNoteLinkByCommentID :exec
+DELETE FROM gitlab_note_link WHERE comment_id = $1
+`
+
+func (q *Queries) DeleteGitlabNoteLinkByCommentID(ctx context.Context, commentID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGitlabNoteLinkByCommentID, commentID)
+	return err
+}
+
+const deleteGitlabNoteLinkByRemoteID = `-- name: DeleteGitlabNoteLinkByRemoteID :exec
+DELETE FROM gitlab_note_link
+WHERE tracker_connection_id = $1 AND remote_note_id = $2
+`
+
+type DeleteGitlabNoteLinkByRemoteIDParams struct {
+	TrackerConnectionID pgtype.UUID `json:"tracker_connection_id"`
+	RemoteNoteID        int64       `json:"remote_note_id"`
+}
+
+func (q *Queries) DeleteGitlabNoteLinkByRemoteID(ctx context.Context, arg DeleteGitlabNoteLinkByRemoteIDParams) error {
+	_, err := q.db.Exec(ctx, deleteGitlabNoteLinkByRemoteID, arg.TrackerConnectionID, arg.RemoteNoteID)
+	return err
+}
+
 const deleteGitlabTrackerConnection = `-- name: DeleteGitlabTrackerConnection :exec
 DELETE FROM gitlab_tracker_connection WHERE id = $1
 `
@@ -459,7 +484,7 @@ func (q *Queries) DiscardPendingIssueRevision(ctx context.Context, id pgtype.UUI
 }
 
 const getGitlabIssueLinkByIssueID = `-- name: GetGitlabIssueLinkByIssueID :one
-SELECT issue_id, tracker_connection_id, remote_issue_id, remote_iid, remote_web_url, remote_state, remote_updated_at, remote_author_name, remote_author_url, remote_position, last_remote_snapshot, last_pulled_at, last_pushed_at FROM gitlab_issue_link WHERE issue_id = $1
+SELECT issue_id, tracker_connection_id, remote_issue_id, remote_iid, remote_web_url, remote_state, remote_updated_at, remote_author_name, remote_author_url, remote_position, last_remote_snapshot, last_pulled_at, last_pushed_at, notes_initialized_at FROM gitlab_issue_link WHERE issue_id = $1
 `
 
 func (q *Queries) GetGitlabIssueLinkByIssueID(ctx context.Context, issueID pgtype.UUID) (GitlabIssueLink, error) {
@@ -479,6 +504,95 @@ func (q *Queries) GetGitlabIssueLinkByIssueID(ctx context.Context, issueID pgtyp
 		&i.LastRemoteSnapshot,
 		&i.LastPulledAt,
 		&i.LastPushedAt,
+		&i.NotesInitializedAt,
+	)
+	return i, err
+}
+
+const getGitlabIssueLinkByRemoteIID = `-- name: GetGitlabIssueLinkByRemoteIID :one
+SELECT issue_id, tracker_connection_id, remote_issue_id, remote_iid, remote_web_url, remote_state, remote_updated_at, remote_author_name, remote_author_url, remote_position, last_remote_snapshot, last_pulled_at, last_pushed_at, notes_initialized_at FROM gitlab_issue_link
+WHERE tracker_connection_id = $1 AND remote_iid = $2
+`
+
+type GetGitlabIssueLinkByRemoteIIDParams struct {
+	TrackerConnectionID pgtype.UUID `json:"tracker_connection_id"`
+	RemoteIid           int32       `json:"remote_iid"`
+}
+
+func (q *Queries) GetGitlabIssueLinkByRemoteIID(ctx context.Context, arg GetGitlabIssueLinkByRemoteIIDParams) (GitlabIssueLink, error) {
+	row := q.db.QueryRow(ctx, getGitlabIssueLinkByRemoteIID, arg.TrackerConnectionID, arg.RemoteIid)
+	var i GitlabIssueLink
+	err := row.Scan(
+		&i.IssueID,
+		&i.TrackerConnectionID,
+		&i.RemoteIssueID,
+		&i.RemoteIid,
+		&i.RemoteWebUrl,
+		&i.RemoteState,
+		&i.RemoteUpdatedAt,
+		&i.RemoteAuthorName,
+		&i.RemoteAuthorUrl,
+		&i.RemotePosition,
+		&i.LastRemoteSnapshot,
+		&i.LastPulledAt,
+		&i.LastPushedAt,
+		&i.NotesInitializedAt,
+	)
+	return i, err
+}
+
+const getGitlabNoteLinkByCommentID = `-- name: GetGitlabNoteLinkByCommentID :one
+SELECT comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id, remote_author_id, remote_author_name, remote_author_url, remote_created_at, remote_updated_at, last_remote_body, remote_owned, last_pulled_at FROM gitlab_note_link WHERE comment_id = $1
+`
+
+func (q *Queries) GetGitlabNoteLinkByCommentID(ctx context.Context, commentID pgtype.UUID) (GitlabNoteLink, error) {
+	row := q.db.QueryRow(ctx, getGitlabNoteLinkByCommentID, commentID)
+	var i GitlabNoteLink
+	err := row.Scan(
+		&i.CommentID,
+		&i.IssueID,
+		&i.TrackerConnectionID,
+		&i.RemoteIssueIid,
+		&i.RemoteNoteID,
+		&i.RemoteAuthorID,
+		&i.RemoteAuthorName,
+		&i.RemoteAuthorUrl,
+		&i.RemoteCreatedAt,
+		&i.RemoteUpdatedAt,
+		&i.LastRemoteBody,
+		&i.RemoteOwned,
+		&i.LastPulledAt,
+	)
+	return i, err
+}
+
+const getGitlabNoteLinkByRemoteID = `-- name: GetGitlabNoteLinkByRemoteID :one
+SELECT comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id, remote_author_id, remote_author_name, remote_author_url, remote_created_at, remote_updated_at, last_remote_body, remote_owned, last_pulled_at FROM gitlab_note_link
+WHERE tracker_connection_id = $1 AND remote_note_id = $2
+`
+
+type GetGitlabNoteLinkByRemoteIDParams struct {
+	TrackerConnectionID pgtype.UUID `json:"tracker_connection_id"`
+	RemoteNoteID        int64       `json:"remote_note_id"`
+}
+
+func (q *Queries) GetGitlabNoteLinkByRemoteID(ctx context.Context, arg GetGitlabNoteLinkByRemoteIDParams) (GitlabNoteLink, error) {
+	row := q.db.QueryRow(ctx, getGitlabNoteLinkByRemoteID, arg.TrackerConnectionID, arg.RemoteNoteID)
+	var i GitlabNoteLink
+	err := row.Scan(
+		&i.CommentID,
+		&i.IssueID,
+		&i.TrackerConnectionID,
+		&i.RemoteIssueIid,
+		&i.RemoteNoteID,
+		&i.RemoteAuthorID,
+		&i.RemoteAuthorName,
+		&i.RemoteAuthorUrl,
+		&i.RemoteCreatedAt,
+		&i.RemoteUpdatedAt,
+		&i.LastRemoteBody,
+		&i.RemoteOwned,
+		&i.LastPulledAt,
 	)
 	return i, err
 }
@@ -704,7 +818,7 @@ func (q *Queries) ListGitlabIssueLinkIIDs(ctx context.Context, trackerConnection
 }
 
 const listGitlabIssueLinksByIssues = `-- name: ListGitlabIssueLinksByIssues :many
-SELECT l.issue_id, l.tracker_connection_id, l.remote_issue_id, l.remote_iid, l.remote_web_url, l.remote_state, l.remote_updated_at, l.remote_author_name, l.remote_author_url, l.remote_position, l.last_remote_snapshot, l.last_pulled_at, l.last_pushed_at, c.instance_url AS connection_instance_url
+SELECT l.issue_id, l.tracker_connection_id, l.remote_issue_id, l.remote_iid, l.remote_web_url, l.remote_state, l.remote_updated_at, l.remote_author_name, l.remote_author_url, l.remote_position, l.last_remote_snapshot, l.last_pulled_at, l.last_pushed_at, l.notes_initialized_at, c.instance_url AS connection_instance_url
 FROM gitlab_issue_link l
 JOIN gitlab_tracker_connection c ON c.id = l.tracker_connection_id
 WHERE l.issue_id = ANY($1::uuid[])
@@ -724,6 +838,7 @@ type ListGitlabIssueLinksByIssuesRow struct {
 	LastRemoteSnapshot    []byte             `json:"last_remote_snapshot"`
 	LastPulledAt          pgtype.Timestamptz `json:"last_pulled_at"`
 	LastPushedAt          pgtype.Timestamptz `json:"last_pushed_at"`
+	NotesInitializedAt    pgtype.Timestamptz `json:"notes_initialized_at"`
 	ConnectionInstanceUrl string             `json:"connection_instance_url"`
 }
 
@@ -750,7 +865,86 @@ func (q *Queries) ListGitlabIssueLinksByIssues(ctx context.Context, dollar_1 []p
 			&i.LastRemoteSnapshot,
 			&i.LastPulledAt,
 			&i.LastPushedAt,
+			&i.NotesInitializedAt,
 			&i.ConnectionInstanceUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGitlabNoteLinksByComments = `-- name: ListGitlabNoteLinksByComments :many
+SELECT comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id, remote_author_id, remote_author_name, remote_author_url, remote_created_at, remote_updated_at, last_remote_body, remote_owned, last_pulled_at FROM gitlab_note_link WHERE comment_id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListGitlabNoteLinksByComments(ctx context.Context, dollar_1 []pgtype.UUID) ([]GitlabNoteLink, error) {
+	rows, err := q.db.Query(ctx, listGitlabNoteLinksByComments, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GitlabNoteLink{}
+	for rows.Next() {
+		var i GitlabNoteLink
+		if err := rows.Scan(
+			&i.CommentID,
+			&i.IssueID,
+			&i.TrackerConnectionID,
+			&i.RemoteIssueIid,
+			&i.RemoteNoteID,
+			&i.RemoteAuthorID,
+			&i.RemoteAuthorName,
+			&i.RemoteAuthorUrl,
+			&i.RemoteCreatedAt,
+			&i.RemoteUpdatedAt,
+			&i.LastRemoteBody,
+			&i.RemoteOwned,
+			&i.LastPulledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGitlabNoteLinksByIssue = `-- name: ListGitlabNoteLinksByIssue :many
+SELECT comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id, remote_author_id, remote_author_name, remote_author_url, remote_created_at, remote_updated_at, last_remote_body, remote_owned, last_pulled_at FROM gitlab_note_link
+WHERE issue_id = $1
+ORDER BY remote_created_at, remote_note_id
+`
+
+func (q *Queries) ListGitlabNoteLinksByIssue(ctx context.Context, issueID pgtype.UUID) ([]GitlabNoteLink, error) {
+	rows, err := q.db.Query(ctx, listGitlabNoteLinksByIssue, issueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GitlabNoteLink{}
+	for rows.Next() {
+		var i GitlabNoteLink
+		if err := rows.Scan(
+			&i.CommentID,
+			&i.IssueID,
+			&i.TrackerConnectionID,
+			&i.RemoteIssueIid,
+			&i.RemoteNoteID,
+			&i.RemoteAuthorID,
+			&i.RemoteAuthorName,
+			&i.RemoteAuthorUrl,
+			&i.RemoteCreatedAt,
+			&i.RemoteUpdatedAt,
+			&i.LastRemoteBody,
+			&i.RemoteOwned,
+			&i.LastPulledAt,
 		); err != nil {
 			return nil, err
 		}
@@ -810,6 +1004,17 @@ func (q *Queries) ListGitlabTrackerConnectionsByProject(ctx context.Context, pro
 		return nil, err
 	}
 	return items, nil
+}
+
+const markGitlabIssueNotesInitialized = `-- name: MarkGitlabIssueNotesInitialized :exec
+UPDATE gitlab_issue_link
+SET notes_initialized_at = COALESCE(notes_initialized_at, now())
+WHERE issue_id = $1
+`
+
+func (q *Queries) MarkGitlabIssueNotesInitialized(ctx context.Context, issueID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, markGitlabIssueNotesInitialized, issueID)
+	return err
 }
 
 const markTrackerActive = `-- name: MarkTrackerActive :exec
@@ -1060,4 +1265,69 @@ type UpdateIssueSyncStateParams struct {
 func (q *Queries) UpdateIssueSyncState(ctx context.Context, arg UpdateIssueSyncStateParams) error {
 	_, err := q.db.Exec(ctx, updateIssueSyncState, arg.ID, arg.SyncState)
 	return err
+}
+
+const upsertGitlabNoteLink = `-- name: UpsertGitlabNoteLink :one
+INSERT INTO gitlab_note_link (
+  comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id,
+  remote_author_id, remote_author_name, remote_author_url,
+  remote_created_at, remote_updated_at, last_remote_body, remote_owned, last_pulled_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
+ON CONFLICT (tracker_connection_id, remote_note_id) DO UPDATE SET
+  remote_author_id = EXCLUDED.remote_author_id,
+  remote_author_name = EXCLUDED.remote_author_name,
+  remote_author_url = EXCLUDED.remote_author_url,
+  remote_updated_at = EXCLUDED.remote_updated_at,
+  last_remote_body = EXCLUDED.last_remote_body,
+  last_pulled_at = now()
+RETURNING comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id, remote_author_id, remote_author_name, remote_author_url, remote_created_at, remote_updated_at, last_remote_body, remote_owned, last_pulled_at
+`
+
+type UpsertGitlabNoteLinkParams struct {
+	CommentID           pgtype.UUID        `json:"comment_id"`
+	IssueID             pgtype.UUID        `json:"issue_id"`
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
+	RemoteIssueIid      int32              `json:"remote_issue_iid"`
+	RemoteNoteID        int64              `json:"remote_note_id"`
+	RemoteAuthorID      pgtype.Int8        `json:"remote_author_id"`
+	RemoteAuthorName    pgtype.Text        `json:"remote_author_name"`
+	RemoteAuthorUrl     pgtype.Text        `json:"remote_author_url"`
+	RemoteCreatedAt     pgtype.Timestamptz `json:"remote_created_at"`
+	RemoteUpdatedAt     pgtype.Timestamptz `json:"remote_updated_at"`
+	LastRemoteBody      string             `json:"last_remote_body"`
+	RemoteOwned         bool               `json:"remote_owned"`
+}
+
+func (q *Queries) UpsertGitlabNoteLink(ctx context.Context, arg UpsertGitlabNoteLinkParams) (GitlabNoteLink, error) {
+	row := q.db.QueryRow(ctx, upsertGitlabNoteLink,
+		arg.CommentID,
+		arg.IssueID,
+		arg.TrackerConnectionID,
+		arg.RemoteIssueIid,
+		arg.RemoteNoteID,
+		arg.RemoteAuthorID,
+		arg.RemoteAuthorName,
+		arg.RemoteAuthorUrl,
+		arg.RemoteCreatedAt,
+		arg.RemoteUpdatedAt,
+		arg.LastRemoteBody,
+		arg.RemoteOwned,
+	)
+	var i GitlabNoteLink
+	err := row.Scan(
+		&i.CommentID,
+		&i.IssueID,
+		&i.TrackerConnectionID,
+		&i.RemoteIssueIid,
+		&i.RemoteNoteID,
+		&i.RemoteAuthorID,
+		&i.RemoteAuthorName,
+		&i.RemoteAuthorUrl,
+		&i.RemoteCreatedAt,
+		&i.RemoteUpdatedAt,
+		&i.LastRemoteBody,
+		&i.RemoteOwned,
+		&i.LastPulledAt,
+	)
+	return i, err
 }

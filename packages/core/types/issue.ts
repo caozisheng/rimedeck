@@ -15,6 +15,7 @@ export type IssueSyncState = "local" | "pending" | "syncing" | "synced" | "faile
 export interface IssueExternalRef {
   provider: "gitlab";
   tracker_connection_id: string;
+	instance_url?: string;
   iid: number;
   url: string | null;
   author_name: string | null;

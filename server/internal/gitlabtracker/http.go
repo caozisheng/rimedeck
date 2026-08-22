@@ -74,6 +74,12 @@ func NewClient(cfg Config) (*Client, error) {
 			if len(via) > 5 {
 				return errors.New("gitlabtracker: too many redirects")
 			}
+			if len(via) > 0 && via[0].Header.Get("X-RimeDeck-Same-Origin-Redirect") == "1" {
+				origin := via[0].URL
+				if req.URL.Scheme != origin.Scheme || !strings.EqualFold(req.URL.Host, origin.Host) {
+					return errors.New("gitlabtracker: cross-origin media redirect blocked")
+				}
+			}
 			return nil
 		},
 	}

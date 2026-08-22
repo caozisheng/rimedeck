@@ -20,9 +20,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/gitlabtracker"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -52,8 +52,13 @@ type Queries interface {
 	MarkTrackerOutboxFailed(ctx context.Context, arg db.MarkTrackerOutboxFailedParams) error
 	TouchTrackerLastPull(ctx context.Context, id pgtype.UUID) error
 	GetIssue(ctx context.Context, id pgtype.UUID) (db.Issue, error)
+	GetComment(ctx context.Context, id pgtype.UUID) (db.Comment, error)
 	ListAllLabelsByIssue(ctx context.Context, arg db.ListAllLabelsByIssueParams) ([]db.IssueLabel, error)
 	GetGitlabIssueLinkByIssueID(ctx context.Context, issueID pgtype.UUID) (db.GitlabIssueLink, error)
+	GetGitlabIssueLinkByRemoteIID(ctx context.Context, arg db.GetGitlabIssueLinkByRemoteIIDParams) (db.GitlabIssueLink, error)
+	GetGitlabNoteLinkByCommentID(ctx context.Context, commentID pgtype.UUID) (db.GitlabNoteLink, error)
+	UpsertGitlabNoteLink(ctx context.Context, arg db.UpsertGitlabNoteLinkParams) (db.GitlabNoteLink, error)
+	DeleteGitlabNoteLinkByCommentID(ctx context.Context, commentID pgtype.UUID) error
 	CancelTrackerOutboxByIssue(ctx context.Context, issueID pgtype.UUID) error
 	DeleteIssue(ctx context.Context, arg db.DeleteIssueParams) error
 	ListGitlabIssueLinkIIDs(ctx context.Context, trackerConnectionID pgtype.UUID) ([]db.ListGitlabIssueLinkIIDsRow, error)
@@ -78,6 +83,8 @@ type Worker struct {
 	BatchSize           int32
 	LabelImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error
 	IssueImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error
+	NoteImporter        func(context.Context, db.GitlabTrackerConnection, db.GitlabIssueLink, []gitlabtracker.Note) ([]gitlabtracker.ImportedNote, error)
+	OnImportedNote      func(context.Context, gitlabtracker.ImportedNote)
 	CreateIssueImporter func(context.Context, db.GitlabTrackerConnection, db.Issue, gitlabtracker.Issue) error
 	CanonicalApplier    func(context.Context, db.GitlabTrackerConnection, pgtype.UUID, gitlabtracker.Issue) error
 }
@@ -182,6 +189,10 @@ func (w *Worker) processRow(ctx context.Context, row db.TrackerSyncOutbox) outco
 		if err := w.handleFullReconcile(ctx, client, tracker); err != nil {
 			return w.classifyError(ctx, row, err)
 		}
+	case "pull_notes":
+		if err := w.handlePullNotes(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
 	case "create_issue":
 		if err := w.handleCreateIssue(ctx, client, tracker, row); err != nil {
 			return w.classifyError(ctx, row, err)
@@ -196,6 +207,18 @@ func (w *Worker) processRow(ctx context.Context, row db.TrackerSyncOutbox) outco
 		}
 	case "delete_issue":
 		if err := w.handleDeleteIssue(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
+	case "create_note":
+		if err := w.handleCreateNote(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
+	case "update_note":
+		if err := w.handleUpdateNote(ctx, client, tracker, row); err != nil {
+			return w.classifyError(ctx, row, err)
+		}
+	case "delete_note":
+		if err := w.handleDeleteNote(ctx, client, tracker, row); err != nil {
 			return w.classifyError(ctx, row, err)
 		}
 	default:
@@ -231,19 +254,77 @@ func (w *Worker) handlePullLabels(ctx context.Context, client *gitlabtracker.Res
 	return gitlabtracker.ImportLabels(ctx, tracker, labels, w.TxStarter, tracker.WorkspaceID)
 }
 
-// handleReconcile fetches and persists the complete remote issue snapshot.
+// handleReconcile fetches and persists the complete remote issue and note snapshot.
 func (w *Worker) handleReconcile(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection) error {
 	issues, err := client.ListProjectIssues(ctx, tracker.RemoteProjectID, gitlabtracker.ListIssuesOptions{State: "all"})
 	if err != nil {
 		return err
 	}
 	if w.IssueImporter != nil {
-		return w.IssueImporter(ctx, tracker, issues)
+		if err := w.IssueImporter(ctx, tracker, issues); err != nil {
+			return err
+		}
+	} else {
+		if w.TxStarter == nil {
+			return errors.New("gitlabtracker: importer transaction starter is not configured")
+		}
+		if err := gitlabtracker.ImportIssues(ctx, tracker, issues, w.TxStarter, tracker.WorkspaceID); err != nil {
+			return err
+		}
 	}
-	if w.TxStarter == nil {
-		return errors.New("gitlabtracker: importer transaction starter is not configured")
+	for _, issue := range issues {
+		if err := w.syncIssueNotes(ctx, client, tracker, issue.IID); err != nil {
+			return err
+		}
 	}
-	return gitlabtracker.ImportIssues(ctx, tracker, issues, w.TxStarter, tracker.WorkspaceID)
+	return nil
+}
+
+func (w *Worker) handlePullNotes(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	var payload struct {
+		IID int32 `json:"iid"`
+	}
+	if err := json.Unmarshal(row.Payload, &payload); err != nil {
+		return fmt.Errorf("decode pull_notes payload: %w", err)
+	}
+	if payload.IID <= 0 {
+		return errors.New("decode pull_notes payload: iid is required")
+	}
+	return w.syncIssueNotes(ctx, client, tracker, payload.IID)
+}
+
+func (w *Worker) syncIssueNotes(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, iid int32) error {
+	link, err := w.Queries.GetGitlabIssueLinkByRemoteIID(ctx, db.GetGitlabIssueLinkByRemoteIIDParams{
+		TrackerConnectionID: tracker.ID,
+		RemoteIid:           iid,
+	})
+	if err != nil {
+		return fmt.Errorf("load issue link for notes: %w", err)
+	}
+	notes, err := client.ListIssueNotes(ctx, tracker.RemoteProjectID, iid)
+	if err != nil {
+		return err
+	}
+	var imported []gitlabtracker.ImportedNote
+	if w.NoteImporter != nil {
+		imported, err = w.NoteImporter(ctx, tracker, link, notes)
+	} else {
+		if w.TxStarter == nil {
+			return errors.New("gitlabtracker: importer transaction starter is not configured")
+		}
+		imported, err = gitlabtracker.ImportIssueNotes(ctx, tracker, link, notes, w.TxStarter)
+	}
+	if err != nil {
+		return err
+	}
+	if w.OnImportedNote != nil {
+		for _, note := range imported {
+			if note.Live {
+				w.OnImportedNote(ctx, note)
+			}
+		}
+	}
+	return nil
 }
 
 // handleFullReconcile is the 6-hour safety net. Pages state=all to find
@@ -265,6 +346,11 @@ func (w *Worker) handleFullReconcile(ctx context.Context, client *gitlabtracker.
 		}
 	} else if w.TxStarter != nil {
 		if err := gitlabtracker.ImportIssues(ctx, tracker, issues, w.TxStarter, tracker.WorkspaceID); err != nil {
+			return err
+		}
+	}
+	for _, issue := range issues {
+		if err := w.syncIssueNotes(ctx, client, tracker, issue.IID); err != nil {
 			return err
 		}
 	}
@@ -443,6 +529,79 @@ func (w *Worker) handleSetLabels(ctx context.Context, client *gitlabtracker.Rest
 		return errors.New("gitlabtracker: importer transaction starter is not configured")
 	}
 	return gitlabtracker.ApplyCanonicalIssueAtRevision(ctx, tracker, row.IssueID, remote, w.TxStarter, row.DesiredRevision.Int64)
+}
+
+func (w *Worker) handleCreateNote(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	comment, err := w.Queries.GetComment(ctx, parsePayloadCommentID(row.Payload))
+	if err != nil {
+		return fmt.Errorf("load comment for note create: %w", err)
+	}
+	link, err := w.Queries.GetGitlabIssueLinkByIssueID(ctx, comment.IssueID)
+	if err != nil {
+		return fmt.Errorf("load issue link for note create: %w", err)
+	}
+	remote, err := client.CreateIssueNote(ctx, tracker.RemoteProjectID, link.RemoteIid, comment.Content)
+	if err != nil {
+		return err
+	}
+	createdAt := gitlabtracker.ParseRemoteTimestamp(remote.CreatedAt)
+	updatedAt := gitlabtracker.ParseRemoteTimestamp(remote.UpdatedAt)
+	if !updatedAt.Valid {
+		updatedAt = createdAt
+	}
+	_, err = w.Queries.UpsertGitlabNoteLink(ctx, db.UpsertGitlabNoteLinkParams{
+		CommentID: comment.ID, IssueID: comment.IssueID, TrackerConnectionID: tracker.ID,
+		RemoteIssueIid: link.RemoteIid, RemoteNoteID: remote.ID,
+		RemoteAuthorID:   pgtype.Int8{Int64: remote.Author.ID, Valid: remote.Author.ID != 0},
+		RemoteAuthorName: pgText(remote.Author.Name), RemoteAuthorUrl: pgText(remote.Author.URL),
+		RemoteCreatedAt: createdAt, RemoteUpdatedAt: updatedAt, LastRemoteBody: remote.Body,
+		RemoteOwned: false,
+	})
+	return err
+}
+
+func (w *Worker) handleUpdateNote(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	commentID := parsePayloadCommentID(row.Payload)
+	comment, err := w.Queries.GetComment(ctx, commentID)
+	if err != nil {
+		return fmt.Errorf("load comment for note update: %w", err)
+	}
+	link, err := w.Queries.GetGitlabNoteLinkByCommentID(ctx, commentID)
+	if err != nil {
+		return fmt.Errorf("load note link for update: %w", err)
+	}
+	_, err = client.UpdateIssueNote(ctx, tracker.RemoteProjectID, link.RemoteIssueIid, link.RemoteNoteID, comment.Content)
+	return err
+}
+
+func (w *Worker) handleDeleteNote(ctx context.Context, client *gitlabtracker.RestClient, tracker db.GitlabTrackerConnection, row db.TrackerSyncOutbox) error {
+	var payload struct {
+		IID    int32 `json:"iid"`
+		NoteID int64 `json:"note_id"`
+	}
+	if err := json.Unmarshal(row.Payload, &payload); err != nil {
+		return fmt.Errorf("decode delete_note payload: %w", err)
+	}
+	if payload.IID <= 0 || payload.NoteID <= 0 {
+		return errors.New("decode delete_note payload: iid and note_id are required")
+	}
+	return client.DeleteIssueNote(ctx, tracker.RemoteProjectID, payload.IID, payload.NoteID)
+}
+
+func parsePayloadCommentID(payload []byte) pgtype.UUID {
+	var body struct {
+		CommentID string `json:"comment_id"`
+	}
+	if json.Unmarshal(payload, &body) != nil {
+		return pgtype.UUID{}
+	}
+	parsed, err := uuid.Parse(body.CommentID)
+	if err != nil {
+		return pgtype.UUID{}
+	}
+	out := pgtype.UUID{Valid: true}
+	copy(out.Bytes[:], parsed[:])
+	return out
 }
 
 // handleDeleteIssue removes the remote issue then the local mirror. 404

@@ -25,11 +25,57 @@ FROM gitlab_issue_link l
 JOIN gitlab_tracker_connection c ON c.id = l.tracker_connection_id
 WHERE l.issue_id = ANY($1::uuid[]);
 
+-- name: GetGitlabIssueLinkByRemoteIID :one
+SELECT * FROM gitlab_issue_link
+WHERE tracker_connection_id = $1 AND remote_iid = $2;
+
+-- name: MarkGitlabIssueNotesInitialized :exec
+UPDATE gitlab_issue_link
+SET notes_initialized_at = COALESCE(notes_initialized_at, now())
+WHERE issue_id = $1;
+
 -- name: CreateGitlabIssueLink :one
 INSERT INTO gitlab_issue_link (
   issue_id, tracker_connection_id, remote_issue_id, remote_iid,
   remote_web_url, remote_state, remote_updated_at, remote_author_name, remote_author_url
 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *;
+
+-- name: GetGitlabNoteLinkByCommentID :one
+SELECT * FROM gitlab_note_link WHERE comment_id = $1;
+
+-- name: GetGitlabNoteLinkByRemoteID :one
+SELECT * FROM gitlab_note_link
+WHERE tracker_connection_id = $1 AND remote_note_id = $2;
+
+-- name: ListGitlabNoteLinksByComments :many
+SELECT * FROM gitlab_note_link WHERE comment_id = ANY($1::uuid[]);
+
+-- name: ListGitlabNoteLinksByIssue :many
+SELECT * FROM gitlab_note_link
+WHERE issue_id = $1
+ORDER BY remote_created_at, remote_note_id;
+
+-- name: UpsertGitlabNoteLink :one
+INSERT INTO gitlab_note_link (
+  comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id,
+  remote_author_id, remote_author_name, remote_author_url,
+  remote_created_at, remote_updated_at, last_remote_body, remote_owned, last_pulled_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())
+ON CONFLICT (tracker_connection_id, remote_note_id) DO UPDATE SET
+  remote_author_id = EXCLUDED.remote_author_id,
+  remote_author_name = EXCLUDED.remote_author_name,
+  remote_author_url = EXCLUDED.remote_author_url,
+  remote_updated_at = EXCLUDED.remote_updated_at,
+  last_remote_body = EXCLUDED.last_remote_body,
+  last_pulled_at = now()
+RETURNING *;
+
+-- name: DeleteGitlabNoteLinkByCommentID :exec
+DELETE FROM gitlab_note_link WHERE comment_id = $1;
+
+-- name: DeleteGitlabNoteLinkByRemoteID :exec
+DELETE FROM gitlab_note_link
+WHERE tracker_connection_id = $1 AND remote_note_id = $2;
 
 -- name: CreateTrackerOutbox :one
 INSERT INTO tracker_sync_outbox (

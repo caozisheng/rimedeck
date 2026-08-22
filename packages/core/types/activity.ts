@@ -26,6 +26,12 @@ export interface TimelineEntry {
   resolved_at?: string | null;
   resolved_by_type?: CommentAuthorType | null;
   resolved_by_id?: string | null;
+	external?: {
+		provider: string;
+		author_name?: string;
+		author_url?: string;
+		remote_owned: boolean;
+	};
   /** Set by frontend coalescing when consecutive identical activities are merged. */
   coalesced_count?: number;
 }

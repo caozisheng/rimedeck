@@ -838,7 +838,10 @@ func (h *Handler) HandleGitlabWebhook(w http.ResponseWriter, r *http.Request) {
 			ID int64 `json:"id"`
 		} `json:"project"`
 		ObjectAttributes struct {
-			IID int32 `json:"iid"`
+			IID          int32  `json:"iid"`
+			NoteableIID  int32  `json:"noteable_iid"`
+			NoteableType string `json:"noteable_type"`
+			ID           int64  `json:"id"`
 		} `json:"object_attributes"`
 	}
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
@@ -874,12 +877,20 @@ func (h *Handler) HandleGitlabWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	operation := gitlabEventToOperation(r.Header.Get("X-Gitlab-Event"))
+	operation := gitlabEventToOperation(r.Header.Get("X-Gitlab-Event"), payload.ObjectAttributes.NoteableType)
+	iid := payload.ObjectAttributes.IID
+	if operation == "pull_notes" {
+		iid = payload.ObjectAttributes.NoteableIID
+	}
+	if operation == "ignore" {
+		w.WriteHeader(http.StatusAccepted)
+		return
+	}
 	if _, err := enqueueTrackerOutbox(ctx, h.Queries, db.CreateTrackerOutboxParams{
 		WorkspaceID:         tracker.WorkspaceID,
 		TrackerConnectionID: tracker.ID,
 		Operation:           operation,
-		Payload:             gitlabWebhookPayload(operation, payload.ObjectAttributes.IID),
+		Payload:             gitlabWebhookPayload(operation, iid, payload.ObjectAttributes.ID),
 		IdempotencyKey:      newRandomUUID(),
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to enqueue webhook")
@@ -889,31 +900,24 @@ func (h *Handler) HandleGitlabWebhook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// gitlabEventToOperation maps GitLab's `X-Gitlab-Event` header to one of
-// our outbox operations. Unknown events fall back to `pull_issue` so a
-// forward-compatible GitLab release doesn't silently drop the signal —
-// the worker pulls the canonical issue snapshot regardless of whether
-// the event was an update, comment, or something new.
-func gitlabEventToOperation(event string) string {
+// gitlabEventToOperation maps only Issue notes to pull_notes. Other noteable
+// objects are irrelevant to the issue mirror and are acknowledged safely.
+func gitlabEventToOperation(event, noteableType string) string {
 	switch strings.ToLower(strings.TrimSpace(event)) {
-	case "issue hook", "confidential issue hook":
-		return "pull_issue"
 	case "note hook", "confidential note hook":
-		return "pull_issue"
+		if strings.EqualFold(strings.TrimSpace(noteableType), "issue") {
+			return "pull_notes"
+		}
+		return "ignore"
 	default:
 		return "pull_issue"
 	}
 }
 
-// gitlabWebhookPayload builds the outbox payload the worker reads back.
-// pull_issue carries the remote iid so the worker can hit the single-
-// issue REST endpoint; other operations take an empty payload.
-func gitlabWebhookPayload(operation string, iid int32) []byte {
-	if operation == "pull_issue" && iid > 0 {
-		body, _ := json.Marshal(map[string]any{"iid": iid})
-		return body
-	}
-	return []byte("{}")
+// gitlabWebhookPayload carries the issue IID and note identity.
+func gitlabWebhookPayload(operation string, iid int32, noteID int64) []byte {
+	body, _ := json.Marshal(map[string]any{"iid": iid, "note_id": noteID})
+	return body
 }
 
 // ---------------------------------------------------------------------------

@@ -29,6 +29,12 @@ export interface Comment {
   resolved_at: string | null;
   resolved_by_type: CommentAuthorType | null;
   resolved_by_id: string | null;
+	external?: {
+		provider: "gitlab" | string;
+		author_name?: string;
+		author_url?: string;
+		remote_owned: boolean;
+	};
 }
 
 export type CommentTriggerSource =

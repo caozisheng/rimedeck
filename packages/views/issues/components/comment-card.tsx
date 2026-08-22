@@ -406,9 +406,11 @@ function CommentRow({
 
   const edit = useEditAttachmentState(issueId, entry, onEdit);
 
-  const isOwn = entry.actor_type === "member" && entry.actor_id === currentUserId;
-  const canEditEntry = isOwn || (canModerate && entry.actor_type === "member");
-  const canDeleteEntry = isOwn || canModerate;
+	const isOwn = entry.actor_type === "member" && entry.actor_id === currentUserId;
+	const actorName = entry.external?.author_name || getActorName(entry.actor_type, entry.actor_id);
+	const isRemote = !!entry.external?.remote_owned;
+	const canEditEntry = !isRemote && (isOwn || (canModerate && entry.actor_type === "member"));
+	const canDeleteEntry = !isRemote && (isOwn || canModerate);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [taskTimelineOpen, setTaskTimelineOpen] = useState(false);
 
@@ -426,7 +428,7 @@ function CommentRow({
       >
         <ActorAvatar actorType={entry.actor_type} actorId={entry.actor_id} size={24} enableHoverCard showStatusDot />
         <span className="cursor-pointer text-sm font-medium">
-          {getActorName(entry.actor_type, entry.actor_id)}
+			{actorName}
         </span>
         <Tooltip>
           <TooltipTrigger
@@ -789,9 +791,11 @@ function CommentCardImpl({
 
   const edit = useEditAttachmentState(issueId, entry, onEdit);
 
-  const isOwn = entry.actor_type === "member" && entry.actor_id === currentUserId;
-  const canEditEntry = isOwn || (canModerate && entry.actor_type === "member");
-  const canDeleteEntry = isOwn || canModerate;
+	const isOwn = entry.actor_type === "member" && entry.actor_id === currentUserId;
+	const actorName = entry.external?.author_name || getActorName(entry.actor_type, entry.actor_id);
+	const isRemote = !!entry.external?.remote_owned;
+	const canEditEntry = !isRemote && (isOwn || (canModerate && entry.actor_type === "member"));
+	const canDeleteEntry = !isRemote && (isOwn || canModerate);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [taskTimelineOpen, setTaskTimelineOpen] = useState(false);
   const rootTaskId = taskId ?? commentTaskLinks?.get(entry.id);
@@ -872,7 +876,7 @@ function CommentCardImpl({
             </CollapsibleTrigger>
             <ActorAvatar actorType={entry.actor_type} actorId={entry.actor_id} size={24} enableHoverCard showStatusDot />
             <span className="shrink-0 cursor-pointer text-sm font-medium">
-              {getActorName(entry.actor_type, entry.actor_id)}
+				{actorName}
             </span>
             <Tooltip>
               <TooltipTrigger

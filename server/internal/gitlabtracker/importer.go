@@ -18,6 +18,136 @@ type TxStarter interface {
 	Begin(context.Context) (pgx.Tx, error)
 }
 
+// ImportedNote describes a note row newly created while synchronizing GitLab.
+// Live is false during the first historical baseline and true for later notes.
+type ImportedNote struct {
+	CommentID   pgtype.UUID
+	IssueID     pgtype.UUID
+	WorkspaceID pgtype.UUID
+	Content     string
+	Action      string // created, updated, deleted
+	Live        bool
+}
+
+// ImportIssueNotes mirrors the non-system GitLab notes for one linked issue.
+// Remote note identity is the idempotency key; the first call establishes a
+// historical baseline and subsequent inserts are returned with Live=true.
+func ImportIssueNotes(ctx context.Context, conn db.GitlabTrackerConnection, link db.GitlabIssueLink, notes []Note, txStarter TxStarter) ([]ImportedNote, error) {
+	tx, err := txStarter.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin note import: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	live := link.NotesInitializedAt.Valid
+	seen := make(map[int64]struct{}, len(notes))
+	created := make([]ImportedNote, 0)
+	for _, note := range notes {
+		if note.System {
+			continue
+		}
+		seen[note.ID] = struct{}{}
+		createdAt := parseRemoteTime(note.CreatedAt)
+		updatedAt := parseRemoteTime(note.UpdatedAt)
+		if note.UpdatedAt == "" {
+			updatedAt = createdAt
+		}
+
+		var commentID pgtype.UUID
+		err := tx.QueryRow(ctx, `
+SELECT comment_id FROM gitlab_note_link
+WHERE tracker_connection_id=$1 AND remote_note_id=$2`, conn.ID, note.ID).Scan(&commentID)
+		if err == pgx.ErrNoRows {
+			err = tx.QueryRow(ctx, `
+INSERT INTO comment (
+  issue_id, workspace_id, author_type, author_id, content, type, created_at, updated_at
+) VALUES ($1,$2,'system',$3,$4,'comment',$5,$6)
+RETURNING id`, link.IssueID, conn.WorkspaceID, conn.CreatedBy, note.Body, createdAt, updatedAt).Scan(&commentID)
+			if err != nil {
+				return nil, fmt.Errorf("insert note %d comment: %w", note.ID, err)
+			}
+			_, err = tx.Exec(ctx, `
+INSERT INTO gitlab_note_link (
+  comment_id, issue_id, tracker_connection_id, remote_issue_iid, remote_note_id,
+  remote_author_id, remote_author_name, remote_author_url,
+  remote_created_at, remote_updated_at, last_remote_body, remote_owned
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true)`,
+				commentID, link.IssueID, conn.ID, link.RemoteIid, note.ID,
+				pgInt8(note.Author.ID), pgText(note.Author.Name), pgText(note.Author.URL),
+				createdAt, updatedAt, note.Body)
+			if err != nil {
+				return nil, fmt.Errorf("insert note %d link: %w", note.ID, err)
+			}
+			created = append(created, ImportedNote{
+				CommentID: commentID, IssueID: link.IssueID, WorkspaceID: conn.WorkspaceID,
+				Content: note.Body, Action: "created", Live: live,
+			})
+		} else if err != nil {
+			return nil, fmt.Errorf("lookup note %d: %w", note.ID, err)
+		} else {
+			var previousBody string
+			if err := tx.QueryRow(ctx, `SELECT last_remote_body FROM gitlab_note_link WHERE comment_id=$1`, commentID).Scan(&previousBody); err != nil {
+				return nil, fmt.Errorf("load note %d snapshot: %w", note.ID, err)
+			}
+			if _, err := tx.Exec(ctx, `
+UPDATE comment SET content=$2, updated_at=$3 WHERE id=$1`, commentID, note.Body, updatedAt); err != nil {
+				return nil, fmt.Errorf("update note %d comment: %w", note.ID, err)
+			}
+			if _, err := tx.Exec(ctx, `
+UPDATE gitlab_note_link SET remote_author_id=$2, remote_author_name=$3,
+ remote_author_url=$4, remote_updated_at=$5, last_remote_body=$6, last_pulled_at=now()
+WHERE comment_id=$1`, commentID, pgInt8(note.Author.ID), pgText(note.Author.Name),
+				pgText(note.Author.URL), updatedAt, note.Body); err != nil {
+				return nil, fmt.Errorf("update note %d link: %w", note.ID, err)
+			}
+			if live && previousBody != note.Body {
+				created = append(created, ImportedNote{CommentID: commentID, IssueID: link.IssueID, WorkspaceID: conn.WorkspaceID, Content: note.Body, Action: "updated", Live: true})
+			}
+		}
+	}
+
+	rows, err := tx.Query(ctx, `
+SELECT comment_id, remote_note_id FROM gitlab_note_link
+WHERE issue_id=$1 AND remote_owned=true`, link.IssueID)
+	if err != nil {
+		return nil, fmt.Errorf("list mirrored notes: %w", err)
+	}
+	var stale []pgtype.UUID
+	for rows.Next() {
+		var commentID pgtype.UUID
+		var remoteID int64
+		if err := rows.Scan(&commentID, &remoteID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if _, ok := seen[remoteID]; !ok {
+			stale = append(stale, commentID)
+		}
+	}
+	rows.Close()
+	for _, commentID := range stale {
+		if _, err := tx.Exec(ctx, `DELETE FROM comment WHERE id=$1`, commentID); err != nil {
+			return nil, fmt.Errorf("delete stale mirrored note: %w", err)
+		}
+		if live {
+			created = append(created, ImportedNote{CommentID: commentID, IssueID: link.IssueID, WorkspaceID: conn.WorkspaceID, Action: "deleted", Live: true})
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE gitlab_issue_link SET notes_initialized_at=COALESCE(notes_initialized_at,now())
+WHERE issue_id=$1`, link.IssueID); err != nil {
+		return nil, fmt.Errorf("mark notes initialized: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit note import: %w", err)
+	}
+	return created, nil
+}
+
+func pgInt8(value int64) pgtype.Int8 {
+	return pgtype.Int8{Int64: value, Valid: value != 0}
+}
+
 // ImportSnapshot fetches the complete label and issue snapshot and writes it
 // in page-sized transactions. Re-running it is idempotent: GitLab label ids
 // and remote issue IIDs are the stable identities for their tracker.
@@ -227,6 +357,11 @@ func pgText(value string) pgtype.Text { return pgtype.Text{String: value, Valid:
 //
 // Runs in its own transaction — callers hand it a TxStarter, not a
 // pgx.Tx, so it composes with the outbox worker's per-op unit of work.
+// ParseRemoteTimestamp parses GitLab timestamps for sync consumers.
+func ParseRemoteTimestamp(value string) pgtype.Timestamptz {
+	return pgtype.Timestamptz{Time: parseRemoteTime(value), Valid: strings.TrimSpace(value) != ""}
+}
+
 func ApplyCanonicalIssue(ctx context.Context, conn db.GitlabTrackerConnection, issueID pgtype.UUID, remote Issue, txStarter TxStarter) error {
 	return applyCanonicalIssue(ctx, conn, issueID, remote, txStarter, pgtype.Int8{})
 }

@@ -34,6 +34,7 @@ type TimelineEntry struct {
 	ResolvedAt     *string              `json:"resolved_at,omitempty"`
 	ResolvedByType *string              `json:"resolved_by_type,omitempty"`
 	ResolvedByID   *string              `json:"resolved_by_id,omitempty"`
+	External       *CommentExternalRef  `json:"external,omitempty"`
 }
 
 // timelineHardCap bounds the per-issue timeline payload. Sized as a defensive
@@ -166,6 +167,11 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 	}
 	reactions := h.groupReactions(r, ids)
 	attachments := h.groupAttachments(r, ids)
+	remoteLinks, _ := h.Queries.ListGitlabNoteLinksByComments(r.Context(), ids)
+	remoteByComment := make(map[string]db.GitlabNoteLink, len(remoteLinks))
+	for _, link := range remoteLinks {
+		remoteByComment[uuidToString(link.CommentID)] = link
+	}
 
 	out := make([]TimelineEntry, len(comments))
 	for i, c := range comments {
@@ -174,20 +180,14 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 		updatedAt := timestampToString(c.UpdatedAt)
 		cid := uuidToString(c.ID)
 		out[i] = TimelineEntry{
-			Type:           "comment",
-			ID:             cid,
-			ActorType:      c.AuthorType,
-			ActorID:        uuidToString(c.AuthorID),
-			Content:        &content,
-			CommentType:    &commentType,
-			ParentID:       uuidToPtr(c.ParentID),
-			CreatedAt:      timestampToString(c.CreatedAt),
-			UpdatedAt:      &updatedAt,
-			Reactions:      reactions[cid],
-			Attachments:    attachments[cid],
-			ResolvedAt:     timestampToPtr(c.ResolvedAt),
-			ResolvedByType: textToPtr(c.ResolvedByType),
-			ResolvedByID:   uuidToPtr(c.ResolvedByID),
+			Type: "comment", ID: cid, ActorType: c.AuthorType, ActorID: uuidToString(c.AuthorID),
+			Content: &content, CommentType: &commentType, ParentID: uuidToPtr(c.ParentID),
+			CreatedAt: timestampToString(c.CreatedAt), UpdatedAt: &updatedAt,
+			Reactions: reactions[cid], Attachments: attachments[cid],
+			ResolvedAt: timestampToPtr(c.ResolvedAt), ResolvedByType: textToPtr(c.ResolvedByType), ResolvedByID: uuidToPtr(c.ResolvedByID),
+		}
+		if link, ok := remoteByComment[cid]; ok {
+			out[i].External = &CommentExternalRef{Provider: "gitlab", AuthorName: textToPtr(link.RemoteAuthorName), AuthorURL: textToPtr(link.RemoteAuthorUrl), RemoteOwned: link.RemoteOwned}
 		}
 	}
 	return out

@@ -324,7 +324,7 @@ func main() {
 			trackerFactory := func(instanceURL, token string) (*gitlabtracker.RestClient, error) {
 				return gitlabtracker.NewRestClient(trackerTransport, instanceURL, token), nil
 			}
-			go runTrackerImportWorker(trackerImportCtx, pool, queries, cipher, trackerFactory)
+			go runTrackerImportWorker(trackerImportCtx, pool, queries, cipher, trackerFactory, taskSvc)
 		}
 	}
 

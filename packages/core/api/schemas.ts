@@ -133,6 +133,10 @@ const TimelineEntrySchema = z.object({
   reactions: z.array(ReactionSchema).optional(),
   attachments: z.array(AttachmentSchema).optional(),
   coalesced_count: z.number().optional(),
+	external: z.object({
+		provider: z.string(), author_name: z.string().optional(),
+		author_url: z.string().optional(), remote_owned: z.boolean(),
+	}).optional(),
 }).loose();
 
 // /timeline returns a flat array of TimelineEntry, oldest first. The
@@ -186,6 +190,10 @@ export const CommentSchema = z.object({
   attachments: z.array(AttachmentSchema).default([]),
   created_at: z.string(),
   updated_at: z.string(),
+	external: z.object({
+		provider: z.string(), author_name: z.string().optional(),
+		author_url: z.string().optional(), remote_owned: z.boolean(),
+	}).optional(),
 }).loose();
 
 export const CommentsListSchema = z.array(CommentSchema);

@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/gitlabtracker"
 	"github.com/multica-ai/multica/server/internal/mention"
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -2017,6 +2019,97 @@ func (s *TaskService) getIssuePrefix(workspaceID pgtype.UUID) string {
 	return ws.IssuePrefix
 }
 
+// HandleImportedGitlabNote broadcasts a live remote comment and triggers the
+// assigned agent/squad leader using the same enqueue APIs as local comments.
+func (s *TaskService) HandleImportedGitlabNote(ctx context.Context, imported gitlabtracker.ImportedNote) {
+	issue, err := s.Queries.GetIssue(ctx, imported.IssueID)
+	if err != nil {
+		return
+	}
+	if imported.Action == "deleted" {
+		s.Bus.Publish(events.Event{
+			Type: protocol.EventCommentDeleted, WorkspaceID: util.UUIDToString(imported.WorkspaceID),
+			ActorType: "system", ActorID: "",
+			Payload: map[string]any{"comment_id": util.UUIDToString(imported.CommentID), "issue_id": util.UUIDToString(imported.IssueID)},
+		})
+		return
+	}
+	comment, err := s.Queries.GetComment(ctx, imported.CommentID)
+	if err != nil {
+		return
+	}
+	eventType := protocol.EventCommentCreated
+	if imported.Action == "updated" {
+		eventType = protocol.EventCommentUpdated
+	}
+	s.Bus.Publish(events.Event{
+		Type: eventType, WorkspaceID: util.UUIDToString(imported.WorkspaceID),
+		ActorType: "system", ActorID: "",
+		Payload: map[string]any{"comment": map[string]any{
+			"id": util.UUIDToString(comment.ID), "issue_id": util.UUIDToString(comment.IssueID),
+			"author_type": "system", "author_id": util.UUIDToString(comment.AuthorID),
+			"content": comment.Content, "type": comment.Type, "parent_id": nil,
+			"created_at": comment.CreatedAt.Time.Format(time.RFC3339),
+		}, "issue_title": issue.Title, "issue_status": issue.Status},
+	})
+	if imported.Action != "created" || strings.HasPrefix(strings.ToLower(strings.TrimSpace(comment.Content)), "/note") || !issue.AssigneeID.Valid {
+		return
+	}
+	if issue.AssigneeType.Valid && issue.AssigneeType.String == "squad" {
+		squad, err := s.Queries.GetSquadInWorkspace(ctx, db.GetSquadInWorkspaceParams{ID: issue.AssigneeID, WorkspaceID: issue.WorkspaceID})
+		if err == nil {
+			_, _ = s.EnqueueTaskForSquadLeader(ctx, issue, squad.LeaderID, comment.ID)
+		}
+		return
+	}
+	_, _ = s.EnqueueTaskForIssue(ctx, issue, comment.ID)
+}
+
+// EnqueueGitlabCommentCreate mirrors a local member/agent comment to GitLab.
+// The worker re-reads the comment, so edits made before delivery are included.
+func (s *TaskService) EnqueueGitlabCommentCreate(ctx context.Context, issue db.Issue, comment db.Comment) error {
+	if issue.SourceType != "gitlab" || !issue.TrackerConnectionID.Valid || comment.AuthorType == "system" {
+		return nil
+	}
+	payload, _ := json.Marshal(map[string]string{"comment_id": util.UUIDToString(comment.ID)})
+	return s.createTrackerOutbox(ctx, issue, "create_note", payload)
+}
+
+func (s *TaskService) EnqueueGitlabCommentUpdate(ctx context.Context, issue db.Issue, comment db.Comment) error {
+	if issue.SourceType != "gitlab" || !issue.TrackerConnectionID.Valid || comment.AuthorType == "system" {
+		return nil
+	}
+	link, err := s.Queries.GetGitlabNoteLinkByCommentID(ctx, comment.ID)
+	if err != nil || link.RemoteOwned {
+		return nil
+	}
+	payload, _ := json.Marshal(map[string]any{"comment_id": util.UUIDToString(comment.ID), "note_id": link.RemoteNoteID})
+	return s.createTrackerOutbox(ctx, issue, "update_note", payload)
+}
+
+func (s *TaskService) EnqueueGitlabCommentDelete(ctx context.Context, issue db.Issue, comment db.Comment) error {
+	if issue.SourceType != "gitlab" || !issue.TrackerConnectionID.Valid || comment.AuthorType == "system" {
+		return nil
+	}
+	link, err := s.Queries.GetGitlabNoteLinkByCommentID(ctx, comment.ID)
+	if err != nil || link.RemoteOwned {
+		return nil
+	}
+	payload, _ := json.Marshal(map[string]any{"iid": link.RemoteIssueIid, "note_id": link.RemoteNoteID})
+	return s.createTrackerOutbox(ctx, issue, "delete_note", payload)
+}
+
+func (s *TaskService) createTrackerOutbox(ctx context.Context, issue db.Issue, operation string, payload []byte) error {
+	id := uuid.New()
+	key := pgtype.UUID{Valid: true}
+	copy(key.Bytes[:], id[:])
+	_, err := s.Queries.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{
+		WorkspaceID: issue.WorkspaceID, TrackerConnectionID: issue.TrackerConnectionID,
+		IssueID: issue.ID, Operation: operation, Payload: payload, IdempotencyKey: key,
+	})
+	return err
+}
+
 func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID pgtype.UUID, content, commentType string, parentID pgtype.UUID) {
 	if content == "" {
 		return
@@ -2051,6 +2144,9 @@ func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID p
 	})
 	if err != nil {
 		return
+	}
+	if err := s.EnqueueGitlabCommentCreate(ctx, issue, comment); err != nil {
+		slog.Warn("enqueue GitLab agent comment failed", "comment_id", util.UUIDToString(comment.ID), "error", err)
 	}
 	s.Bus.Publish(events.Event{
 		Type:        protocol.EventCommentCreated,

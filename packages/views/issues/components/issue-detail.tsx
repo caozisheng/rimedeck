@@ -31,7 +31,7 @@ import { Button } from "@rimedeck/ui/components/ui/button";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@rimedeck/ui/components/ui/resizable";
 import { Sheet, SheetContent } from "@rimedeck/ui/components/ui/sheet";
 import { useIsMobile } from "@rimedeck/ui/hooks/use-mobile";
-import { ContentEditor, type ContentEditorRef, TitleEditor, useFileDropZone, FileDropOverlay } from "../../editor";
+import { ContentEditor, type ContentEditorRef, TitleEditor, useFileDropZone, FileDropOverlay, GitlabMediaProvider } from "../../editor";
 import { FileUploadButton } from "@rimedeck/ui/components/common/file-upload-button";
 import {
   Tooltip,
@@ -1137,6 +1137,15 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   });
   // Parent's children —used to render the "x/y" progress next to the
   // "Sub-issue of — breadcrumb under the title.
+	const gitlabMediaOrigin = useMemo(() => {
+		if (issue?.source_type !== "gitlab" || !issue.external) return "";
+		if (issue.external.instance_url) return issue.external.instance_url;
+		try {
+			return issue.external.url ? new URL(issue.external.url).origin : "";
+		} catch {
+			return "";
+		}
+	}, [issue?.external, issue?.source_type]);
   const { data: parentChildIssues = [] } = useQuery({
     ...childIssuesOptions(wsId, parentIssueId ?? ""),
     enabled: !!parentIssueId,
@@ -1805,7 +1814,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         ]
       : [];
 
-  const detailContent = (
+	const detailContentBody = (
     <div className="flex h-full min-w-0 flex-1 flex-col">
         <BreadcrumbHeader
           segments={breadcrumbSegments}
@@ -2313,6 +2322,12 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </div>
       </div>
   );
+
+	const detailContent = issue.source_type === "gitlab" && gitlabMediaOrigin ? (
+		<GitlabMediaProvider issueId={id} instanceUrl={gitlabMediaOrigin}>
+			{detailContentBody}
+		</GitlabMediaProvider>
+	) : detailContentBody;
 
   if (isMobile) {
     return (

@@ -14,6 +14,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/gitlabsync"
 	"github.com/multica-ai/multica/server/internal/gitlabtracker"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -27,8 +28,9 @@ const (
 
 // runTrackerImportWorker drains the local outbox. The caller owns the
 // context and cancels it during graceful shutdown.
-func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries, cipher *gitlabtracker.Cipher, factory gitlabsync.ClientFactory) {
+func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries, cipher *gitlabtracker.Cipher, factory gitlabsync.ClientFactory, taskService *service.TaskService) {
 	worker := &gitlabsync.Worker{Queries: queries, TxStarter: pool, Cipher: cipher, ClientFactory: factory, BatchSize: gitlabsync.BatchSize}
+	worker.OnImportedNote = taskService.HandleImportedGitlabNote
 	ticker := time.NewTicker(trackerImportInterval)
 	defer ticker.Stop()
 	for {

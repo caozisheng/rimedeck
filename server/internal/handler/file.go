@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,6 +98,10 @@ type AttachmentResponse struct {
 
 func (h *Handler) attachmentToResponse(a db.Attachment) AttachmentResponse {
 	id := uuidToString(a.ID)
+	downloadURL := attachmentDownloadPath(id)
+	if strings.HasPrefix(a.Url, "/uploads/") {
+		downloadURL = a.Url
+	}
 	resp := AttachmentResponse{
 		ID:           id,
 		WorkspaceID:  uuidToString(a.WorkspaceID),
@@ -103,7 +109,7 @@ func (h *Handler) attachmentToResponse(a db.Attachment) AttachmentResponse {
 		UploaderID:   uuidToString(a.UploaderID),
 		Filename:     a.Filename,
 		URL:          a.Url,
-		DownloadURL:  attachmentDownloadPath(id),
+		DownloadURL:  downloadURL,
 		MarkdownURL:  h.buildMarkdownURL(a, id),
 		ContentType:  a.ContentType,
 		SizeBytes:    a.SizeBytes,
@@ -140,17 +146,17 @@ func attachmentDownloadPath(id string) string {
 //
 //  1. Persist `a.Url` only when the deployment has signaled the storage
 //     backend serves URLs publicly without per-request auth:
-//       - `Storage.CdnDomain()` is non-empty (operator configured a
-//         public-facing base URL — `S3_CDN_DOMAIN` for the S3 backend or
-//         `LOCAL_UPLOAD_BASE_URL` for LocalStorage), AND
-//       - `h.CFSigner` is nil (no per-request CloudFront signing — when
-//         signing is on, the same CDN domain serves PRIVATE content via
-//         time-bounded signed URLs and the raw `a.Url` is unauth-deny),
-//         AND
-//       - `a.Url` is itself an absolute http(s) URL with no signature
-//         query — defends against legacy rows backfilled while baseURL
-//         was unset, and against a freshly-signed `download_url` ever
-//         leaking into `a.Url` (the original MUL-3130 bug).
+//     - `Storage.CdnDomain()` is non-empty (operator configured a
+//     public-facing base URL — `S3_CDN_DOMAIN` for the S3 backend or
+//     `LOCAL_UPLOAD_BASE_URL` for LocalStorage), AND
+//     - `h.CFSigner` is nil (no per-request CloudFront signing — when
+//     signing is on, the same CDN domain serves PRIVATE content via
+//     time-bounded signed URLs and the raw `a.Url` is unauth-deny),
+//     AND
+//     - `a.Url` is itself an absolute http(s) URL with no signature
+//     query — defends against legacy rows backfilled while baseURL
+//     was unset, and against a freshly-signed `download_url` ever
+//     leaking into `a.Url` (the original MUL-3130 bug).
 //
 //  2. Every other shape — CloudFront-signed mode, S3 presign /proxy
 //     against a private bucket without a CDN domain, raw S3 / R2 /
@@ -166,6 +172,9 @@ func attachmentDownloadPath(id string) string {
 //     already broken before MUL-3192 and stay broken here, but we
 //     don't make them worse.
 func (h *Handler) buildMarkdownURL(a db.Attachment, id string) string {
+	if strings.HasPrefix(a.Url, "/uploads/") {
+		return a.Url
+	}
 	relPath := attachmentDownloadPath(id)
 	publicURL := strings.TrimRight(h.cfg.PublicURL, "/")
 
@@ -254,6 +263,7 @@ func (h *Handler) attachmentDownloadURLTTL() time.Duration {
 	}
 	return defaultAttachmentDownloadURLTTL
 }
+
 // groupAttachments loads attachments for multiple comments and groups them by comment ID.
 func (h *Handler) groupAttachments(r *http.Request, commentIDs []pgtype.UUID) map[string][]AttachmentResponse {
 	if len(commentIDs) == 0 {
@@ -613,12 +623,34 @@ func (h *Handler) DownloadAttachment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	h.writeAttachmentDownload(w, r, att)
+}
+
+func (h *Handler) writeAttachmentDownload(w http.ResponseWriter, r *http.Request, att db.Attachment) {
 	if h.Storage == nil {
 		writeError(w, http.StatusServiceUnavailable, "storage not configured")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, h.attachmentToResponse(att))
+	key := h.Storage.KeyFromURL(att.Url)
+	reader, err := h.Storage.GetReader(r.Context(), key)
+	if err != nil {
+		slog.Error("failed to open attachment for download", "id", uuidToString(att.ID), "key", key, "error", err)
+		writeError(w, http.StatusNotFound, "attachment object not found")
+		return
+	}
+	defer reader.Close()
+
+	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": att.Filename})
+	w.Header().Set("Content-Type", att.ContentType)
+	w.Header().Set("Content-Disposition", disposition)
+	w.Header().Set("Content-Length", strconv.FormatInt(att.SizeBytes, 10))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, reader); err != nil {
+		slog.Error("failed to stream attachment download", "id", uuidToString(att.ID), "error", err)
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -71,6 +71,7 @@ type IssueExternalRef struct {
 	IID                 int32   `json:"iid"`
 	URL                 *string `json:"url"`
 	AuthorName          *string `json:"author_name"`
+	InstanceURL         string  `json:"instance_url"`
 }
 
 func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
@@ -177,6 +178,7 @@ func (h *Handler) externalRefsByIssue(ctx context.Context, issueIDs []pgtype.UUI
 		out[uuidToString(row.IssueID)] = IssueExternalRef{
 			Provider:            "gitlab",
 			TrackerConnectionID: uuidToString(row.TrackerConnectionID),
+			InstanceURL:         row.ConnectionInstanceUrl,
 			IID:                 row.RemoteIid,
 			URL:                 &url,
 			AuthorName:          textToPtr(row.RemoteAuthorName),

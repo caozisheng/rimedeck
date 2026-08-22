@@ -108,6 +108,37 @@ func TestHandleGitlabWebhook_HappyPathEnqueuesPullIssue(t *testing.T) {
 	}
 }
 
+func TestHandleGitlabWebhook_NoteHookEnqueuesPullNotes(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	fx := installWebhookTracker(t)
+	payload := map[string]any{
+		"project":           map[string]any{"id": 201},
+		"object_attributes": map[string]any{"id": 9001, "noteable_iid": 42, "noteable_type": "Issue"},
+	}
+	req := makeWebhookRequest(fx.trackerID, fx.secret, "evt-note-1", payload)
+	req.Header.Set("X-Gitlab-Event", "Note Hook")
+	w := httptest.NewRecorder()
+	testHandler.HandleGitlabWebhook(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	var operation string
+	var raw []byte
+	if err := testPool.QueryRow(context.Background(), `
+SELECT operation,payload FROM tracker_sync_outbox
+WHERE tracker_connection_id=$1 AND operation='pull_notes'
+ORDER BY created_at DESC LIMIT 1`, parseUUID(fx.trackerID)).Scan(&operation, &raw); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	_ = json.Unmarshal(raw, &got)
+	if operation != "pull_notes" || got["iid"] != float64(42) || got["note_id"] != float64(9001) {
+		t.Fatalf("operation=%q payload=%v", operation, got)
+	}
+}
+
 // TestHandleGitlabWebhook_DuplicateEventIsNoop replays the same UUID and
 // asserts the second call returns 200 with no new outbox row.
 func TestHandleGitlabWebhook_DuplicateEventIsNoop(t *testing.T) {

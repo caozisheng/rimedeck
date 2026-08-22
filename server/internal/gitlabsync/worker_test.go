@@ -25,6 +25,9 @@ type fakeQueries struct {
 	issues               map[string]db.Issue
 	labels               map[string][]db.IssueLabel
 	links                map[string]db.GitlabIssueLink
+	remoteLinks          map[int32]db.GitlabIssueLink
+	comments             map[string]db.Comment
+	noteLinks            map[string]db.GitlabNoteLink
 	deleted              []pgtype.UUID
 	canceled             []pgtype.UUID
 	linkIIDs             []db.ListGitlabIssueLinkIIDsRow
@@ -59,6 +62,12 @@ func (f *fakeQueries) GetIssue(_ context.Context, id pgtype.UUID) (db.Issue, err
 	}
 	return db.Issue{}, errors.New("issue not found")
 }
+func (f *fakeQueries) GetComment(_ context.Context, id pgtype.UUID) (db.Comment, error) {
+	if comment, ok := f.comments[string(id.Bytes[:])]; ok {
+		return comment, nil
+	}
+	return db.Comment{}, errors.New("comment not found")
+}
 func (f *fakeQueries) ListAllLabelsByIssue(_ context.Context, arg db.ListAllLabelsByIssueParams) ([]db.IssueLabel, error) {
 	return f.labels[string(arg.IssueID.Bytes[:])], nil
 }
@@ -67,6 +76,30 @@ func (f *fakeQueries) GetGitlabIssueLinkByIssueID(_ context.Context, id pgtype.U
 		return link, nil
 	}
 	return db.GitlabIssueLink{}, errors.New("link not found")
+}
+func (f *fakeQueries) GetGitlabIssueLinkByRemoteIID(_ context.Context, arg db.GetGitlabIssueLinkByRemoteIIDParams) (db.GitlabIssueLink, error) {
+	if link, ok := f.remoteLinks[arg.RemoteIid]; ok {
+		return link, nil
+	}
+	return db.GitlabIssueLink{}, errors.New("link not found")
+}
+func (f *fakeQueries) GetGitlabNoteLinkByCommentID(_ context.Context, id pgtype.UUID) (db.GitlabNoteLink, error) {
+	if link, ok := f.noteLinks[string(id.Bytes[:])]; ok {
+		return link, nil
+	}
+	return db.GitlabNoteLink{}, errors.New("note link not found")
+}
+func (f *fakeQueries) UpsertGitlabNoteLink(_ context.Context, arg db.UpsertGitlabNoteLinkParams) (db.GitlabNoteLink, error) {
+	link := db.GitlabNoteLink{CommentID: arg.CommentID, IssueID: arg.IssueID, TrackerConnectionID: arg.TrackerConnectionID, RemoteIssueIid: arg.RemoteIssueIid, RemoteNoteID: arg.RemoteNoteID, RemoteOwned: arg.RemoteOwned}
+	if f.noteLinks == nil {
+		f.noteLinks = map[string]db.GitlabNoteLink{}
+	}
+	f.noteLinks[string(arg.CommentID.Bytes[:])] = link
+	return link, nil
+}
+func (f *fakeQueries) DeleteGitlabNoteLinkByCommentID(_ context.Context, id pgtype.UUID) error {
+	delete(f.noteLinks, string(id.Bytes[:]))
+	return nil
 }
 func (f *fakeQueries) CancelTrackerOutboxByIssue(_ context.Context, id pgtype.UUID) error {
 	f.canceled = append(f.canceled, id)

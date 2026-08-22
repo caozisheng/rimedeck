@@ -656,6 +656,12 @@ export class ApiClient {
     });
   }
 
+	async getGitlabMedia(issueId: string, sourceUrl: string): Promise<Blob> {
+		const query = new URLSearchParams({ url: sourceUrl });
+		const res = await this.fetchRaw(`/api/issues/${issueId}/gitlab-media?${query}`);
+		return res.blob();
+	}
+
   async getAssigneeFrequency(): Promise<AssigneeFrequencyEntry[]> {
     return this.fetch("/api/assignee-frequency");
   }

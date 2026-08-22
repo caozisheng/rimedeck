@@ -336,6 +336,23 @@ type GitlabIssueLink struct {
 	LastRemoteSnapshot  []byte             `json:"last_remote_snapshot"`
 	LastPulledAt        pgtype.Timestamptz `json:"last_pulled_at"`
 	LastPushedAt        pgtype.Timestamptz `json:"last_pushed_at"`
+	NotesInitializedAt  pgtype.Timestamptz `json:"notes_initialized_at"`
+}
+
+type GitlabNoteLink struct {
+	CommentID           pgtype.UUID        `json:"comment_id"`
+	IssueID             pgtype.UUID        `json:"issue_id"`
+	TrackerConnectionID pgtype.UUID        `json:"tracker_connection_id"`
+	RemoteIssueIid      int32              `json:"remote_issue_iid"`
+	RemoteNoteID        int64              `json:"remote_note_id"`
+	RemoteAuthorID      pgtype.Int8        `json:"remote_author_id"`
+	RemoteAuthorName    pgtype.Text        `json:"remote_author_name"`
+	RemoteAuthorUrl     pgtype.Text        `json:"remote_author_url"`
+	RemoteCreatedAt     pgtype.Timestamptz `json:"remote_created_at"`
+	RemoteUpdatedAt     pgtype.Timestamptz `json:"remote_updated_at"`
+	LastRemoteBody      string             `json:"last_remote_body"`
+	RemoteOwned         bool               `json:"remote_owned"`
+	LastPulledAt        pgtype.Timestamptz `json:"last_pulled_at"`
 }
 
 type GitlabTrackerConnection struct {

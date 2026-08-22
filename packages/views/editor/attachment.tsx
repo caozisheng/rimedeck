@@ -42,6 +42,7 @@ import { useDownloadAttachment } from "./use-download-attachment";
 import { AttachmentCard } from "./attachment-card";
 import { HtmlAttachmentPreview } from "./html-attachment-preview";
 import { getPreviewKind, type PreviewKind } from "./utils/preview";
+import { useGitlabMediaUrl } from "./gitlab-media-context";
 import "./styles/attachment.css";
 
 // ---------------------------------------------------------------------------
@@ -302,6 +303,7 @@ export function Attachment({
   const preview = useAttachmentPreview();
 
   const state = normalize(attachment, resolveAttachment, cdnDomain);
+	const mediaUrl = useGitlabMediaUrl(state.url);
   const forceKind =
     attachment.kind === "url" ? attachment.forceKind : undefined;
   const kind =
@@ -316,17 +318,17 @@ export function Attachment({
         kind: "full",
         attachment: {
           ...state.record,
-          download_url: state.url || state.record.download_url,
+			download_url: mediaUrl || state.url || state.record.download_url,
         },
       });
       return;
     }
-    if (state.url) {
-      preview.tryOpen({
-        kind: "url",
-        url: state.url,
-        filename: state.filename,
-      });
+	if (mediaUrl) {
+		preview.tryOpen({
+			kind: "url",
+			url: mediaUrl,
+			filename: state.filename,
+		});
     }
   };
 
@@ -341,9 +343,10 @@ export function Attachment({
   if (kind === "image") {
     return (
       <>
-        <ImageAttachmentView
-          src={state.url}
-          alt={state.filename}
+		<ImageAttachmentView
+			src={mediaUrl}
+			originalSrc={state.url}
+			alt={state.filename}
           uploading={state.uploading}
           width={state.width}
           height={state.height}
@@ -403,6 +406,7 @@ export function Attachment({
 
 interface ImageAttachmentViewProps {
   src: string;
+	originalSrc: string;
   alt: string;
   uploading: boolean;
   width?: number;
@@ -417,6 +421,7 @@ interface ImageAttachmentViewProps {
 
 function ImageAttachmentView({
   src,
+	originalSrc,
   alt,
   uploading,
   width,
@@ -430,13 +435,13 @@ function ImageAttachmentView({
 }: ImageAttachmentViewProps) {
   const { t } = useT("editor");
 
-  const handleCopyLink = async () => {
-    if (await copyText(src)) {
-      toast.success(t(($) => $.image.link_copied));
-    } else {
-      toast.error(t(($) => $.image.copy_link_failed));
-    }
-  };
+	const handleCopyLink = async () => {
+		if (await copyText(originalSrc)) {
+			toast.success(t(($) => $.image.link_copied));
+		} else {
+			toast.error(t(($) => $.image.copy_link_failed));
+		}
+	};
 
   // Click on figure opens the preview only in non-editor / non-uploading
   // surfaces — inside the editor we let ProseMirror own the click for

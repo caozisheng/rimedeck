@@ -20,33 +20,32 @@ import (
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
+type CommentExternalRef struct {
+	Provider    string  `json:"provider"`
+	AuthorName  *string `json:"author_name,omitempty"`
+	AuthorURL   *string `json:"author_url,omitempty"`
+	RemoteOwned bool    `json:"remote_owned"`
+}
+
 type CommentResponse struct {
-	ID             string               `json:"id"`
-	IssueID        string               `json:"issue_id"`
-	AuthorType     string               `json:"author_type"`
-	AuthorID       string               `json:"author_id"`
-	Content        string               `json:"content"`
-	Type           string               `json:"type"`
-	ParentID       *string              `json:"parent_id"`
-	CreatedAt      string               `json:"created_at"`
-	UpdatedAt      string               `json:"updated_at"`
-	ResolvedAt     *string              `json:"resolved_at"`
-	ResolvedByType *string              `json:"resolved_by_type"`
-	ResolvedByID   *string              `json:"resolved_by_id"`
-	Reactions      []ReactionResponse   `json:"reactions"`
-	Attachments    []AttachmentResponse `json:"attachments"`
-	// Orientation stats — populated only on the roots_only path and omitted in
-	// every other mode, so the default response shape stays byte-identical for
-	// existing callers. ReplyCount is the number of descendants in the thread;
-	// LastActivityAt is the MAX(created_at) across the whole subtree. Together
-	// they let an agent triage which thread to drill into without fetching any
-	// replies.
-	ReplyCount     *int    `json:"reply_count,omitempty"`
-	LastActivityAt *string `json:"last_activity_at,omitempty"`
-	// ContentTruncated is set only under summary=true: true when Content was
-	// clipped to the summary budget, false when it fit. nil (omitted) means the
-	// caller did not request a summary projection, so Content is verbatim.
-	ContentTruncated *bool `json:"content_truncated,omitempty"`
+	ID               string               `json:"id"`
+	IssueID          string               `json:"issue_id"`
+	AuthorType       string               `json:"author_type"`
+	AuthorID         string               `json:"author_id"`
+	Content          string               `json:"content"`
+	Type             string               `json:"type"`
+	ParentID         *string              `json:"parent_id"`
+	CreatedAt        string               `json:"created_at"`
+	UpdatedAt        string               `json:"updated_at"`
+	ResolvedAt       *string              `json:"resolved_at"`
+	ResolvedByType   *string              `json:"resolved_by_type"`
+	ResolvedByID     *string              `json:"resolved_by_id"`
+	Reactions        []ReactionResponse   `json:"reactions"`
+	Attachments      []AttachmentResponse `json:"attachments"`
+	External         *CommentExternalRef  `json:"external,omitempty"`
+	ReplyCount       *int                 `json:"reply_count,omitempty"`
+	LastActivityAt   *string              `json:"last_activity_at,omitempty"`
+	ContentTruncated *bool                `json:"content_truncated,omitempty"`
 }
 
 func commentToResponse(c db.Comment, reactions []ReactionResponse, attachments []AttachmentResponse) CommentResponse {
@@ -71,6 +70,17 @@ func commentToResponse(c db.Comment, reactions []ReactionResponse, attachments [
 		ResolvedByID:   uuidToPtr(c.ResolvedByID),
 		Reactions:      reactions,
 		Attachments:    attachments,
+	}
+}
+
+func (h *Handler) enrichCommentResponse(ctx context.Context, resp *CommentResponse) {
+	link, err := h.Queries.GetGitlabNoteLinkByCommentID(ctx, parseUUID(resp.ID))
+	if err != nil {
+		return
+	}
+	resp.External = &CommentExternalRef{
+		Provider: "gitlab", AuthorName: textToPtr(link.RemoteAuthorName),
+		AuthorURL: textToPtr(link.RemoteAuthorUrl), RemoteOwned: link.RemoteOwned,
 	}
 }
 
@@ -370,11 +380,19 @@ func (h *Handler) ListComments(w http.ResponseWriter, r *http.Request) {
 	}
 	grouped := h.groupReactions(r, commentIDs)
 	groupedAtt := h.groupAttachments(r, commentIDs)
+	remoteLinks, _ := h.Queries.ListGitlabNoteLinksByComments(r.Context(), commentIDs)
+	remoteByComment := make(map[string]db.GitlabNoteLink, len(remoteLinks))
+	for _, link := range remoteLinks {
+		remoteByComment[uuidToString(link.CommentID)] = link
+	}
 
 	resp := make([]CommentResponse, len(result.Comments))
 	for i, c := range result.Comments {
 		cid := uuidToString(c.ID)
 		resp[i] = commentToResponse(c, grouped[cid], groupedAtt[cid])
+		if link, ok := remoteByComment[cid]; ok {
+			resp[i].External = &CommentExternalRef{Provider: "gitlab", AuthorName: textToPtr(link.RemoteAuthorName), AuthorURL: textToPtr(link.RemoteAuthorUrl), RemoteOwned: link.RemoteOwned}
+		}
 		// Attach roots_only orientation stats when present (nil map elsewhere).
 		if st, ok := result.RootStats[cid]; ok {
 			rc := st.ReplyCount
@@ -1007,6 +1025,9 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create comment: "+err.Error())
 		return
 	}
+	if err := h.TaskService.EnqueueGitlabCommentCreate(r.Context(), issue, comment); err != nil {
+		slog.Warn("enqueue GitLab comment create failed", "comment_id", uuidToString(comment.ID), "error", err)
+	}
 
 	// Link uploaded attachments to this comment.
 	if len(attachmentIDs) > 0 {
@@ -1016,6 +1037,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	// Fetch linked attachments so the response includes them.
 	groupedAtt := h.groupAttachments(r, []pgtype.UUID{comment.ID})
 	resp := commentToResponse(comment, nil, groupedAtt[uuidToString(comment.ID)])
+	h.enrichCommentResponse(r.Context(), &resp)
 	slog.Info("comment created", append(logger.RequestAttrs(r), "comment_id", uuidToString(comment.ID), "issue_id", issueID)...)
 	h.publish(protocol.EventCommentCreated, uuidToString(issue.WorkspaceID), authorType, authorID, map[string]any{
 		"comment":             resp,
@@ -1505,6 +1527,11 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update comment")
 		return
 	}
+	if issue, err := h.Queries.GetIssue(r.Context(), existing.IssueID); err == nil {
+		if err := h.TaskService.EnqueueGitlabCommentUpdate(r.Context(), issue, comment); err != nil {
+			slog.Warn("enqueue GitLab comment update failed", "comment_id", commentId, "error", err)
+		}
+	}
 
 	// Replace the comment attachment set when a modern client sends
 	// attachment_ids. Older clients omit the field; in that case preserve the
@@ -1526,6 +1553,7 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	groupedAtt := h.groupAttachments(r, []pgtype.UUID{comment.ID})
 	cid := uuidToString(comment.ID)
 	resp := commentToResponse(comment, grouped[cid], groupedAtt[cid])
+	h.enrichCommentResponse(r.Context(), &resp)
 	slog.Info("comment updated", append(logger.RequestAttrs(r), "comment_id", commentId)...)
 	h.publish(protocol.EventCommentUpdated, workspaceID, actorType, actorID, map[string]any{"comment": resp})
 
@@ -1603,6 +1631,11 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	// otherwise nullify trigger_comment_id and orphan those tasks in queued.
 	if err := h.TaskService.CancelTasksByTriggerComment(r.Context(), comment.ID); err != nil {
 		slog.Warn("cancel tasks for deleted trigger comment failed", append(logger.RequestAttrs(r), "error", err, "comment_id", commentId)...)
+	}
+	if issue, err := h.Queries.GetIssue(r.Context(), comment.IssueID); err == nil {
+		if err := h.TaskService.EnqueueGitlabCommentDelete(r.Context(), issue, comment); err != nil {
+			slog.Warn("enqueue GitLab comment delete failed", "comment_id", commentId, "error", err)
+		}
 	}
 
 	if err := h.Queries.DeleteComment(r.Context(), db.DeleteCommentParams{

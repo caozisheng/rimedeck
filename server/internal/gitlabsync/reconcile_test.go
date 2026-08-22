@@ -19,15 +19,20 @@ import (
 // timestamp is bumped.
 func TestTick_FullReconcileDetectsOrphan(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.URL.Path, "/issues") {
-			t.Errorf("unexpected upstream request %s %s", r.Method, r.URL.Path)
-			http.NotFound(w, r)
+		if strings.HasSuffix(r.URL.Path, "/issues") {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]map[string]any{
+				{"id": 700, "iid": 7, "state": "opened", "title": "kept", "updated_at": "2026-08-16T00:00:00Z"},
+			})
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]map[string]any{
-			{"id": 700, "iid": 7, "state": "opened", "title": "kept", "updated_at": "2026-08-16T00:00:00Z"},
-		})
+		if strings.HasSuffix(r.URL.Path, "/issues/7/notes") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte("[]"))
+			return
+		}
+		t.Errorf("unexpected upstream request %s %s", r.Method, r.URL.Path)
+		http.NotFound(w, r)
 	}))
 	defer upstream.Close()
 
@@ -46,6 +51,10 @@ func TestTick_FullReconcileDetectsOrphan(t *testing.T) {
 	// Force the issue-import branch to no-op so the test focuses on
 	// the orphan-detection half of full_reconcile.
 	worker.IssueImporter = func(_ context.Context, _ db.GitlabTrackerConnection, _ []gitlabtracker.Issue) error { return nil }
+	worker.NoteImporter = func(_ context.Context, _ db.GitlabTrackerConnection, _ db.GitlabIssueLink, _ []gitlabtracker.Note) ([]gitlabtracker.ImportedNote, error) {
+		return nil, nil
+	}
+	fq.remoteLinks = map[int32]db.GitlabIssueLink{7: {IssueID: fq.linkIIDs[0].IssueID, RemoteIid: 7}}
 
 	res, err := worker.Tick(context.Background())
 	if err != nil || res.Success != 1 {
