@@ -50,10 +50,10 @@ func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db
 	}
 }
 
-// scheduleTrackerReconcile enqueues incremental/full sweep outbox rows
-// for every active connection whose last_pull_at / last_full_reconcile_at
-// has aged past the design's cadences. The worker's per-connection
-// serial claim ensures we never overlap with an already-in-flight op.
+// scheduleTrackerReconcile enqueues at most one pending/retrying row for
+// each scheduled pull kind. Without this guard, the minute ticker can flood
+// one connection with reconcile/full_reconcile rows while a worker is
+// retrying, starving user writes behind the per-connection claim gate.
 func scheduleTrackerReconcile(ctx context.Context, queries *db.Queries) error {
 	trackers, err := queries.ListActiveTrackersForReconcile(ctx)
 	if err != nil {
@@ -62,29 +62,24 @@ func scheduleTrackerReconcile(ctx context.Context, queries *db.Queries) error {
 	now := time.Now()
 	for _, tracker := range trackers {
 		if !tracker.LastPullAt.Valid || now.Sub(tracker.LastPullAt.Time) >= incrementalReconcileInterval {
-			if _, err := queries.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{
-				WorkspaceID:         tracker.WorkspaceID,
-				TrackerConnectionID: tracker.ID,
-				Operation:           "reconcile",
-				Payload:             []byte("{}"),
-				IdempotencyKey:      newSchedulerUUID(),
-			}); err != nil {
+			if err := enqueueScheduledTrackerOp(ctx, queries, tracker.WorkspaceID, tracker.ID, "reconcile"); err != nil {
 				slog.Warn("GitLab reconcile enqueue failed", "tracker", tracker.ID, "error", err)
 			}
 		}
 		if !tracker.LastFullReconcileAt.Valid || now.Sub(tracker.LastFullReconcileAt.Time) >= fullReconcileInterval {
-			if _, err := queries.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{
-				WorkspaceID:         tracker.WorkspaceID,
-				TrackerConnectionID: tracker.ID,
-				Operation:           "full_reconcile",
-				Payload:             []byte("{}"),
-				IdempotencyKey:      newSchedulerUUID(),
-			}); err != nil {
+			if err := enqueueScheduledTrackerOp(ctx, queries, tracker.WorkspaceID, tracker.ID, "full_reconcile"); err != nil {
 				slog.Warn("GitLab full reconcile enqueue failed", "tracker", tracker.ID, "error", err)
 			}
 		}
 	}
 	return nil
+}
+
+func enqueueScheduledTrackerOp(ctx context.Context, queries *db.Queries, workspaceID, trackerID pgtype.UUID, operation string) error {
+	return queries.EnqueueScheduledTrackerOutbox(ctx, db.EnqueueScheduledTrackerOutboxParams{
+		WorkspaceID: workspaceID, TrackerID: trackerID, Operation: operation,
+		Payload: []byte("{}"), IdempotencyKey: newSchedulerUUID(),
+	})
 }
 
 // newSchedulerUUID mints a fresh idempotency key for scheduler-enqueued

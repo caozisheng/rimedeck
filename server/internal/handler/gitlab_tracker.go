@@ -373,7 +373,10 @@ func (h *Handler) createGitlabTracker(ctx context.Context, project db.Project, w
 		return db.GitlabTrackerConnection{}, fmt.Errorf("create tracker connection: %w", err)
 	}
 	for _, op := range []string{"pull_labels", "reconcile"} {
-		if _, err := h.Queries.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{WorkspaceID: workspaceID, TrackerConnectionID: created.ID, Operation: op, Payload: []byte("{}"), IdempotencyKey: newRandomUUID()}); err != nil {
+		if err := h.Queries.EnqueueScheduledTrackerOutbox(ctx, db.EnqueueScheduledTrackerOutboxParams{
+			WorkspaceID: workspaceID, TrackerID: created.ID, Operation: op,
+			Payload: []byte("{}"), IdempotencyKey: newRandomUUID(),
+		}); err != nil {
 			return db.GitlabTrackerConnection{}, fmt.Errorf("enqueue first import: %w", err)
 		}
 	}
@@ -677,13 +680,9 @@ func (h *Handler) SyncGitlabTracker(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, op := range []string{"pull_labels", "reconcile"} {
-		if _, err := h.Queries.CreateTrackerOutbox(r.Context(), db.CreateTrackerOutboxParams{
-			WorkspaceID:         wsUUID,
-			TrackerConnectionID: tracker.ID,
-			IssueID:             pgtype.UUID{},
-			Operation:           op,
-			Payload:             []byte("{}"),
-			IdempotencyKey:      newRandomUUID(),
+		if err := h.Queries.EnqueueScheduledTrackerOutbox(r.Context(), db.EnqueueScheduledTrackerOutboxParams{
+			WorkspaceID: wsUUID, TrackerID: tracker.ID, Operation: op,
+			Payload: []byte("{}"), IdempotencyKey: newRandomUUID(),
 		}); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to enqueue sync")
 			return

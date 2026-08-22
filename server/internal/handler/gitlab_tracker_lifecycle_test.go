@@ -95,8 +95,8 @@ func TestSyncGitlabTracker_EnqueuesLabelsAndReconcile(t *testing.T) {
 	}
 
 	ops := loadOutboxOperations(t, trackerID)
-	if !containsAll(ops, []string{"pull_labels", "reconcile"}) || len(ops) != 4 {
-		t.Fatalf("ops = %v, want 4 rows (2× {pull_labels, reconcile})", ops)
+	if len(ops) != 2 || !containsAll(ops, []string{"pull_labels", "reconcile"}) {
+		t.Fatalf("ops = %v, want one row for each scheduled operation", ops)
 	}
 }
 

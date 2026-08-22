@@ -83,6 +83,34 @@ INSERT INTO tracker_sync_outbox (
   payload, idempotency_key, desired_revision, status
 ) VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING *;
 
+-- name: EnqueueScheduledTrackerOutbox :exec
+-- Serialize scheduler enqueue per tracker/operation, cancel duplicate queued
+-- pulls, and insert only when no pending/retrying row already exists.
+WITH lock AS (
+  SELECT pg_advisory_xact_lock(hashtextextended(sqlc.arg('tracker_id')::text || ':' || sqlc.arg('operation')::text, 0))
+),
+queued AS (
+  SELECT o.id, row_number() OVER (ORDER BY o.available_at, o.created_at) AS rn
+  FROM tracker_sync_outbox o, lock
+  WHERE o.tracker_connection_id = sqlc.arg('tracker_id')::uuid
+    AND o.operation = sqlc.arg('operation')::text
+    AND o.status IN ('pending','retrying')
+), cancelled AS (
+  UPDATE tracker_sync_outbox o
+  SET status = 'cancelled', updated_at = now()
+  FROM queued q
+  WHERE o.id = q.id AND q.rn > 1
+  RETURNING o.id
+)
+INSERT INTO tracker_sync_outbox (
+  workspace_id, tracker_connection_id, issue_id, operation,
+  payload, idempotency_key, desired_revision, status
+)
+SELECT sqlc.arg('workspace_id')::uuid, sqlc.arg('tracker_id')::uuid, NULL::uuid,
+       sqlc.arg('operation')::text, sqlc.arg('payload')::jsonb,
+       sqlc.arg('idempotency_key')::uuid, NULL::bigint, 'pending'
+WHERE NOT EXISTS (SELECT 1 FROM queued WHERE rn = 1);
+
 -- name: CountTrackerOutboxByStatus :many
 SELECT status, count(*)::bigint AS cnt
 FROM tracker_sync_outbox
@@ -168,13 +196,12 @@ WHERE tracker_connection_id = $1
 
 -- name: ClaimReadyTrackerOutbox :many
 -- Selects up to $1 ready outbox rows and atomically flips them to
--- 'running' with an incremented attempt count. Two invariants:
---   1) FOR UPDATE SKIP LOCKED lets multiple workers coexist safely.
---   2) DISTINCT ON (tracker_connection_id) hands out at most one row
---      per connection per tick so writes on the same connection cannot
---      interleave (design §11.6 single-writer contract).
+-- 'running' with an incremented attempt count. User writes are ordered
+-- ahead of scheduler pulls so a reconcile backlog cannot starve local
+-- edits or comment deletes.
 WITH candidates AS (
-  SELECT id, tracker_connection_id, available_at, created_at
+  SELECT id, tracker_connection_id, available_at, created_at,
+         CASE WHEN operation IN ('create_issue','update_issue','delete_issue','set_labels','create_note','update_note','delete_note') THEN 0 ELSE 1 END AS queue_class
   FROM tracker_sync_outbox
   WHERE status IN ('pending','retrying')
     AND available_at <= now()
@@ -182,12 +209,14 @@ WITH candidates AS (
 per_connection AS (
   SELECT DISTINCT ON (tracker_connection_id) id
   FROM candidates
-  ORDER BY tracker_connection_id, available_at, created_at
+  ORDER BY tracker_connection_id, queue_class, available_at, created_at
 ),
 ready AS (
-  SELECT o.id FROM tracker_sync_outbox o
-  JOIN per_connection USING (id)
-  ORDER BY o.available_at, o.created_at
+  SELECT o.id, c.queue_class
+  FROM tracker_sync_outbox o
+  JOIN candidates c USING (id)
+  JOIN per_connection pc USING (id)
+  ORDER BY c.queue_class, o.available_at, o.created_at
   LIMIT $1
   FOR UPDATE OF o SKIP LOCKED
 )

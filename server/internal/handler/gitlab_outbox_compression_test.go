@@ -200,6 +200,98 @@ func TestClaimReadyTrackerOutbox_SerializesPerConnection(t *testing.T) {
 		t.Fatalf("claimed distribution = %+v, want 1 per tracker", perConnection)
 	}
 }
+func TestEnqueueScheduledTrackerOutbox_DeduplicatesQueuedPulls(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "scheduled-outbox-dedupe")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	trackerUUID := parseUUID(trackerID)
+	for range 3 {
+		if err := testHandler.Queries.EnqueueScheduledTrackerOutbox(context.Background(), db.EnqueueScheduledTrackerOutboxParams{
+			WorkspaceID: parseUUID(testWorkspaceID), TrackerID: trackerUUID,
+			Operation: "reconcile", Payload: []byte("{}"), IdempotencyKey: newRandomUUID(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int
+	if err := testPool.QueryRow(context.Background(), `
+SELECT count(*) FROM tracker_sync_outbox
+WHERE tracker_connection_id=$1 AND operation='reconcile' AND status IN ('pending','retrying')`, trackerUUID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("queued reconcile rows = %d, want 1", count)
+	}
+}
+
+// TestClaimReadyTrackerOutbox_PrioritizesWritesOverReconcile verifies that a
+// user write is not starved behind scheduler-created pull rows on the same
+// tracker connection.
+func TestClaimReadyTrackerOutbox_PrioritizesWritesOverReconcile(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "claim-write-priority")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	if _, err := testPool.Exec(context.Background(), `
+UPDATE tracker_sync_outbox SET status='succeeded'
+WHERE tracker_connection_id=$1`, parseUUID(trackerID)); err != nil {
+		t.Fatal(err)
+	}
+	seed := func(operation string, issueID *pgtype.UUID) {
+		var err error
+		if issueID == nil {
+			_, err = testPool.Exec(context.Background(), `
+INSERT INTO tracker_sync_outbox(workspace_id,tracker_connection_id,issue_id,operation,payload,idempotency_key,status,available_at,created_at)
+VALUES ($1,$2,NULL,$3,'{}',gen_random_uuid(),'pending',now(),now())`,
+				parseUUID(testWorkspaceID), parseUUID(trackerID), operation)
+		} else {
+			_, err = testPool.Exec(context.Background(), `
+INSERT INTO tracker_sync_outbox(workspace_id,tracker_connection_id,issue_id,operation,payload,idempotency_key,status,available_at,created_at)
+VALUES ($1,$2,$3,$4,'{}',gen_random_uuid(),'pending',now(),now())`,
+				parseUUID(testWorkspaceID), parseUUID(trackerID), *issueID, operation)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 3 {
+		seed("reconcile", nil)
+		seed("full_reconcile", nil)
+	}
+	var issueID pgtype.UUID
+	if err := testPool.QueryRow(context.Background(), `
+INSERT INTO issue(workspace_id,title,status,priority,creator_type,creator_id,project_id,source_type,tracker_connection_id,sync_state,sync_revision,synced_revision)
+VALUES ($1,'claim priority','todo','none','member',$2,$3,'gitlab',$4,'synced',1,1)
+RETURNING id`,
+		parseUUID(testWorkspaceID), parseUUID(testUserID), parseUUID(project.ID), parseUUID(trackerID)).Scan(&issueID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM issue WHERE workspace_id=$1 AND title='claim priority'`, parseUUID(testWorkspaceID))
+	})
+	seed("delete_note", &issueID)
+	seed("update_issue", &issueID)
+
+	claimed, err := testHandler.Queries.ClaimReadyTrackerOutbox(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claimed) != 1 || claimed[0].Operation != "delete_note" {
+		t.Fatalf("claimed = %+v, want delete_note before scheduler pulls", claimed)
+	}
+	claimed, err = testHandler.Queries.ClaimReadyTrackerOutbox(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claimed) != 1 || claimed[0].Operation != "update_issue" {
+		t.Fatalf("second claimed = %+v, want update_issue before scheduler pulls", claimed)
+	}
+}
 
 // Suppress the unused-import lint when the tests all skip: encoding/json
 // and http/httptest are pulled in for future write-op tests that live
