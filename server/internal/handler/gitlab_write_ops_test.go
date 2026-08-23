@@ -546,3 +546,120 @@ WHERE itl.issue_id=$1 AND l.mapping_kind <> 'none' ORDER BY l.name`, parseUUID(i
 		t.Fatalf("stored mapped labels = %v", mapped)
 	}
 }
+
+func TestUpdateIssueGitlab_WakesSyncWorker(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	wake := make(chan struct{}, 1)
+	previous := testHandler.GitlabSyncWake
+	testHandler.GitlabSyncWake = wake
+	t.Cleanup(func() { testHandler.GitlabSyncWake = previous })
+
+	project := projectForCreateTracker(t, "gitlab-update-wake")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	issueID := seedGitlabIssue(t, project.ID, trackerID, true)
+
+	title := "wake remote sync"
+	req := newRequest("PUT", "/api/issues/"+issueID, UpdateIssueRequest{Title: &title})
+	req = withURLParam(req, "id", issueID)
+	w := httptest.NewRecorder()
+	testHandler.UpdateIssue(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update: %d %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-wake:
+	default:
+		t.Fatal("GitLab issue update did not wake sync worker")
+	}
+}
+
+func TestUpdateIssueLocal_SkipsSyncWake(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	wake := make(chan struct{}, 1)
+	previous := testHandler.GitlabSyncWake
+	testHandler.GitlabSyncWake = wake
+	t.Cleanup(func() { testHandler.GitlabSyncWake = previous })
+
+	var issueID pgtype.UUID
+	if err := testPool.QueryRow(context.Background(),
+		`INSERT INTO issue(workspace_id, title, status, priority, creator_type, creator_id, number)
+		 VALUES ($1,'local wake golden','todo','none','member',$2,
+		         (SELECT COALESCE(MAX(number),0)+1 FROM issue WHERE workspace_id=$1)) RETURNING id`,
+		parseUUID(testWorkspaceID), parseUUID(testUserID)).Scan(&issueID); err != nil {
+		t.Fatalf("seed local issue: %v", err)
+	}
+	t.Cleanup(func() { _, _ = testPool.Exec(context.Background(), `DELETE FROM issue WHERE id=$1`, issueID) })
+
+	title := "local only"
+	id := uuidToString(issueID)
+	req := newRequest("PUT", "/api/issues/"+id, UpdateIssueRequest{Title: &title})
+	req = withURLParam(req, "id", id)
+	w := httptest.NewRecorder()
+	testHandler.UpdateIssue(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update: %d %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-wake:
+		t.Fatal("local issue update woke GitLab sync worker")
+	default:
+	}
+}
+
+func TestCreateIssueGitlab_WakesSyncWorker(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	wake := make(chan struct{}, 1)
+	previous := testHandler.GitlabSyncWake
+	testHandler.GitlabSyncWake = wake
+	t.Cleanup(func() { testHandler.GitlabSyncWake = previous })
+
+	project := projectForCreateTracker(t, "gitlab-create-wake")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+	req := newRequest("POST", "/api/issues?workspace_id="+testWorkspaceID, map[string]any{
+		"title":                 "created with wake",
+		"project_id":            project.ID,
+		"source_type":           "gitlab",
+		"tracker_connection_id": trackerID,
+	})
+	w := httptest.NewRecorder()
+	testHandler.CreateIssue(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-wake:
+	default:
+		t.Fatal("GitLab issue create did not wake sync worker")
+	}
+}
+
+func TestWebhookEnqueue_WakesSyncWorker(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	wake := make(chan struct{}, 1)
+	previous := testHandler.GitlabSyncWake
+	testHandler.GitlabSyncWake = wake
+	t.Cleanup(func() { testHandler.GitlabSyncWake = previous })
+
+	fx := installWebhookTracker(t)
+	req := makeWebhookRequest(fx.trackerID, fx.secret, "wake-event-uuid", gitlabWebhookPayloadFor(42))
+	w := httptest.NewRecorder()
+	testHandler.HandleGitlabWebhook(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("webhook: %d %s", w.Code, w.Body.String())
+	}
+	select {
+	case <-wake:
+	default:
+		t.Fatal("webhook enqueue did not wake sync worker")
+	}
+}

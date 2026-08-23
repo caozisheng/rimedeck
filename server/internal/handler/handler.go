@@ -91,7 +91,7 @@ type Handler struct {
 	Bus                   *events.Bus
 	TaskService           *service.TaskService
 	AutopilotService      *service.AutopilotService
-	WorkflowService      *service.WorkflowService
+	WorkflowService       *service.WorkflowService
 	EmailService          *service.EmailService
 	UpdateStore           UpdateStore
 	ModelListStore        ModelListStore
@@ -107,6 +107,7 @@ type Handler struct {
 	WebhookRateLimiter    WebhookRateLimiter
 	WebhookIPRateLimiter  WebhookRateLimiter
 	PairingStore          *PairingStore
+	GitlabSyncWake        chan<- struct{}
 	CFSigner              *auth.CloudFrontSigner
 	cfg                   Config
 }
@@ -149,6 +150,16 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		WebhookRateLimiter:    NewMemoryWebhookRateLimiter(DefaultWebhookRateLimit()),
 		WebhookIPRateLimiter:  NewMemoryWebhookIPRateLimiter(DefaultWebhookIPRateLimit()),
 		cfg:                   cfg,
+	}
+}
+
+func (h *Handler) wakeGitlabSyncWorker() {
+	if h.GitlabSyncWake == nil {
+		return
+	}
+	select {
+	case h.GitlabSyncWake <- struct{}{}:
+	default:
 	}
 }
 

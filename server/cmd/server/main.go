@@ -285,11 +285,13 @@ func main() {
 	// shutdown so any pending bumps are flushed before we exit.
 	heartbeatScheduler := handler.NewBatchedHeartbeatScheduler(queries, handler.DefaultHeartbeatBatchInterval)
 
+	gitlabSyncWake := make(chan struct{}, 1)
 	r := NewRouterWithOptions(pool, hub, bus, analyticsClient, storeRedis, RouterOptions{
 		HTTPMetrics:        httpMetrics,
 		DaemonHub:          daemonHub,
 		DaemonWakeup:       daemonWakeup,
 		HeartbeatScheduler: heartbeatScheduler,
+		GitlabSyncWake:     gitlabSyncWake,
 	})
 
 	srv := &http.Server{
@@ -324,7 +326,7 @@ func main() {
 			trackerFactory := func(instanceURL, token string) (*gitlabtracker.RestClient, error) {
 				return gitlabtracker.NewRestClient(trackerTransport, instanceURL, token), nil
 			}
-			go runTrackerImportWorker(trackerImportCtx, pool, queries, cipher, trackerFactory, taskSvc)
+			go runTrackerImportWorker(trackerImportCtx, pool, queries, cipher, trackerFactory, taskSvc, gitlabSyncWake)
 		}
 	}
 

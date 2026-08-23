@@ -394,6 +394,7 @@ func (h *Handler) createGitlabTracker(ctx context.Context, project db.Project, w
 			created.WebhookState = "active"
 		}
 	}
+	h.wakeGitlabSyncWorker()
 	return created, nil
 }
 
@@ -554,7 +555,11 @@ func (h *Handler) enqueueGitlabWriteOp(ctx context.Context, issueID, workspaceID
 	}); err != nil {
 		return fmt.Errorf("enqueue write op: %w", err)
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	h.wakeGitlabSyncWorker()
+	return nil
 }
 
 // cancelUnlinkedGitlabIssue is the delete counterpart when the local
@@ -688,6 +693,7 @@ func (h *Handler) SyncGitlabTracker(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	h.wakeGitlabSyncWorker()
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -703,6 +709,9 @@ func (h *Handler) RetryGitlabTrackerFailedOutbox(w http.ResponseWriter, r *http.
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to retry outbox")
 		return
+	}
+	if rows > 0 {
+		h.wakeGitlabSyncWorker()
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"reset_count": rows})
 }
@@ -895,6 +904,7 @@ func (h *Handler) HandleGitlabWebhook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to enqueue webhook")
 		return
 	}
+	h.wakeGitlabSyncWorker()
 	_ = h.Queries.TouchLastWebhook(ctx, tracker.ID)
 	w.WriteHeader(http.StatusAccepted)
 }
