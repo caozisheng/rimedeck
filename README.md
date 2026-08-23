@@ -67,7 +67,21 @@ A **Squad** is a team with one leader agent and member agents/users. The leader 
 
 ---
 
-## Architecture
+## GitLab Issue Tracking
+
+RimeDeck supports GitLab as a project issue tracker while keeping the Kanban board local-first:
+
+- Connect one or more GitLab repositories to a RimeDeck project with an access token stored encrypted in the local backend.
+- Import GitLab issues as local mirrors with stable RimeDeck issue IDs; local and GitLab issues can coexist in the same board.
+- Create, edit, move, label, comment on, and delete GitLab-backed issues from RimeDeck. Local mutations are committed to the local database first, then delivered to GitLab asynchronously through a durable outbox.
+- Local GitLab mutations immediately wake the sync worker after commit. Periodic reconciliation and GitLab webhooks provide remote-change and missed-event recovery.
+- Work remains available when GitLab is unavailable. Issues show `pending`, `syncing`, `synced`, `failed`, or `pending_delete` state and failed operations can be retried.
+- GitLab-only fields are mapped to RimeDeck fields where possible; remote issue links and `iid` values remain visible from the issue details.
+
+GitLab synchronization is intentionally asynchronous: a successful local API response means the local mutation is durable, not that GitLab has already acknowledged it. This preserves offline work and prevents GitLab outages from blocking the Kanban.
+
+---
+
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
