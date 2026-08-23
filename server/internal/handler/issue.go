@@ -2482,6 +2482,9 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create issue")
 		return
 	}
+	if sourceType == "gitlab" && trackerConnUUID.Valid {
+		h.wakeGitlabSyncWorker()
+	}
 
 	// Link any pre-uploaded attachments to this issue.
 	if len(attachmentIDs) > 0 {

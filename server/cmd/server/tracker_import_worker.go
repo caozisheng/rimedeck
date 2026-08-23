@@ -26,28 +26,65 @@ const (
 	fullReconcileInterval        = 6 * time.Hour
 )
 
+type trackerOutboxDrainer interface {
+	Tick(context.Context) (gitlabsync.TickResult, error)
+}
+
+// runTrackerImportLoop separates explicit local work from periodic remote
+// reconciliation. The wake channel is only a hint; the outbox remains the
+// durable source of truth and the periodic trigger is the recovery path for
+// signals lost during process restarts or transient failures.
+func runTrackerImportLoop(
+	ctx context.Context,
+	drainer trackerOutboxDrainer,
+	schedule func(context.Context) error,
+	periodic <-chan time.Time,
+	wake <-chan struct{},
+) {
+	if err := schedule(ctx); err != nil {
+		slog.Warn("GitLab tracker reconcile schedule failed", "error", err)
+	}
+	drainTrackerOutbox(ctx, drainer)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-wake:
+			drainTrackerOutbox(ctx, drainer)
+		case <-periodic:
+			if err := schedule(ctx); err != nil {
+				slog.Warn("GitLab tracker reconcile schedule failed", "error", err)
+			}
+			drainTrackerOutbox(ctx, drainer)
+		}
+	}
+}
+
+func drainTrackerOutbox(ctx context.Context, drainer trackerOutboxDrainer) {
+	for {
+		result, err := drainer.Tick(ctx)
+		if err != nil {
+			slog.Warn("GitLab tracker import tick failed", "error", err)
+			return
+		}
+		if result.Claimed == 0 {
+			return
+		}
+		slog.Info("GitLab tracker import tick", "claimed", result.Claimed, "success", result.Success, "retried", result.Retried, "failed", result.Failed)
+	}
+}
+
 // runTrackerImportWorker drains the local outbox. The caller owns the
 // context and cancels it during graceful shutdown.
-func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries, cipher *gitlabtracker.Cipher, factory gitlabsync.ClientFactory, taskService *service.TaskService) {
+func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries, cipher *gitlabtracker.Cipher, factory gitlabsync.ClientFactory, taskService *service.TaskService, wake <-chan struct{}) {
 	worker := &gitlabsync.Worker{Queries: queries, TxStarter: pool, Cipher: cipher, ClientFactory: factory, BatchSize: gitlabsync.BatchSize}
 	worker.OnImportedNote = taskService.HandleImportedGitlabNote
 	ticker := time.NewTicker(trackerImportInterval)
 	defer ticker.Stop()
-	for {
-		if result, err := worker.Tick(ctx); err != nil {
-			slog.Warn("GitLab tracker import tick failed", "error", err)
-		} else if result.Claimed > 0 {
-			slog.Info("GitLab tracker import tick", "claimed", result.Claimed, "success", result.Success, "retried", result.Retried, "failed", result.Failed)
-		}
-		if err := scheduleTrackerReconcile(ctx, queries); err != nil {
-			slog.Warn("GitLab tracker reconcile schedule failed", "error", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
+	runTrackerImportLoop(ctx, worker, func(ctx context.Context) error {
+		return scheduleTrackerReconcile(ctx, queries)
+	}, ticker.C, wake)
 }
 
 // scheduleTrackerReconcile enqueues at most one pending/retrying row for
