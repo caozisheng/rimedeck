@@ -1167,6 +1167,31 @@ func (q *Queries) MarkTrackerOutboxSucceeded(ctx context.Context, id pgtype.UUID
 	return err
 }
 
+const recoverStaleRunningTrackerOutbox = `-- name: RecoverStaleRunningTrackerOutbox :execrows
+UPDATE tracker_sync_outbox
+SET status = CASE WHEN operation IN ('create_issue','create_note') THEN 'failed' ELSE 'retrying' END,
+    available_at = now(),
+    last_error_code = CASE WHEN operation IN ('create_issue','create_note') THEN 'ambiguous_outcome' ELSE 'claim_expired' END,
+    last_error_message = CASE
+      WHEN operation IN ('create_issue','create_note') THEN 'worker stopped after dispatch; remote creation may have succeeded'
+      ELSE 'worker claim expired before completion'
+    END,
+    updated_at = now()
+WHERE status = 'running'
+  AND updated_at < now() - interval '2 minutes'
+`
+
+// Recovers rows whose worker died after claiming them. The two-minute lease
+// exceeds the GitLab transport's 30-second request timeout. Idempotent writes
+// are retried; non-idempotent creates fail for explicit operator resolution.
+func (q *Queries) RecoverStaleRunningTrackerOutbox(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, recoverStaleRunningTrackerOutbox)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const resetFailedTrackerOutbox = `-- name: ResetFailedTrackerOutbox :execrows
 UPDATE tracker_sync_outbox
 SET status = 'pending',

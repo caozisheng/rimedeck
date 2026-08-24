@@ -16,6 +16,7 @@ import (
 
 type fakeQueries struct {
 	claim                []db.TrackerSyncOutbox
+	claimLimit           int32
 	tracker              db.GitlabTrackerConnection
 	success              []pgtype.UUID
 	retries              []db.MarkTrackerOutboxRetryParams
@@ -36,10 +37,22 @@ type fakeQueries struct {
 	active               []pgtype.UUID
 }
 
-func (f *fakeQueries) ClaimReadyTrackerOutbox(context.Context, int32) ([]db.TrackerSyncOutbox, error) {
+func (f *fakeQueries) ClaimReadyTrackerOutbox(_ context.Context, limit int32) ([]db.TrackerSyncOutbox, error) {
+	f.claimLimit = limit
 	rows := f.claim
 	f.claim = nil
 	return rows, nil
+}
+
+func TestTickClaimsOneRowAtATime(t *testing.T) {
+	fq := &fakeQueries{}
+	worker := &Worker{Queries: fq}
+	if _, err := worker.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fq.claimLimit != 1 {
+		t.Fatalf("claim limit=%d, want 1", fq.claimLimit)
+	}
 }
 func (f *fakeQueries) GetGitlabTrackerConnection(context.Context, pgtype.UUID) (db.GitlabTrackerConnection, error) {
 	return f.tracker, f.getErr

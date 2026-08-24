@@ -154,6 +154,69 @@ func TestEnqueueTrackerOutbox_LeavesRunningRows(t *testing.T) {
 	}
 }
 
+func TestRecoverStaleRunningTrackerOutbox_OnlyRequeuesExpiredClaims(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	project := projectForCreateTracker(t, "outbox-recover-running")
+	installGitlabCreateStub(t, staticGitlabProjectHandler(t))
+	trackerID := createTrackerHelper(t, project.ID)
+
+	if _, err := testPool.Exec(context.Background(),
+		`UPDATE tracker_sync_outbox SET status='succeeded' WHERE tracker_connection_id=$1`,
+		parseUUID(trackerID)); err != nil {
+		t.Fatalf("clear seed rows: %v", err)
+	}
+	insertRunning := func(operation, age string) pgtype.UUID {
+		row, err := testHandler.Queries.CreateTrackerOutbox(context.Background(), db.CreateTrackerOutboxParams{
+			WorkspaceID: parseUUID(testWorkspaceID), TrackerConnectionID: parseUUID(trackerID),
+			Operation: operation, Payload: []byte(`{}`), IdempotencyKey: newRandomUUID(),
+		})
+		if err != nil {
+			t.Fatalf("create outbox row: %v", err)
+		}
+		if _, err := testPool.Exec(context.Background(),
+			`UPDATE tracker_sync_outbox SET status='running', attempts=1, updated_at=now()-$2::interval WHERE id=$1`,
+			row.ID, age); err != nil {
+			t.Fatalf("age running row: %v", err)
+		}
+		return row.ID
+	}
+	staleID := insertRunning("reconcile", "3 minutes")
+	freshID := insertRunning("reconcile", "30 seconds")
+	ambiguousCreateID := insertRunning("create_issue", "3 minutes")
+
+	recovered, err := testHandler.Queries.RecoverStaleRunningTrackerOutbox(context.Background())
+	if err != nil {
+		t.Fatalf("recover stale running rows: %v", err)
+	}
+	if recovered < 1 {
+		t.Fatalf("recovered=%d, want at least 1", recovered)
+	}
+
+	for _, tc := range []struct {
+		id       pgtype.UUID
+		want     string
+		wantCode string
+	}{{staleID, "retrying", "claim_expired"}, {freshID, "running", ""}, {ambiguousCreateID, "failed", "ambiguous_outcome"}} {
+		var status string
+		var errorCode *string
+		if err := testPool.QueryRow(context.Background(), `SELECT status,last_error_code FROM tracker_sync_outbox WHERE id=$1`, tc.id).Scan(&status, &errorCode); err != nil {
+			t.Fatalf("load recovered row: %v", err)
+		}
+		if status != tc.want {
+			t.Fatalf("status=%q, want %q", status, tc.want)
+		}
+		gotCode := ""
+		if errorCode != nil {
+			gotCode = *errorCode
+		}
+		if gotCode != tc.wantCode {
+			t.Fatalf("last_error_code=%q, want %q", gotCode, tc.wantCode)
+		}
+	}
+}
+
 // TestClaimReadyTrackerOutbox_SerializesPerConnection asserts the
 // per-connection DISTINCT ON layer: two ready rows on the same
 // connection produce only one claim; two rows on distinct connections

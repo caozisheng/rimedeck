@@ -194,6 +194,22 @@ WHERE tracker_connection_id = $1
   AND desired_revision IS NOT NULL
   AND desired_revision < $4;
 
+-- name: RecoverStaleRunningTrackerOutbox :execrows
+-- Recovers rows whose worker died after claiming them. The two-minute lease
+-- exceeds the GitLab transport's 30-second request timeout. Idempotent writes
+-- are retried; non-idempotent creates fail for explicit operator resolution.
+UPDATE tracker_sync_outbox
+SET status = CASE WHEN operation IN ('create_issue','create_note') THEN 'failed' ELSE 'retrying' END,
+    available_at = now(),
+    last_error_code = CASE WHEN operation IN ('create_issue','create_note') THEN 'ambiguous_outcome' ELSE 'claim_expired' END,
+    last_error_message = CASE
+      WHEN operation IN ('create_issue','create_note') THEN 'worker stopped after dispatch; remote creation may have succeeded'
+      ELSE 'worker claim expired before completion'
+    END,
+    updated_at = now()
+WHERE status = 'running'
+  AND updated_at < now() - interval '2 minutes';
+
 -- name: ClaimReadyTrackerOutbox :many
 -- Selects up to $1 ready outbox rows and atomically flips them to
 -- 'running' with an incremented attempt count. User writes are ordered

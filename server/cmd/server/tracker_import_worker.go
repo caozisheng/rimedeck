@@ -37,10 +37,14 @@ type trackerOutboxDrainer interface {
 func runTrackerImportLoop(
 	ctx context.Context,
 	drainer trackerOutboxDrainer,
+	recoverClaims func(context.Context) error,
 	schedule func(context.Context) error,
 	periodic <-chan time.Time,
 	wake <-chan struct{},
 ) {
+	if err := recoverClaims(ctx); err != nil {
+		slog.Warn("GitLab tracker claim recovery failed", "error", err)
+	}
 	if err := schedule(ctx); err != nil {
 		slog.Warn("GitLab tracker reconcile schedule failed", "error", err)
 	}
@@ -53,6 +57,9 @@ func runTrackerImportLoop(
 		case <-wake:
 			drainTrackerOutbox(ctx, drainer)
 		case <-periodic:
+			if err := recoverClaims(ctx); err != nil {
+				slog.Warn("GitLab tracker claim recovery failed", "error", err)
+			}
 			if err := schedule(ctx); err != nil {
 				slog.Warn("GitLab tracker reconcile schedule failed", "error", err)
 			}
@@ -78,11 +85,17 @@ func drainTrackerOutbox(ctx context.Context, drainer trackerOutboxDrainer) {
 // runTrackerImportWorker drains the local outbox. The caller owns the
 // context and cancels it during graceful shutdown.
 func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries, cipher *gitlabtracker.Cipher, factory gitlabsync.ClientFactory, taskService *service.TaskService, wake <-chan struct{}) {
-	worker := &gitlabsync.Worker{Queries: queries, TxStarter: pool, Cipher: cipher, ClientFactory: factory, BatchSize: gitlabsync.BatchSize}
+	worker := &gitlabsync.Worker{Queries: queries, TxStarter: pool, Cipher: cipher, ClientFactory: factory}
 	worker.OnImportedNote = taskService.HandleImportedGitlabNote
 	ticker := time.NewTicker(trackerImportInterval)
 	defer ticker.Stop()
 	runTrackerImportLoop(ctx, worker, func(ctx context.Context) error {
+		recovered, err := queries.RecoverStaleRunningTrackerOutbox(ctx)
+		if err == nil && recovered > 0 {
+			slog.Info("GitLab tracker claims recovered", "count", recovered)
+		}
+		return err
+	}, func(ctx context.Context) error {
 		return scheduleTrackerReconcile(ctx, queries)
 	}, ticker.C, wake)
 }

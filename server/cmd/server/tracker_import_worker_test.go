@@ -55,7 +55,7 @@ func TestRunTrackerImportLoop_WakeDrainsWithoutSchedulingReconcile(t *testing.T)
 	periodic := make(chan time.Time)
 	reconciled := make(chan struct{}, 4)
 
-	go runTrackerImportLoop(ctx, drainer, func(context.Context) error {
+	go runTrackerImportLoop(ctx, drainer, func(context.Context) error { return nil }, func(context.Context) error {
 		reconciled <- struct{}{}
 		return nil
 	}, periodic, wake)
@@ -84,7 +84,7 @@ func TestRunTrackerImportLoop_OneWakeDrainsUntilQueueEmpty(t *testing.T) {
 	wake := make(chan struct{}, 1)
 	periodic := make(chan time.Time)
 
-	go runTrackerImportLoop(ctx, drainer, func(context.Context) error { return nil }, periodic, wake)
+	go runTrackerImportLoop(ctx, drainer, func(context.Context) error { return nil }, func(context.Context) error { return nil }, periodic, wake)
 	waitForTrackerDrain(t, drainer.called)
 
 	drainer.setResults(
@@ -113,13 +113,19 @@ func TestRunTrackerImportLoop_PeriodicTickSchedulesBeforeDrain(t *testing.T) {
 		mu.Unlock()
 	}
 
+	recoverClaims := func(context.Context) error {
+		mu.Lock()
+		events = append(events, "recover")
+		mu.Unlock()
+		return nil
+	}
 	reconcile := func(context.Context) error {
 		mu.Lock()
 		events = append(events, "reconcile")
 		mu.Unlock()
 		return nil
 	}
-	go runTrackerImportLoop(ctx, drainer, reconcile, periodic, wake)
+	go runTrackerImportLoop(ctx, drainer, recoverClaims, reconcile, periodic, wake)
 	waitForTrackerDrain(t, drainer.called)
 
 	mu.Lock()
@@ -130,7 +136,42 @@ func TestRunTrackerImportLoop_PeriodicTickSchedulesBeforeDrain(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if len(events) != 2 || events[0] != "reconcile" || events[1] != "drain" {
-		t.Fatalf("periodic events = %v, want [reconcile drain]", events)
+	if len(events) != 3 || events[0] != "recover" || events[1] != "reconcile" || events[2] != "drain" {
+		t.Fatalf("periodic events = %v, want [recover reconcile drain]", events)
+	}
+}
+
+func TestRunTrackerImportLoop_RecoversClaimsBeforeStartupDrain(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var mu sync.Mutex
+	events := make([]string, 0, 3)
+	drainer := &scriptedTrackerOutboxDrainer{called: make(chan struct{}, 2)}
+	drainer.onTick = func() {
+		mu.Lock()
+		events = append(events, "drain")
+		mu.Unlock()
+	}
+	recoverClaims := func(context.Context) error {
+		mu.Lock()
+		events = append(events, "recover")
+		mu.Unlock()
+		return nil
+	}
+	schedule := func(context.Context) error {
+		mu.Lock()
+		events = append(events, "schedule")
+		mu.Unlock()
+		return nil
+	}
+
+	go runTrackerImportLoop(ctx, drainer, recoverClaims, schedule, make(chan time.Time), make(chan struct{}))
+	waitForTrackerDrain(t, drainer.called)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(events) != 3 || events[0] != "recover" || events[1] != "schedule" || events[2] != "drain" {
+		t.Fatalf("startup events = %v, want [recover schedule drain]", events)
 	}
 }

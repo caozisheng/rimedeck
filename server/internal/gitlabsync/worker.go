@@ -6,10 +6,9 @@
 // per the design doc §12.
 //
 // The worker is deliberately transport-free: it exposes a single
-// `Tick(ctx)` method that pulls up to N ready rows, processes each in
-// turn, and writes success or backoff to the row. Callers own the
-// scheduling loop, so tests can drive one deterministic tick without a
-// goroutine.
+// Tick(ctx) claims and processes one row. Callers drain by invoking Tick until
+// it returns zero claimed rows, so no row holds a lease while waiting behind
+// another remote request.
 package gitlabsync
 
 import (
@@ -32,10 +31,6 @@ import (
 // which is enough to ride out a transient upstream blip without pinning
 // the row in-flight forever.
 const MaxAttempts = 6
-
-// BatchSize is the default per-tick claim ceiling. Small enough to keep
-// a single misbehaving connection from starving the queue.
-const BatchSize = 25
 
 // ClientFactory builds a REST client for a given tracker + decrypted
 // token. Made a struct field so tests can inject an httptest-backed
@@ -80,7 +75,6 @@ type Worker struct {
 	TxStarter           TxStarter
 	Cipher              *gitlabtracker.Cipher
 	ClientFactory       ClientFactory
-	BatchSize           int32
 	LabelImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error
 	IssueImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error
 	NoteImporter        func(context.Context, db.GitlabTrackerConnection, db.GitlabIssueLink, []gitlabtracker.Note) ([]gitlabtracker.ImportedNote, error)
@@ -100,14 +94,10 @@ type TickResult struct {
 	Skipped int // decrypt/cfg errors that block progress but don't touch the row
 }
 
-// Tick drains up to BatchSize ready rows once. Never panics on a single
-// row's failure — the row is marked and the loop continues.
+// Tick drains one ready row. It never panics on that row's failure; the row is
+// marked for success, backoff, or terminal failure before Tick returns.
 func (w *Worker) Tick(ctx context.Context) (TickResult, error) {
-	limit := w.BatchSize
-	if limit == 0 {
-		limit = BatchSize
-	}
-	rows, err := w.Queries.ClaimReadyTrackerOutbox(ctx, limit)
+	rows, err := w.Queries.ClaimReadyTrackerOutbox(ctx, 1)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("claim outbox: %w", err)
 	}
