@@ -72,7 +72,6 @@ func runContext(ctx context.Context, timeout time.Duration) (context.Context, co
 	return context.WithCancel(ctx)
 }
 
-
 // Session represents a running agent execution.
 type Session struct {
 	// Messages streams events as the agent works. The channel is closed
@@ -128,7 +127,7 @@ type Result struct {
 
 // Config configures a Backend instance.
 type Config struct {
-	ExecutablePath string            // path to CLI binary (claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro-cli, agy, qoder, qwen-code)
+	ExecutablePath string            // path to CLI binary (claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor, kimi, kiro-cli, agy, qoder, qwen)
 	Env            map[string]string // extra environment variables
 	Logger         *slog.Logger
 }
@@ -205,7 +204,7 @@ var launchHeaders = map[string]string{
 	"omp":         "omp (json mode)",
 	"pi":          "pi (json mode)",
 	"qoder":       "qoder acp",
-	"qwencode":    "qwen-code run (json)",
+	"qwencode":    "qwen (stream-json)",
 }
 
 // LaunchHeader returns the user-visible launch skeleton for agentType, or an

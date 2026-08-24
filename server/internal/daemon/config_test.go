@@ -579,14 +579,46 @@ func TestLoadConfig_CodexDesktopFallbackDoesNotOverrideExplicitPath(t *testing.T
 		t.Fatalf("explicit missing MULTICA_CODEX_PATH should not fall back to Desktop bundle, got %#v", got)
 	}
 }
+func TestLoadConfig_DiscoversQwenCodeStandaloneInstall(t *testing.T) {
+	installDir := t.TempDir()
+	qwen := filepath.Join(installDir, "qwen.cmd")
+	if err := os.WriteFile(qwen, []byte("@echo off\r\n"), 0o755); err != nil {
+		t.Fatalf("write fake standalone qwen: %v", err)
+	}
+
+	oldPaths := qwenStandalonePaths
+	qwenStandalonePaths = func() []string { return []string{qwen} }
+	t.Cleanup(func() { qwenStandalonePaths = oldPaths })
+
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("SHELL", filepath.Join(t.TempDir(), "fish"))
+	t.Setenv("MULTICA_DAEMON_ID", "11111111-1111-1111-1111-111111111111")
+	pinNonCodexAgentsToMissingPaths(t)
+
+	cfg, err := LoadConfig(Overrides{
+		ServerURL:      "http://localhost:0",
+		WorkspacesRoot: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	got, ok := cfg.Agents["qwencode"]
+	if !ok {
+		t.Fatalf("agents map missing qwencode; got keys=%v", agentKeys(cfg.Agents))
+	}
+	if got.Path != qwen {
+		t.Fatalf("qwencode path = %q, want %q", got.Path, qwen)
+	}
+}
+
 func TestLoadConfig_DiscoversQwenCode(t *testing.T) {
 	binDir := t.TempDir()
-	qwenCode := filepath.Join(binDir, "qwen-code")
+	qwen := filepath.Join(binDir, "qwen")
 	if runtime.GOOS == "windows" {
-		qwenCode += ".cmd"
+		qwen += ".cmd"
 	}
-	if err := os.WriteFile(qwenCode, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("write fake qwen-code: %v", err)
+	if err := os.WriteFile(qwen, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake qwen: %v", err)
 	}
 
 	t.Setenv("PATH", binDir)
@@ -607,8 +639,8 @@ func TestLoadConfig_DiscoversQwenCode(t *testing.T) {
 	if !ok {
 		t.Fatalf("agents map missing qwencode; got keys=%v", agentKeys(cfg.Agents))
 	}
-	if got.Path != "qwen-code" {
-		t.Fatalf("qwencode path = %q, want qwen-code", got.Path)
+	if got.Path != "qwen" {
+		t.Fatalf("qwencode path = %q, want qwen", got.Path)
 	}
 	if got.Model != "qwen3-coder-plus" {
 		t.Fatalf("qwencode model = %q, want qwen3-coder-plus", got.Model)

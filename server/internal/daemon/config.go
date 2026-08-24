@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -245,6 +246,20 @@ func LoadConfig(overrides Overrides) (Config, error) {
 				}
 			}
 		}
+		if defaultCmd == "qwen" && cmd == defaultCmd {
+			// Qwen Code's official standalone installer writes qwen.cmd under
+			// %LOCALAPPDATA%\qwen-code\bin and updates the user's PATH. A
+			// running Desktop process retains its pre-install PATH, so probe the
+			// documented install location directly during daemon restart.
+			for _, p := range qwenStandalonePaths() {
+				if st, err := os.Stat(p); err == nil && !st.IsDir() {
+					return AgentEntry{
+						Path:  p,
+						Model: strings.TrimSpace(os.Getenv(modelEnv)),
+					}, true
+				}
+			}
+		}
 		return AgentEntry{}, false
 	}
 
@@ -295,11 +310,11 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	if e, ok := probe("MULTICA_ANTIGRAVITY_PATH", "agy", "MULTICA_ANTIGRAVITY_MODEL"); ok {
 		agents["antigravity"] = e
 	}
-	if e, ok := probe("MULTICA_QWENCODE_PATH", "qwen-code", "MULTICA_QWENCODE_MODEL"); ok {
+	if e, ok := probe("MULTICA_QWENCODE_PATH", "qwen", "MULTICA_QWENCODE_MODEL"); ok {
 		agents["qwencode"] = e
 	}
 	if len(agents) == 0 {
-		return Config{}, fmt.Errorf("no agent CLI found: install claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor-agent, kimi, kiro-cli, agy, or qwen-code and ensure it is on PATH")
+		return Config{}, fmt.Errorf("no agent CLI found: install claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor-agent, kimi, kiro-cli, agy, or qwen and ensure it is on PATH")
 	}
 
 	claudeArgs, err := shellArgsFromEnv("MULTICA_CLAUDE_ARGS")
@@ -637,7 +652,7 @@ func shellArgsFromEnv(name string) ([]string, error) {
 var defaultAgentCommandNames = []string{
 	"claude", "codex", "opencode", "openclaw", "hermes",
 	"gemini", "pi", "omp", "cursor-agent", "copilot", "kimi",
-	"kiro-cli", "codebuddy", "agy", "qwen-code",
+	"kiro-cli", "codebuddy", "agy", "qwen",
 }
 
 var codexDesktopAppBundlePaths = func() []string {
@@ -648,6 +663,29 @@ var codexDesktopAppBundlePaths = func() []string {
 		paths = append(paths, filepath.Join(home, "Applications", "Codex.app", "Contents", "Resources", "codex"))
 	}
 	return paths
+}
+
+var qwenStandalonePaths = func() []string {
+	if runtime.GOOS != "windows" {
+		return nil
+	}
+	base := strings.TrimSpace(os.Getenv("QWEN_INSTALL_ROOT"))
+	binDir := strings.TrimSpace(os.Getenv("QWEN_INSTALL_BIN_DIR"))
+	if binDir == "" {
+		if base == "" {
+			base = strings.TrimSpace(os.Getenv("LOCALAPPDATA"))
+			if base != "" {
+				base = filepath.Join(base, "qwen-code")
+			}
+		}
+		if base != "" {
+			binDir = filepath.Join(base, "bin")
+		}
+	}
+	if binDir == "" {
+		return nil
+	}
+	return []string{filepath.Join(binDir, "qwen.cmd")}
 }
 
 // loginShellResolveTimeout caps how long the daemon will wait for the user's

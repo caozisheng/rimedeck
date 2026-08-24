@@ -182,7 +182,7 @@ RimeDeck supports 16 AI coding tools as agent runtimes. The daemon auto-detects 
 | OpenClaw | `openclaw` | Community |
 | Pi | `pi` | Community |
 | Qoder | `qoder` | Qodo |
-| Qwen Code | `qwen-code` | Alibaba |
+| Qwen Code | `qwen` | Alibaba |
 
 All runtimes share one `Backend` interface — skills, SOPs, MCP config, and system prompts are injected uniformly.
 
