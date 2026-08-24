@@ -26,17 +26,14 @@ import (
 )
 
 type TaskService struct {
-	Queries   *db.Queries
-	TxStarter TxStarter
-	Hub       *realtime.Hub
-	Bus       *events.Bus
-	Analytics analytics.Client
-	Wakeup    TaskWakeupNotifier
-	// EmptyClaim caches "this runtime has no queued task" so the daemon
-	// poll path can skip a Postgres scan on the steady-state empty case.
-	// Optional — a nil cache disables the fast path and every claim
-	// goes through the DB. Wired in router.go from the shared Redis
-	// client.
+	Queries        *db.Queries
+	TxStarter      TxStarter
+	Hub            *realtime.Hub
+	Bus            *events.Bus
+	Analytics      analytics.Client
+	Wakeup         TaskWakeupNotifier
+	GitlabSyncWake chan<- struct{}
+	// EmptyClaim caches "this runtime has no queued task" under the current version.
 	EmptyClaim *EmptyClaimCache
 
 	analyticsContextMu    sync.Mutex
@@ -114,6 +111,10 @@ func NewTaskService(q *db.Queries, tx TxStarter, hub *realtime.Hub, bus *events.
 	return &TaskService{Queries: q, TxStarter: tx, Hub: hub, Bus: bus, Wakeup: wakeup}
 }
 
+func (s *TaskService) SetGitlabSyncWake(wake chan<- struct{}) {
+	s.GitlabSyncWake = wake
+}
+
 var trivialDoneMarkers = []string{
 	"done",
 	"готово",
@@ -121,6 +122,16 @@ var trivialDoneMarkers = []string{
 	"сделано",
 	"完成",
 	"完了",
+}
+
+func (s *TaskService) wakeGitlabSyncWorker() {
+	if s.GitlabSyncWake == nil {
+		return
+	}
+	select {
+	case s.GitlabSyncWake <- struct{}{}:
+	default:
+	}
 }
 
 func isTrivialDoneOutput(output string) bool {
@@ -1631,53 +1642,35 @@ func (s *TaskService) HandleFailedTasks(ctx context.Context, tasks []db.AgentTas
 	if len(tasks) == 0 {
 		return 0
 	}
-
 	affectedAgents := make(map[string]pgtype.UUID)
 	processedIssues := make(map[string]bool)
 	retriedIssues := make(map[string]bool)
 	retried := 0
-
 	for _, t := range tasks {
-		// Auto-retry first so the issue stays in_progress rather than
-		// flapping todo → in_progress within a tick.
 		if child, _ := s.MaybeRetryFailedTask(ctx, t); child != nil {
 			retried++
 			if t.IssueID.Valid {
 				retriedIssues[util.UUIDToString(t.IssueID)] = true
 			}
 		}
-
 		failureReason := "agent_error"
 		if t.FailureReason.Valid && t.FailureReason.String != "" {
 			failureReason = t.FailureReason.String
 		}
 		s.captureTaskFailed(ctx, t)
-
 		workspaceID := ""
 		if t.IssueID.Valid {
 			if issue, err := s.Queries.GetIssue(ctx, t.IssueID); err == nil {
 				workspaceID = util.UUIDToString(issue.WorkspaceID)
-				// Reset stuck in_progress issues only when no other active
-				// task exists for the issue and no retry was just enqueued.
 				issueKey := util.UUIDToString(t.IssueID)
 				if issue.Status == "in_progress" && !processedIssues[issueKey] && !retriedIssues[issueKey] {
 					processedIssues[issueKey] = true
 					hasActive, checkErr := s.Queries.HasActiveTaskForIssue(ctx, t.IssueID)
 					if checkErr != nil {
-						slog.Warn("handle failed tasks: active check failed",
-							"issue_id", issueKey,
-							"error", checkErr,
-						)
+						slog.Warn("handle failed tasks: active check failed", "issue_id", issueKey, "error", checkErr)
 					} else if !hasActive {
-						if _, updateErr := s.Queries.UpdateIssueStatus(ctx, db.UpdateIssueStatusParams{
-							ID:          t.IssueID,
-							Status:      "todo",
-							WorkspaceID: issue.WorkspaceID,
-						}); updateErr != nil {
-							slog.Warn("handle failed tasks: reset stuck issue failed",
-								"issue_id", issueKey,
-								"error", updateErr,
-							)
+						if updateErr := s.resetIssueAfterTaskFailure(ctx, issue); updateErr != nil {
+							slog.Warn("handle failed tasks: reset stuck issue failed", "issue_id", issueKey, "error", updateErr)
 						}
 					}
 				}
@@ -1686,25 +1679,17 @@ func (s *TaskService) HandleFailedTasks(ctx context.Context, tasks []db.AgentTas
 		if workspaceID == "" {
 			workspaceID = s.ResolveTaskWorkspaceID(ctx, t)
 		}
-
 		if workspaceID != "" {
 			s.Bus.Publish(events.Event{
-				Type:        protocol.EventTaskFailed,
-				WorkspaceID: workspaceID,
-				ActorType:   "system",
+				Type: protocol.EventTaskFailed, WorkspaceID: workspaceID, ActorType: "system",
 				Payload: map[string]any{
-					"task_id":        util.UUIDToString(t.ID),
-					"agent_id":       util.UUIDToString(t.AgentID),
-					"issue_id":       util.UUIDToString(t.IssueID),
-					"status":         "failed",
-					"failure_reason": failureReason,
+					"task_id": util.UUIDToString(t.ID), "agent_id": util.UUIDToString(t.AgentID),
+					"issue_id": util.UUIDToString(t.IssueID), "status": "failed", "failure_reason": failureReason,
 				},
 			})
 		}
-
 		affectedAgents[util.UUIDToString(t.AgentID)] = t.AgentID
 	}
-
 	for _, agentID := range affectedAgents {
 		s.ReconcileAgentStatus(ctx, agentID)
 	}
@@ -1775,6 +1760,57 @@ func (s *TaskService) publishAgentStatus(agent db.Agent) {
 		ActorID:     "",
 		Payload:     map[string]any{"agent": agentToMap(agent)},
 	})
+}
+
+// resetIssueAfterTaskFailure keeps GitLab mirrors in the same local-first
+// state machine as HTTP issue updates.
+func (s *TaskService) resetIssueAfterTaskFailure(ctx context.Context, issue db.Issue) error {
+	apply := func(q *db.Queries) error {
+		updated, err := q.UpdateIssueStatus(ctx, db.UpdateIssueStatusParams{ID: issue.ID, Status: "todo", WorkspaceID: issue.WorkspaceID})
+		if err != nil {
+			return err
+		}
+		if updated.SourceType != "gitlab" || !updated.TrackerConnectionID.Valid {
+			return nil
+		}
+		revision, err := q.BumpIssueSyncRevision(ctx, db.BumpIssueSyncRevisionParams{ID: updated.ID, Column2: "pending"})
+		if err != nil {
+			return err
+		}
+		labels, err := q.ListAllLabelsByIssue(ctx, db.ListAllLabelsByIssueParams{IssueID: updated.ID, WorkspaceID: updated.WorkspaceID})
+		if err != nil {
+			return err
+		}
+		ordinary := make([]string, 0, len(labels))
+		for _, label := range labels {
+			if label.SourceType == "gitlab" && label.MappingKind == string(gitlabtracker.MappingNone) && label.GitlabTrackerConnectionID == updated.TrackerConnectionID {
+				ordinary = append(ordinary, label.Name)
+			}
+		}
+		payload, err := json.Marshal(map[string]any{"labels": gitlabtracker.CanonicalLabels("todo", updated.Priority, ordinary), "state_event": "reopen"})
+		if err != nil {
+			return err
+		}
+		id := uuid.New()
+		key := pgtype.UUID{Valid: true}
+		copy(key.Bytes[:], id[:])
+		if _, err := q.CreateTrackerOutbox(ctx, db.CreateTrackerOutboxParams{
+			WorkspaceID: updated.WorkspaceID, TrackerConnectionID: updated.TrackerConnectionID,
+			IssueID: updated.ID, Operation: "update_issue", Payload: payload,
+			IdempotencyKey: key, DesiredRevision: pgtype.Int8{Int64: revision, Valid: true},
+		}); err != nil {
+			return err
+		}
+		return q.CompressPendingTrackerOutbox(ctx, db.CompressPendingTrackerOutboxParams{
+			TrackerConnectionID: updated.TrackerConnectionID, IssueID: updated.ID,
+			Operation: "update_issue", DesiredRevision: pgtype.Int8{Int64: revision, Valid: true},
+		})
+	}
+	if err := s.runInTx(ctx, apply); err != nil {
+		return err
+	}
+	s.wakeGitlabSyncWorker()
+	return nil
 }
 
 // LoadAgentSkills loads an agent's skills with their files for task execution.
@@ -2107,7 +2143,11 @@ func (s *TaskService) createTrackerOutbox(ctx context.Context, issue db.Issue, o
 		WorkspaceID: issue.WorkspaceID, TrackerConnectionID: issue.TrackerConnectionID,
 		IssueID: issue.ID, Operation: operation, Payload: payload, IdempotencyKey: key,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	s.wakeGitlabSyncWorker()
+	return nil
 }
 
 func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID pgtype.UUID, content, commentType string, parentID pgtype.UUID) {

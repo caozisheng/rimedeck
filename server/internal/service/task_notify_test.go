@@ -101,3 +101,13 @@ func TestNotifyTaskAvailable_InvalidWithoutRuntimeIsNoOp(t *testing.T) {
 		t.Fatalf("expected 0 wakeup calls when RuntimeID is invalid, got %d", got)
 	}
 }
+func TestTaskServiceWakeGitlabSyncWorker(t *testing.T) {
+	wake := make(chan struct{}, 1)
+	svc := &TaskService{GitlabSyncWake: wake}
+	svc.wakeGitlabSyncWorker()
+	select {
+	case <-wake:
+	default:
+		t.Fatal("expected GitLab sync worker wake signal")
+	}
+}

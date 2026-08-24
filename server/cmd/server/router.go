@@ -143,6 +143,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		h.TaskService.Wakeup = opts.DaemonWakeup
 	}
 	h.GitlabSyncWake = opts.GitlabSyncWake
+	h.TaskService.SetGitlabSyncWake(opts.GitlabSyncWake)
 	if rdb != nil {
 		h.UpdateStore = handler.NewRedisUpdateStore(rdb)
 		h.ModelListStore = handler.NewRedisModelListStore(rdb)

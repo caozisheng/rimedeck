@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -711,4 +712,69 @@ func unhex(c byte) byte {
 		return c - 'A' + 10
 	}
 	return 0
+}
+func TestSweepResetsGitlabIssueAndQueuesRemoteStatus(t *testing.T) {
+	if testPool == nil {
+		t.Skip("no database connection")
+	}
+	ctx := context.Background()
+	var agentID, runtimeID, projectID, trackerID, issueID, taskID string
+	if err := testPool.QueryRow(ctx, `SELECT a.id, a.runtime_id FROM agent a JOIN member m ON m.workspace_id=a.workspace_id JOIN "user" u ON u.id=m.user_id WHERE u.email=$1 LIMIT 1`, integrationTestEmail).Scan(&agentID, &runtimeID); err != nil {
+		t.Fatal(err)
+	}
+	if err := testPool.QueryRow(ctx, `INSERT INTO project(workspace_id,title,status,priority) VALUES($1,'sweeper gitlab project','planned','none') RETURNING id::text`, testWorkspaceID).Scan(&projectID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = testPool.Exec(ctx, `DELETE FROM project WHERE id=$1`, projectID) })
+	if err := testPool.QueryRow(ctx, `
+INSERT INTO gitlab_tracker_connection(project_id,workspace_id,instance_url,remote_project_id,path_with_namespace,web_url,clone_url,token_ciphertext,token_key_version,webhook_secret_ciphertext,webhook_state,state,created_by)
+VALUES($1,$2,'https://gitlab.example.com',991,'group/project','https://gitlab.example.com/group/project','https://gitlab.example.com/group/project.git','\x01',1,'\x02','unavailable','active',$3) RETURNING id::text`, projectID, testWorkspaceID, testUserID).Scan(&trackerID); err != nil {
+		t.Fatal(err)
+	}
+	if err := testPool.QueryRow(ctx, `
+INSERT INTO issue(workspace_id,project_id,title,status,priority,creator_type,creator_id,assignee_type,assignee_id,source_type,tracker_connection_id,sync_state,sync_revision,synced_revision)
+VALUES($1,$2,'sweeper gitlab issue','in_progress','none','member',$3,'agent',$4,'gitlab',$5,'synced',1,1) RETURNING id::text`, testWorkspaceID, projectID, testUserID, agentID, trackerID).Scan(&issueID); err != nil {
+		t.Fatal(err)
+	}
+	if err := testPool.QueryRow(ctx, `INSERT INTO agent_task_queue(agent_id,runtime_id,issue_id,status,priority,attempt,max_attempts,dispatched_at,started_at) VALUES($1,$2,$3,'running',0,2,2,now()-interval '3 hours',now()-interval '3 hours') RETURNING id::text`, agentID, runtimeID, issueID).Scan(&taskID); err != nil {
+		t.Fatal(err)
+	}
+	queries := db.New(testPool)
+	failed, err := queries.FailStaleTasks(ctx, db.FailStaleTasksParams{DispatchTimeoutSecs: 300, RunningTimeoutSecs: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matched := make([]db.AgentTaskQueue, 0, 1)
+	for _, task := range failed {
+		if task.ID.String() == taskID {
+			matched = append(matched, task)
+		}
+	}
+	if len(matched) != 1 {
+		t.Fatalf("failed tasks did not include %s", taskID)
+	}
+	wake := make(chan struct{}, 1)
+	taskSvc := service.NewTaskService(queries, testPool, nil, events.New())
+	taskSvc.SetGitlabSyncWake(wake)
+	taskSvc.HandleFailedTasks(ctx, matched)
+	var status, syncState string
+	var revision, synced int64
+	if err := testPool.QueryRow(ctx, `SELECT status,sync_state,sync_revision,synced_revision FROM issue WHERE id=$1`, issueID).Scan(&status, &syncState, &revision, &synced); err != nil {
+		t.Fatal(err)
+	}
+	if status != "todo" || syncState != "pending" || revision != 2 || synced != 1 {
+		t.Fatalf("GitLab rollback status=%s sync=%s rev=%d synced=%d", status, syncState, revision, synced)
+	}
+	var payload []byte
+	if err := testPool.QueryRow(ctx, `SELECT payload FROM tracker_sync_outbox WHERE issue_id=$1 AND operation='update_issue' AND status='pending'`, issueID).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(payload), "workflow::todo") {
+		t.Fatalf("payload=%s, want workflow::todo", payload)
+	}
+	select {
+	case <-wake:
+	default:
+		t.Fatal("GitLab rollback did not wake sync worker")
+	}
 }

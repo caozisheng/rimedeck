@@ -634,13 +634,13 @@ function GitlabSyncButton({ projectId }: { projectId: string }) {
   const wsId = useWorkspaceId();
   const qc = useQueryClient();
   const { data: trackers = [] } = useQuery(projectGitlabTrackersOptions(wsId, projectId));
-  const activeTrackers = useMemo(
-    () => trackers.filter((t) => t.state === "active"),
+  const syncableTrackers = useMemo(
+    () => trackers.filter((tracker) => tracker.state !== "disabled"),
     [trackers],
   );
   const sync = useSyncGitlabTracker(wsId, projectId);
 
-  if (activeTrackers.length === 0) return null;
+  if (syncableTrackers.length === 0) return null;
 
   const isPending = sync.isPending;
 
@@ -649,7 +649,7 @@ function GitlabSyncButton({ projectId }: { projectId: string }) {
     // others. Aggregate + toast the outcome so a partial success is
     // still surfaced honestly.
     const results = await Promise.allSettled(
-      activeTrackers.map((tr) => sync.mutateAsync(tr.id)),
+      syncableTrackers.map((tracker) => sync.mutateAsync(tracker.id)),
     );
     const failures = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
     if (failures.length === 0) {
@@ -693,9 +693,9 @@ function GitlabSyncButton({ projectId }: { projectId: string }) {
         }
       />
       <TooltipContent side="bottom">
-        {activeTrackers.length === 1
+        {syncableTrackers.length === 1
           ? t(($) => $.gitlab_sync.tooltip_single)
-          : t(($) => $.gitlab_sync.tooltip_multi, { count: activeTrackers.length })}
+          : t(($) => $.gitlab_sync.tooltip_multi, { count: syncableTrackers.length })}
       </TooltipContent>
     </Tooltip>
   );

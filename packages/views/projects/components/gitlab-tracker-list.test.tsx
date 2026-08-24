@@ -71,4 +71,11 @@ describe("ProjectGitlabTrackerSection", () => {
     await userEvent.click(await screen.findByText("Sync now"));
     expect(syncMock).toHaveBeenCalledWith("tracker-1");
   });
+  it("keeps forced sync available for a degraded tracker", async () => {
+    listData = { data: [{ ...trackerRow, state: "degraded" as const }], isPending: false };
+    renderWithI18n(<ProjectGitlabTrackerSection projectId="p-1" />);
+    await userEvent.click(screen.getAllByRole("button").pop()!);
+    await userEvent.click(await screen.findByText("Sync now"));
+    expect(syncMock).toHaveBeenCalledWith("tracker-1");
+  });
 });
