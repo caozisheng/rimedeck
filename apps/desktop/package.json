@@ -1,7 +1,7 @@
 {
   "name": "@rimedeck/desktop",
   "productName": "RimeDeck",
-  "version": "0.4.18",
+  "version": "0.4.20",
   "private": true,
   "description": "RimeDeck — local-first AI task management desktop app.",
   "author": {

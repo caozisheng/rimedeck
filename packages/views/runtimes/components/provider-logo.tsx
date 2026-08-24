@@ -208,6 +208,16 @@ function KiroLogo({ className }: { className: string }) {
   );
 }
 
+// Qwen Code (Alibaba) — compact Qwen-style mark.
+function QwenCodeLogo({ className }: { className: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-label="Qwen Code">
+      <circle cx="12" cy="12" r="8.5" stroke="#6155F5" strokeWidth="2.5" />
+      <path d="M8.5 15.5 15.5 8.5M14.5 15.5 8.5 9.5" stroke="#6155F5" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function ProviderLogo({
   provider,
   className = "h-4 w-4",
@@ -244,6 +254,8 @@ export function ProviderLogo({
       return <GeminiLogo className={className} />;
     case "antigravity":
       return <AntigravityLogo className={className} />;
+    case "qwencode":
+      return <QwenCodeLogo className={className} />;
     default:
       return <Monitor className={className} />;
   }

@@ -579,6 +579,41 @@ func TestLoadConfig_CodexDesktopFallbackDoesNotOverrideExplicitPath(t *testing.T
 		t.Fatalf("explicit missing MULTICA_CODEX_PATH should not fall back to Desktop bundle, got %#v", got)
 	}
 }
+func TestLoadConfig_DiscoversQwenCode(t *testing.T) {
+	binDir := t.TempDir()
+	qwenCode := filepath.Join(binDir, "qwen-code")
+	if runtime.GOOS == "windows" {
+		qwenCode += ".cmd"
+	}
+	if err := os.WriteFile(qwenCode, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake qwen-code: %v", err)
+	}
+
+	t.Setenv("PATH", binDir)
+	t.Setenv("SHELL", filepath.Join(t.TempDir(), "fish"))
+	t.Setenv("MULTICA_DAEMON_ID", "11111111-1111-1111-1111-111111111111")
+	t.Setenv("MULTICA_QWENCODE_MODEL", "qwen3-coder-plus")
+	pinNonCodexAgentsToMissingPaths(t)
+
+	cfg, err := LoadConfig(Overrides{
+		ServerURL:      "http://localhost:0",
+		WorkspacesRoot: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	got, ok := cfg.Agents["qwencode"]
+	if !ok {
+		t.Fatalf("agents map missing qwencode; got keys=%v", agentKeys(cfg.Agents))
+	}
+	if got.Path != "qwen-code" {
+		t.Fatalf("qwencode path = %q, want qwen-code", got.Path)
+	}
+	if got.Model != "qwen3-coder-plus" {
+		t.Fatalf("qwencode model = %q, want qwen3-coder-plus", got.Model)
+	}
+}
 
 func pinNonCodexAgentsToMissingPaths(t *testing.T) {
 	t.Helper()

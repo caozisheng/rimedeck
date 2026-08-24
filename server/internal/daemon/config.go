@@ -295,8 +295,11 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	if e, ok := probe("MULTICA_ANTIGRAVITY_PATH", "agy", "MULTICA_ANTIGRAVITY_MODEL"); ok {
 		agents["antigravity"] = e
 	}
+	if e, ok := probe("MULTICA_QWENCODE_PATH", "qwen-code", "MULTICA_QWENCODE_MODEL"); ok {
+		agents["qwencode"] = e
+	}
 	if len(agents) == 0 {
-		return Config{}, fmt.Errorf("no agent CLI found: install claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor-agent, kimi, kiro-cli, or agy and ensure it is on PATH")
+		return Config{}, fmt.Errorf("no agent CLI found: install claude, codebuddy, codex, copilot, opencode, openclaw, hermes, gemini, pi, omp, cursor-agent, kimi, kiro-cli, agy, or qwen-code and ensure it is on PATH")
 	}
 
 	claudeArgs, err := shellArgsFromEnv("MULTICA_CLAUDE_ARGS")
@@ -633,7 +636,8 @@ func shellArgsFromEnv(name string) ([]string, error) {
 // invocation, instead of paying the cost-per-miss.
 var defaultAgentCommandNames = []string{
 	"claude", "codex", "opencode", "openclaw", "hermes",
-	"gemini", "pi", "omp", "cursor-agent", "copilot", "kimi", "kiro-cli", "codebuddy", "agy",
+	"gemini", "pi", "omp", "cursor-agent", "copilot", "kimi",
+	"kiro-cli", "codebuddy", "agy", "qwen-code",
 }
 
 var codexDesktopAppBundlePaths = func() []string {
