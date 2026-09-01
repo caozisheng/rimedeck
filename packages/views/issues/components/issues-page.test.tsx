@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Issue } from "@rimedeck/core/types";
 import { I18nProvider } from "@rimedeck/core/i18n/react";
@@ -113,23 +114,33 @@ const mockListSquads = vi.hoisted(() =>
     },
   ]),
 );
+const mockListLabels = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
+    labels: [
+      { id: "label-bug", workspace_id: "ws-1", name: "Bug", color: "#ff0000" },
+      { id: "label-feature", workspace_id: "ws-1", name: "Feature", color: "#00ff00" },
+    ],
+  }),
+);
 vi.mock("@rimedeck/core/api", () => ({
   api: {
     getBaseUrl: () => "http://127.0.0.1:8080",
-    listIssues: (...args: any[]) => mockListIssues(...args),
-    listGroupedIssues: (...args: any[]) => mockListGroupedIssues(...args),
+    listIssues: (...args: unknown[]) => mockListIssues(...args),
+    listGroupedIssues: (...args: unknown[]) => mockListGroupedIssues(...args),
     updateIssue: vi.fn(),
-    listMembers: (...args: any[]) => mockListMembers(...args),
-    listAgents: (...args: any[]) => mockListAgents(...args),
-    listSquads: (...args: any[]) => mockListSquads(...args),
+    listMembers: (...args: unknown[]) => mockListMembers(...args),
+    listAgents: (...args: unknown[]) => mockListAgents(...args),
+    listSquads: (...args: unknown[]) => mockListSquads(...args),
+    listLabels: (...args: unknown[]) => mockListLabels(...args),
   },
   getApi: () => ({
-    listIssues: (...args: any[]) => mockListIssues(...args),
-    listGroupedIssues: (...args: any[]) => mockListGroupedIssues(...args),
+    listIssues: (...args: unknown[]) => mockListIssues(...args),
+    listGroupedIssues: (...args: unknown[]) => mockListGroupedIssues(...args),
     updateIssue: vi.fn(),
-    listMembers: (...args: any[]) => mockListMembers(...args),
-    listAgents: (...args: any[]) => mockListAgents(...args),
-    listSquads: (...args: any[]) => mockListSquads(...args),
+    listMembers: (...args: unknown[]) => mockListMembers(...args),
+    listAgents: (...args: unknown[]) => mockListAgents(...args),
+    listSquads: (...args: unknown[]) => mockListSquads(...args),
+    listLabels: (...args: unknown[]) => mockListLabels(...args),
   }),
   setApiInstance: vi.fn(),
 }));
@@ -484,6 +495,7 @@ describe("IssuesPage (shared)", () => {
     vi.clearAllMocks();
     mockListIssues.mockResolvedValue({ issues: [], total: 0 });
     mockListGroupedIssues.mockResolvedValue({ groups: [] });
+    mockViewState.labelFilters = [];
     mockViewState.viewMode = "board";
     mockViewState.grouping = "status";
     mockViewState.statusFilters = [];
@@ -626,5 +638,85 @@ describe("IssuesPage (shared)", () => {
     await screen.findByText("Implement auth");
     expect(screen.queryByText("Squad task")).not.toBeInTheDocument();
     expect(screen.queryByText("Design landing page")).not.toBeInTheDocument();
+  });
+
+  it("allows typing in the label filter search input", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    mockListIssues.mockResolvedValue({ issues: [], total: 0 });
+
+    renderWithQuery(<IssuesPage />);
+    await user.click(await screen.findByRole("button", { name: "Filter" }));
+    const labelTrigger = screen.getByRole("menuitem", { name: "Label" });
+    await user.hover(labelTrigger);
+    await waitFor(() => expect(labelTrigger).toHaveAttribute("aria-expanded", "true"));
+
+    const labelMenu = screen.getAllByRole("menu").find((menu) =>
+      menu.querySelector('input[placeholder="Filter..."]'),
+    );
+    expect(labelMenu).toBeDefined();
+    const input = within(labelMenu!).getByPlaceholderText("Filter...");
+    input.focus();
+    expect(document.activeElement).toBe(input);
+    await user.keyboard("bug");
+    await waitFor(() => expect(input).toHaveValue("bug"));
+    expect(screen.getByLabelText("Bug")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Feature")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(labelTrigger).toHaveAttribute("aria-expanded", "false"));
+  });
+
+  it("selects the matching label when Enter is pressed", async () => {
+    const user = userEvent.setup();
+    mockListIssues.mockResolvedValue({ issues: [], total: 0 });
+
+    renderWithQuery(<IssuesPage />);
+    await user.click(await screen.findByRole("button", { name: "Filter" }));
+    const labelTrigger = screen.getByRole("menuitem", { name: "Label" });
+    await user.hover(labelTrigger);
+    await waitFor(() => expect(labelTrigger).toHaveAttribute("aria-expanded", "true"));
+
+    const labelMenu = screen.getAllByRole("menu").find((menu) =>
+      menu.querySelector('input[placeholder="Filter..."]'),
+    );
+    expect(labelMenu).toBeDefined();
+    const input = within(labelMenu!).getByPlaceholderText("Filter...");
+    input.focus();
+    await user.keyboard("bug{Enter}");
+
+    expect(mockViewState.toggleLabelFilter).toHaveBeenCalledWith("label-bug");
+  });
+
+  it("passes selected labels to the paginated issue query", async () => {
+    mockViewState.labelFilters = ["label-bug"];
+    mockListIssues.mockResolvedValue({ issues: [], total: 0 });
+
+    renderWithQuery(<IssuesPage />);
+
+    await waitFor(() => {
+      expect(mockListIssues).toHaveBeenCalledWith(
+        expect.objectContaining({ label_ids: ["label-bug"] }),
+      );
+    });
+  });
+
+  it("selects the sole filtered label when Enter is pressed", async () => {
+    const user = userEvent.setup();
+    mockListIssues.mockResolvedValue({ issues: [], total: 0 });
+
+    renderWithQuery(<IssuesPage />);
+    await user.click(await screen.findByRole("button", { name: "Filter" }));
+    const labelTrigger = screen.getByRole("menuitem", { name: "Label" });
+    await user.hover(labelTrigger);
+    await waitFor(() => expect(labelTrigger).toHaveAttribute("aria-expanded", "true"));
+
+    const labelMenu = screen.getAllByRole("menu").find((menu) =>
+      menu.querySelector('input[placeholder="Filter..."]'),
+    );
+    expect(labelMenu).toBeDefined();
+    const input = within(labelMenu!).getByPlaceholderText("Filter...");
+    input.focus();
+    await user.keyboard("bu{Enter}");
+
+    expect(mockViewState.toggleLabelFilter).toHaveBeenCalledWith("label-bug");
   });
 });

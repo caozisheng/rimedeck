@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Make the Labels filter search input focusable and typeable while preserving existing label filtering behavior.
+**Goal:** Make the Labels filter search input accept text and apply a matching label when Enter is pressed.
 
-**Architecture:** Keep `LabelSubContent` inside the existing Base UI dropdown submenu. Add only the local event isolation required for the native search input so the parent menu does not consume its pointer or keyboard events. Verify the observable behavior through a focused component regression test.
+**Architecture:** Keep `LabelSubContent` inside the existing Base UI dropdown submenu. Stop printable, unmodified keydown events at the native search input so Base UI menu typeahead cannot prevent text entry. On Enter, resolve an exact case-insensitive name match first, otherwise the sole filtered result, and pass its ID to the existing `toggleLabelFilter` path. Preserve Escape, Tab, modifier shortcuts, selection, and menu navigation.
 
 **Tech Stack:** React, TypeScript, Base UI DropdownMenu, TanStack Query, Vitest, Testing Library, user-event.
 
@@ -16,40 +16,58 @@
 - Modify: `packages/views/issues/components/issues-page.test.tsx`
 - Test target: shared Issues page filter controls and Label submenu
 
-**Step 1: Extend test mocks with workspace labels and Base UI menu behavior needed by the test.**
+**Step 1: Extend test mocks with workspace labels.**
 
-Provide two labels, one matching and one non-matching the query, through the same labels query used by `LabelSubContent`. Mock or render the menu primitives consistently with existing test conventions.
+Provide two labels, one matching and one non-matching the query, through the same labels query used by `LabelSubContent`.
 
 **Step 2: Write the failing test.**
 
-Render `IssuesPage`, open the Filter menu, open Label, locate the search input, type a distinctive query, and assert the matching label is present while the non-matching label is absent. The test must exercise focus and typing, not only the pure filtering helper.
+Render `IssuesPage`, open Filter, open Label, locate the opened submenu's search input, focus it, type a distinctive query, and assert the input value and visible labels. Assert Escape still closes the Label submenu. The test must exercise keyboard typing while the real Base UI menu primitives are mounted.
 
-**Step 3: Run the focused test and verify it fails for the reported interaction.**
+**Step 3: Run the focused test to verify it fails for the reported interaction.**
 
 Run:
 
 ```bash
-pnpm --filter @rimedeck/web exec vitest run packages/views/issues/components/issues-page.test.tsx -t "label filter search"
+pnpm --filter @rimedeck/views exec vitest run issues/components/issues-page.test.tsx -t "allows typing in the label filter search input"
 ```
 
-Expected: failure demonstrating that the input does not accept the typed query or that the visible label list does not update.
+Expected before the production change: FAIL because Base UI menu typeahead prevents the input's printable keydown events.
 
-### Task 2: Implement local event isolation
+### Task 2: Implement local keyboard event isolation
 
 **Files:**
-- Modify: `packages/views/issues/components/issues-header.tsx:464-472`
+- Modify: `packages/views/issues/components/issues-header.tsx:465-476`
 
-**Step 1: Add the smallest input-local event handlers required by the failing test.**
+**Step 1: Add the smallest input-local handler.**
 
-Prevent the parent dropdown's pointer interaction from reclaiming focus, and stop menu-level keyboard handling from interpreting text-entry keys as menu typeahead. Preserve the controlled `value`, `onChange`, placeholder, and autofocus behavior.
+Stop propagation only when the input receives an unmodified printable key (`event.key.length === 1`, with Ctrl/Meta/Alt absent). Leave Escape, Tab, Shift+Tab, arrows, and modifier shortcuts available to Base UI's existing menu handlers.
 
 **Step 2: Run the focused regression test.**
 
 Run the command from Task 1.
 
-Expected: PASS, with matching labels filtered by typed text.
+Expected: PASS, with the input containing the typed query, only the matching label visible, and Escape dismissing the submenu.
 
-### Task 3: Run focused existing verification
+### Task 3: Apply a matching label on Enter
+
+**Files:**
+- Modify: `packages/views/issues/components/issues-header.tsx:469-486`
+- Test: `packages/views/issues/components/issues-page.test.tsx`
+
+**Step 1: Write and run the failing Enter regression.**
+
+Type an exact label name and press Enter. Assert `toggleLabelFilter` receives the matching label ID. Before implementation, the mock must have zero calls.
+
+**Step 2: Implement the minimal Enter handler.**
+
+For a non-empty normalized query, select an exact case-insensitive match; if none exists and the filtered result is unique, select it. Prevent default menu handling only when a match is applied, call `onToggle(match.id)`, and clear the search text.
+
+**Step 3: Run the Enter regression.**
+
+Expected: PASS.
+
+### Task 4: Run focused existing verification
 
 **Files:**
 - No additional files.
@@ -57,19 +75,27 @@ Expected: PASS, with matching labels filtered by typed text.
 **Step 1: Run the complete Issues page component test file.**
 
 ```bash
-pnpm --filter @rimedeck/web exec vitest run packages/views/issues/components/issues-page.test.tsx
+pnpm --filter @rimedeck/views exec vitest run issues/components/issues-page.test.tsx
 ```
 
 Expected: PASS.
 
-**Step 2: Run the label filter utility tests.**
+**Step 2: Run the label filtering utility tests.**
 
 ```bash
-pnpm --filter @rimedeck/web exec vitest run packages/views/issues/utils/filter.test.ts
+pnpm --filter @rimedeck/views exec vitest run issues/utils/filter.test.ts
 ```
 
 Expected: PASS.
 
-**Step 3: Inspect the final diff for scope.**
+**Step 3: Run the views package typecheck.**
 
-Confirm only the design document, implementation plan, regression test, and label input interaction code changed; no shared dropdown semantics or unrelated filters were modified.
+```bash
+pnpm --filter @rimedeck/views typecheck
+```
+
+Expected: exit code 0.
+
+**Step 4: Review the final diff for scope.**
+
+Confirm only the label input interaction and its regression coverage changed beyond the design/plan documents; no shared dropdown semantics or unrelated filters were modified.

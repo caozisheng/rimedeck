@@ -107,6 +107,11 @@ export type MyIssuesFilter = Pick<
   "assignee_id" | "assignee_ids" | "creator_id" | "project_id" | "involves_user_id" | "source" | "tracker_id"
 >;
 
+export type IssueListFilter = Pick<
+  ListIssuesParams,
+  "assignee_id" | "assignee_ids" | "creator_id" | "project_id" | "involves_user_id" | "source" | "tracker_id" | "label_ids"
+>;
+
 export type AssigneeGroupedIssuesFilter = Omit<
   ListGroupedIssuesParams,
   "group_by" | "limit" | "offset" | "group_assignee_type" | "group_assignee_id"
@@ -128,7 +133,7 @@ export function flattenIssueBuckets(data: ListIssuesCache) {
   return out;
 }
 
-async function fetchFirstPages(filter: MyIssuesFilter = {}, sort?: IssueSortParam): Promise<ListIssuesCache> {
+async function fetchFirstPages(filter: IssueListFilter = {}, sort?: IssueSortParam): Promise<ListIssuesCache> {
   const responses = await Promise.all(
     PAGINATED_STATUSES.map((status) =>
       api.listIssues({ status, limit: ISSUE_PAGE_SIZE, offset: 0, ...sort, ...filter }),
@@ -249,7 +254,7 @@ async function fetchAllMyAssigneeGroups(
  * Fetches the first page of each paginated status in parallel. Use
  * {@link useLoadMoreByStatus} to paginate a specific status into the cache.
  */
-export function issueListOptions(wsId: string, sort?: IssueSortParam, filter: Pick<ListIssuesParams, "source" | "tracker_id"> = {}) {
+export function issueListOptions(wsId: string, sort?: IssueSortParam, filter: IssueListFilter = {}) {
   return queryOptions({
     queryKey: issueKeys.listSorted(wsId, { ...sort, ...filter }),
     queryFn: () => fetchFirstPages(filter, sort),

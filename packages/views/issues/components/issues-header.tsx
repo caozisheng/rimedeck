@@ -466,6 +466,24 @@ function LabelSubContent({
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              const exactMatch = labels.find(
+                (label) => label.name.trim().toLowerCase() === query,
+              );
+              const match = exactMatch ?? (query && filtered.length === 1 ? filtered[0] : undefined);
+              if (match) {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggle(match.id);
+                setSearch("");
+              }
+              return;
+            }
+            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              e.stopPropagation();
+            }
+          }}
           placeholder={t(($) => $.filters.placeholder)}
           className="w-full bg-transparent text-sm placeholder:text-muted-foreground outline-none"
           autoFocus

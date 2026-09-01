@@ -68,6 +68,8 @@ export interface ListIssuesParams {
   scheduled?: boolean;
   sort_by?: "position" | "priority" | "title" | "created_at" | "start_date" | "due_date";
   sort_direction?: "asc" | "desc";
+  /** Filter by labels attached to the issue; OR semantics across IDs. */
+  label_ids?: string[];
   /** Filter by issue source: local, gitlab, or detached. */
   source?: IssueSource;
   /** Filter by specific tracker connection. */

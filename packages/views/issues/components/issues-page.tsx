@@ -98,9 +98,10 @@ export function IssuesPage() {
     : selectedSource
       ? { source: selectedSource as "local" | "gitlab" | "detached" }
       : {};
+  const issueListFilter = { ...sourceFilter, label_ids: labelFilters };
   const assigneeGroupsOptions = issueAssigneeGroupsOptions(wsId, assigneeGroupFilter, sort);
   const statusIssuesQuery = useQuery({
-    ...issueListOptions(wsId, sort, sourceFilter),
+    ...issueListOptions(wsId, sort, issueListFilter),
     enabled: !usesAssigneeBoard,
   });
   const assigneeGroupsQuery = useQuery({
