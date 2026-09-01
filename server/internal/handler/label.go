@@ -112,6 +112,7 @@ func (h *Handler) ListLabels(w http.ResponseWriter, r *http.Request) {
 	source := strings.TrimSpace(query.Get("source"))
 	projectRaw := strings.TrimSpace(query.Get("project_id"))
 	trackerRaw := strings.TrimSpace(query.Get("tracker_id"))
+	includeRemote := query.Get("include_remote") == "true"
 	if source != "" && source != "local" && source != "gitlab" {
 		writeError(w, http.StatusBadRequest, "source must be local or gitlab")
 		return
@@ -122,7 +123,7 @@ func (h *Handler) ListLabels(w http.ResponseWriter, r *http.Request) {
 	}
 	var labels []db.IssueLabel
 	var err error
-	if source == "" && projectRaw == "" && trackerRaw == "" {
+	if !includeRemote && source == "" && projectRaw == "" && trackerRaw == "" {
 		labels, err = h.Queries.ListLabels(r.Context(), wsUUID)
 	} else {
 		var projectID, trackerID pgtype.UUID

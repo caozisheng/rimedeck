@@ -60,7 +60,7 @@ import { memberListOptions, agentListOptions, squadListOptions } from "@rimedeck
 import { projectListOptions } from "@rimedeck/core/projects/queries";
 import { projectGitlabTrackersOptions, useSyncGitlabTracker } from "@rimedeck/core/gitlab-tracker-queries";
 import { issueKeys } from "@rimedeck/core/issues/queries";
-import { labelListOptions } from "@rimedeck/core/labels/queries";
+import { issueFilterLabelListOptions } from "@rimedeck/core/labels/queries";
 import { ProjectIcon } from "../../projects/components/project-icon";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { LabelChip } from "../../labels/label-chip";
@@ -455,7 +455,7 @@ function LabelSubContent({
   const { t } = useT("issues");
   const [search, setSearch] = useState("");
   const wsId = useWorkspaceId();
-  const { data: labels = [] } = useQuery(labelListOptions(wsId));
+  const { data: labels = [] } = useQuery(issueFilterLabelListOptions(wsId));
   const query = search.trim().toLowerCase();
   const filtered = labels.filter((l) => l.name.toLowerCase().includes(query));
 

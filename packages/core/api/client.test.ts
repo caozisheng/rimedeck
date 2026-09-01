@@ -508,7 +508,7 @@ describe("ApiClient", () => {
     await client.retryGitlabTracker("p1", "t1");
     await client.disableGitlabTracker("p1", "t1");
     await client.deleteGitlabTrackerMirrors("p1", "t1");
-    await client.listLabels({ project_id: "p1", source: "gitlab", tracker_id: "t1" });
+    await client.listLabels({ project_id: "p1", source: "gitlab", tracker_id: "t1", include_remote: true });
 
     const calls = fetchMock.mock.calls.map(([url, init]) => ({
       url,
@@ -523,7 +523,7 @@ describe("ApiClient", () => {
       { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/retry", method: "POST", body: undefined },
       { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/disable", method: "POST", body: undefined },
       { url: "https://api.example.test/api/projects/p1/gitlab-trackers/t1/mirrors", method: "DELETE", body: undefined },
-      { url: "https://api.example.test/api/labels?project_id=p1&source=gitlab&tracker_id=t1", method: "GET", body: undefined },
+      { url: "https://api.example.test/api/labels?project_id=p1&source=gitlab&tracker_id=t1&include_remote=true", method: "GET", body: undefined },
     ]);
     expect(fetchMock.mock.calls[6]?.[1]?.headers).toMatchObject({ "X-Confirm-Delete-Mirrors": "true" });
   });

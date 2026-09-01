@@ -8,12 +8,21 @@ export const labelKeys = {
     [...labelKeys.all(wsId), "detail", id] as const,
   byIssue: (wsId: string, issueId: string) =>
     [...labelKeys.all(wsId), "issue", issueId] as const,
+  filterList: (wsId: string) => [...labelKeys.all(wsId), "filter-list"] as const,
 };
 
 export function labelListOptions(wsId: string) {
   return queryOptions({
     queryKey: labelKeys.list(wsId),
     queryFn: () => api.listLabels(),
+    select: (data) => data.labels,
+  });
+}
+
+export function issueFilterLabelListOptions(wsId: string) {
+  return queryOptions({
+    queryKey: labelKeys.filterList(wsId),
+    queryFn: () => api.listLabels({ include_remote: true }),
     select: (data) => data.labels,
   });
 }

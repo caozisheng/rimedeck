@@ -682,8 +682,22 @@ describe("IssuesPage (shared)", () => {
     const input = within(labelMenu!).getByPlaceholderText("Filter...");
     input.focus();
     await user.keyboard("bug{Enter}");
-
     expect(mockViewState.toggleLabelFilter).toHaveBeenCalledWith("label-bug");
+  });
+
+  it("loads GitLab custom labels for the workspace filter", async () => {
+    const user = userEvent.setup();
+    mockListIssues.mockResolvedValue({ issues: [], total: 0 });
+
+    renderWithQuery(<IssuesPage />);
+    await user.click(await screen.findByRole("button", { name: "Filter" }));
+    await user.hover(screen.getByRole("menuitem", { name: "Label" }));
+
+    await waitFor(() => {
+      expect(mockListLabels).toHaveBeenCalledWith(
+        expect.objectContaining({ include_remote: true }),
+      );
+    });
   });
 
   it("passes selected labels to the paginated issue query", async () => {

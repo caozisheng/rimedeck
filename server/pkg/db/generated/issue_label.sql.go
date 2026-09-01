@@ -316,6 +316,8 @@ WHERE l.workspace_id = $1::uuid
     OR (c.project_id = $4::uuid AND c.state <> 'disabled')
   )
   AND l.mapping_kind = 'none'
+  AND l.is_archived = false
+  AND (l.source_type = 'local' OR c.state <> 'disabled')
 ORDER BY LOWER(l.name) ASC
 `
 

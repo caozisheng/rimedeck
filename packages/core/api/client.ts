@@ -1745,6 +1745,7 @@ export class ApiClient {
     if (params?.project_id) search.set("project_id", params.project_id);
     if (params?.source) search.set("source", params.source);
     if (params?.tracker_id) search.set("tracker_id", params.tracker_id);
+    if (params?.include_remote) search.set("include_remote", "true");
     const query = search.toString();
     return this.fetch(`/api/labels${query ? `?${query}` : ""}`);
   }

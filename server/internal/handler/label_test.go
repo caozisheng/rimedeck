@@ -486,6 +486,9 @@ VALUES ($1,$2,'#222222','gitlab',$3,991)`, parseUUID(testWorkspaceID), gitlabNam
 	if labels := call(""); !contains(labels, localName) || contains(labels, gitlabName) {
 		t.Fatalf("unfiltered labels must include local and exclude gitlab: %+v", labels)
 	}
+	if labels := call("&include_remote=true"); !contains(labels, localName) || !contains(labels, gitlabName) {
+		t.Fatalf("remote-inclusive labels must include local + gitlab: %+v", labels)
+	}
 	if labels := call("&project_id=" + project.ID); !contains(labels, localName) || !contains(labels, gitlabName) {
 		t.Fatalf("project labels must include local + active tracker labels: %+v", labels)
 	}

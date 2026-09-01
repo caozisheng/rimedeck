@@ -22,6 +22,8 @@ WHERE l.workspace_id = sqlc.arg('workspace_id')::uuid
     OR (c.project_id = sqlc.narg('project_id')::uuid AND c.state <> 'disabled')
   )
   AND l.mapping_kind = 'none'
+  AND l.is_archived = false
+  AND (l.source_type = 'local' OR c.state <> 'disabled')
 ORDER BY LOWER(l.name) ASC;
 
 -- name: GetLabel :one

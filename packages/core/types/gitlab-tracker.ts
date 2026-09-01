@@ -51,6 +51,8 @@ export interface ListLabelsParams {
   project_id?: string;
   source?: "local" | "gitlab";
   tracker_id?: string;
+  /** Include visible custom labels imported from active GitLab trackers. */
+  include_remote?: boolean;
 }
 
 // Health snapshot for the tracker section's dead-letter panel. Numbers
