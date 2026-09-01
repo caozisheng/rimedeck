@@ -64,6 +64,7 @@
     "no_issues_yet": "No issues yet",
     "toast_link_copied": "Link copied",
     "toast_project_deleted": "Project deleted",
+    "toast_project_delete_failed": "Failed to delete project",
     "toast_move_issue_failed": "Failed to move issue",
     "gitlab_trackers_section": "GitLab trackers",
     "gitlab_trackers_last_pull": "Synced {{when}}",
@@ -152,6 +153,7 @@
     "title": "Delete project",
     "description": "This will delete the project. Issues will not be deleted but will be unlinked.",
     "confirm": "Delete",
+    "deleting": "Deleting...",
     "cancel": "Cancel"
   },
   "picker": {

@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { issueKeys } from "../issues/queries";
+import { projectKeys } from "../projects/queries";
 import type { WSClient } from "../api/ws-client";
 import { useRealtimeSync, type RealtimeSyncStores } from "./use-realtime-sync";
 
@@ -18,12 +20,17 @@ vi.mock("../paths", () => ({
   resolvePostAuthDestination: () => "/",
 }));
 
+let projectEventHandler: ((message: { type: string }) => void) | undefined;
+
 function createMockWs(): WSClient {
-  return {
-    on: vi.fn(() => () => {}),
-    onAny: vi.fn(() => () => {}),
-    onReconnect: vi.fn(() => () => {}),
-  } as unknown as WSClient;
+	return {
+		on: vi.fn(() => () => {}),
+		onAny: vi.fn((handler: (message: { type: string }) => void) => {
+			projectEventHandler = handler;
+			return () => {};
+		}),
+		onReconnect: vi.fn(() => () => {}),
+	} as unknown as WSClient;
 }
 
 function createStores(): RealtimeSyncStores {
@@ -163,5 +170,24 @@ describe("useRealtimeSync — ws instance change", () => {
     expect(calls).toContainEqual(["issues", "usage"]);
     expect(calls).toContainEqual(["issues", "attachments"]);
     expect(calls).toContainEqual(["issues", "tasks"]);
+  });
+
+  it("invalidates project issue queries when a project is updated", () => {
+    vi.useFakeTimers();
+    try {
+      const ws = createMockWs();
+      renderHook(() => useRealtimeSync(ws, stores), {
+        wrapper: createWrapper(qc),
+      });
+
+      projectEventHandler?.({ type: "project:updated" });
+      vi.advanceTimersByTime(100);
+
+      const calls = invalidateSpy.mock.calls.map((call: [{ queryKey?: unknown }, ...unknown[]]) => call[0].queryKey);
+      expect(calls).toContainEqual(projectKeys.all("ws-1"));
+      expect(calls).toContainEqual(issueKeys.all("ws-1"));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

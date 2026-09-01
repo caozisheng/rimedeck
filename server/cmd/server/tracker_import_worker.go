@@ -12,10 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/gitlabsync"
 	"github.com/multica-ai/multica/server/internal/gitlabtracker"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 const trackerImportInterval = time.Minute
@@ -84,9 +87,19 @@ func drainTrackerOutbox(ctx context.Context, drainer trackerOutboxDrainer) {
 
 // runTrackerImportWorker drains the local outbox. The caller owns the
 // context and cancels it during graceful shutdown.
-func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries, cipher *gitlabtracker.Cipher, factory gitlabsync.ClientFactory, taskService *service.TaskService, wake <-chan struct{}) {
+func runTrackerImportWorker(ctx context.Context, pool *pgxpool.Pool, queries *db.Queries, cipher *gitlabtracker.Cipher, factory gitlabsync.ClientFactory, taskService *service.TaskService, bus *events.Bus, wake <-chan struct{}) {
 	worker := &gitlabsync.Worker{Queries: queries, TxStarter: pool, Cipher: cipher, ClientFactory: factory}
 	worker.OnImportedNote = taskService.HandleImportedGitlabNote
+	worker.OnProjectIssuesImported = func(_ context.Context, tracker db.GitlabTrackerConnection) {
+		bus.Publish(events.Event{
+			Type:        protocol.EventProjectUpdated,
+			WorkspaceID: util.UUIDToString(tracker.WorkspaceID),
+			ActorType:   "system",
+			Payload: map[string]any{
+				"project_id": util.UUIDToString(tracker.ProjectID),
+			},
+		})
+	}
 	ticker := time.NewTicker(trackerImportInterval)
 	defer ticker.Stop()
 	runTrackerImportLoop(ctx, worker, func(ctx context.Context) error {

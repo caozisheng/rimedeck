@@ -150,6 +150,68 @@ UPDATE workspace SET issue_counter = 0 WHERE id=$1`, testWorkspaceID); err != ni
 	})
 }
 
+// TestDeleteProjectWithGitlabIssue detaches mirrored issues before the
+// project's tracker connection is cascade-deleted, preserving the issue
+// source/connection constraint.
+func TestDeleteProjectWithGitlabIssue(t *testing.T) {
+	if testHandler == nil || testPool == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+
+	project := projectForCreateTracker(t, "delete-project-with-gitlab-issue")
+	var trackerID string
+	if err := testPool.QueryRow(ctx, `
+		INSERT INTO gitlab_tracker_connection (
+			project_id, workspace_id, instance_url, remote_project_id,
+			path_with_namespace, web_url, clone_url,
+			token_ciphertext, token_key_version,
+			webhook_secret_ciphertext, webhook_state, state, created_by
+		) VALUES ($1, $2, 'https://gitlab.example.com', 1001,
+			'ns/delete-project', 'https://gitlab.example.com/ns/delete-project',
+			'https://gitlab.example.com/ns/delete-project.git',
+			'\\x00', 0, '\\x00', 'unavailable', 'active', $3)
+		RETURNING id::text`,
+		project.ID, testWorkspaceID, testUserID,
+	).Scan(&trackerID); err != nil {
+		t.Fatalf("seed tracker: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	req := newRequest("POST", "/api/issues?workspace_id="+testWorkspaceID, map[string]any{
+		"title":                 "mirrored issue for project deletion",
+		"project_id":            project.ID,
+		"source_type":           "gitlab",
+		"tracker_connection_id": trackerID,
+	})
+	testHandler.CreateIssue(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create mirrored issue: %d %s", w.Code, w.Body.String())
+	}
+	var issue IssueResponse
+	if err := json.NewDecoder(w.Body).Decode(&issue); err != nil {
+		t.Fatalf("decode mirrored issue: %v", err)
+	}
+
+	w = httptest.NewRecorder()
+	req = newRequest("DELETE", "/api/projects/"+project.ID, nil)
+	req = withURLParam(req, "id", project.ID)
+	testHandler.DeleteProject(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("delete project with mirrored issue: expected 204, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var sourceType, syncState string
+	if err := testPool.QueryRow(ctx,
+		`SELECT source_type, sync_state FROM issue WHERE id = $1::uuid`, issue.ID,
+	).Scan(&sourceType, &syncState); err != nil {
+		t.Fatalf("read detached issue: %v", err)
+	}
+	if sourceType != "detached" || syncState != "detached" {
+		t.Fatalf("deleted project's issue = (%q, %q), want (detached, detached)", sourceType, syncState)
+	}
+}
+
 // TestCreateIssueLocalGolden verifies that creating a local issue (no
 // source_type or source_type=local) behaves identically to before: no
 // outbox, source_type=local in response.

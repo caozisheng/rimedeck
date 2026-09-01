@@ -443,6 +443,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
   const descEditorRef = useRef<ContentEditorRef>(null);
   const isMobile = useIsMobile();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [progressOpen, setProgressOpen] = useState(true);
@@ -482,15 +483,19 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
     [project, updateProject],
   );
 
-  const handleDelete = useCallback(() => {
-    if (!project) return;
-    deleteProject.mutate(project.id, {
-      onSuccess: () => {
-        toast.success(t(($) => $.detail.toast_project_deleted));
-        router.push(wsPaths.projects());
-      },
-    });
-  }, [project, deleteProject, router, wsPaths, t]);
+  const handleDelete = useCallback(async () => {
+    if (!project || deleting) return;
+    setDeleting(true);
+    setDeleteDialogOpen(false);
+    try {
+      await deleteProject.mutateAsync(project.id);
+      toast.success(t(($) => $.detail.toast_project_deleted));
+      router.push(wsPaths.projects());
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : t(($) => $.detail.toast_project_delete_failed));
+      setDeleting(false);
+    }
+  }, [project, deleting, deleteProject, router, wsPaths, t]);
 
   if (isLoading) {
     return (
@@ -852,7 +857,12 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       </ResizablePanelGroup>
 
       {/* Delete confirmation */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!deleting) setDeleteDialogOpen(open);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t(($) => $.delete_dialog.title)}</AlertDialogTitle>
@@ -861,9 +871,13 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t(($) => $.delete_dialog.cancel)}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-white hover:bg-destructive/90">
-              {t(($) => $.delete_dialog.confirm)}
+            <AlertDialogCancel disabled={deleting}>{t(($) => $.delete_dialog.cancel)}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deleting ? t(($) => $.delete_dialog.deleting) : t(($) => $.delete_dialog.confirm)}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

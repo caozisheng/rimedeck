@@ -71,16 +71,19 @@ type TxStarter interface {
 
 // Worker binds every dependency once; call Tick per interval.
 type Worker struct {
-	Queries             Queries
-	TxStarter           TxStarter
-	Cipher              *gitlabtracker.Cipher
-	ClientFactory       ClientFactory
-	LabelImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error
-	IssueImporter       func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error
-	NoteImporter        func(context.Context, db.GitlabTrackerConnection, db.GitlabIssueLink, []gitlabtracker.Note) ([]gitlabtracker.ImportedNote, error)
-	OnImportedNote      func(context.Context, gitlabtracker.ImportedNote)
-	CreateIssueImporter func(context.Context, db.GitlabTrackerConnection, db.Issue, gitlabtracker.Issue) error
-	CanonicalApplier    func(context.Context, db.GitlabTrackerConnection, pgtype.UUID, gitlabtracker.Issue) error
+	Queries        Queries
+	TxStarter      TxStarter
+	Cipher         *gitlabtracker.Cipher
+	ClientFactory  ClientFactory
+	LabelImporter  func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Label) error
+	IssueImporter  func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error
+	NoteImporter   func(context.Context, db.GitlabTrackerConnection, db.GitlabIssueLink, []gitlabtracker.Note) ([]gitlabtracker.ImportedNote, error)
+	OnImportedNote func(context.Context, gitlabtracker.ImportedNote)
+	// OnProjectIssuesImported runs after a successful issue snapshot import.
+	// It is intentionally best-effort and does not affect the import result.
+	OnProjectIssuesImported func(context.Context, db.GitlabTrackerConnection)
+	CreateIssueImporter     func(context.Context, db.GitlabTrackerConnection, db.Issue, gitlabtracker.Issue) error
+	CanonicalApplier        func(context.Context, db.GitlabTrackerConnection, pgtype.UUID, gitlabtracker.Issue) error
 }
 
 // TickResult summarises one drain pass. Zero counts mean the queue was
@@ -218,9 +221,14 @@ func (w *Worker) processRow(ctx context.Context, row db.TrackerSyncOutbox) outco
 		_ = w.Queries.MarkTrackerOutboxSucceeded(ctx, row.ID)
 		return outcomeSuccess
 	}
-
 	if err := w.Queries.MarkTrackerOutboxSucceeded(ctx, row.ID); err != nil {
 		return w.backoff(ctx, row, "mark_success_failed", err.Error())
+	}
+	// The event is intentionally idempotent: stale-lease recovery in another
+	// server process can replay a long-running reconcile row, causing a second
+	// cache invalidation but never changing the imported data.
+	if (row.Operation == "reconcile" || row.Operation == "pull_issue" || row.Operation == "full_reconcile") && w.OnProjectIssuesImported != nil {
+		w.OnProjectIssuesImported(ctx, tracker)
 	}
 	// Best-effort last_pull_at bump; a stale timestamp is harmless.
 	_ = w.Queries.TouchTrackerLastPull(ctx, tracker.ID)

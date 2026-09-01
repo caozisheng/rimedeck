@@ -86,6 +86,21 @@ func (q *Queries) DeleteProject(ctx context.Context, arg DeleteProjectParams) er
 	return err
 }
 
+const detachProjectGitlabIssues = `-- name: DetachProjectGitlabIssues :exec
+UPDATE issue
+SET source_type = 'detached',
+    sync_state = 'detached',
+    tracker_connection_id = NULL
+WHERE project_id = $1
+  AND source_type = 'gitlab'
+`
+
+// Keep mirrored issues valid when deleting their project's tracker connection.
+func (q *Queries) DetachProjectGitlabIssues(ctx context.Context, projectID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, detachProjectGitlabIssues, projectID)
+	return err
+}
+
 const getProject = `-- name: GetProject :one
 SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority FROM project
 WHERE id = $1

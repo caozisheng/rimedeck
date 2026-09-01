@@ -442,7 +442,12 @@ export function useRealtimeSync(
       },
       project: () => {
         const wsId = getCurrentWsId();
-        if (wsId) qc.invalidateQueries({ queryKey: projectKeys.all(wsId) });
+        if (wsId) {
+          qc.invalidateQueries({ queryKey: projectKeys.all(wsId) });
+          // Project issue pages use the issue list caches directly; importing
+          // issues does not emit one issue event per imported row.
+          qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
+        }
       },
       squad: () => {
         const wsId = getCurrentWsId();

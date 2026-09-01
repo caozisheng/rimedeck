@@ -547,12 +547,30 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.Queries.DeleteProject(r.Context(), db.DeleteProjectParams{
+
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start project deletion")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	qtx := h.Queries.WithTx(tx)
+	if err := qtx.DetachProjectGitlabIssues(r.Context(), project.ID); err != nil {
+		slog.Error("detach project GitLab issues failed", "project_id", uuidToString(project.ID), "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "failed to prepare project deletion")
+		return
+	}
+	if err := qtx.DeleteProject(r.Context(), db.DeleteProjectParams{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,
 	}); err != nil {
 		slog.Error("delete project failed", "project_id", uuidToString(project.ID), "workspace_id", workspaceID, "error", err.Error())
 		writeError(w, http.StatusInternalServerError, "failed to delete project")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		slog.Error("commit project deletion failed", "project_id", uuidToString(project.ID), "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "failed to commit project deletion")
 		return
 	}
 	h.publish(protocol.EventProjectDeleted, workspaceID, "member", userID, map[string]any{"project_id": uuidToString(project.ID)})

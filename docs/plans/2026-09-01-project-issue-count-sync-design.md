@@ -6,7 +6,7 @@ GitLab 项目导入通过 `ImportIssues` 在数据库事务中创建或更新本
 
 ## Decision
 
-导入或 reconcile 成功写入 issue 后，发布一次 `project:updated` 事件，让现有前端 Project 查询缓存统一失效并自动重新拉取。事件只携带项目标识和 workspace 路由所需信息；计数继续由 Project API 从 issue 表计算，避免引入第二套计数维护逻辑。
+导入或 reconcile 成功写入 issue 后，发布 `project:updated` 事件，让现有前端 Project 查询缓存统一失效并自动重新拉取。正常单 worker 执行时每次操作发布一次；现有 outbox 的跨进程租约恢复可能让同一幂等操作产生重复通知，但通知只触发缓存失效，不影响数据正确性。事件只携带项目标识和 workspace 路由所需信息；计数继续由 Project API 从 issue 表计算，避免引入第二套计数维护逻辑。
 
 事件发布属于提交后的通知，不参与导入事务：导入数据提交成功但通知失败时，不回滚导入；下一次周期 reconcile 或客户端重新获取仍可恢复一致性。
 

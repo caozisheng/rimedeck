@@ -251,3 +251,110 @@ func TestComputeBackoff(t *testing.T) {
 		}
 	}
 }
+func TestHandleReconcileNotifiesProjectAfterIssueImport(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v4/projects/42/issues" {
+			_, _ = w.Write([]byte(`[{"id":901,"iid":7,"state":"opened","title":"imported","updated_at":"2026-08-16T00:00:00Z"}]`))
+			return
+		}
+		if r.URL.Path == "/api/v4/projects/42/issues/7/notes" {
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer upstream.Close()
+
+	cipher := newCipher(t)
+	tracker := newTracker(t, cipher, upstream.URL)
+	tracker.WorkspaceID = pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
+	tracker.ProjectID = pgtype.UUID{Bytes: [16]byte{4}, Valid: true}
+	fq := &fakeQueries{
+		claim:   []db.TrackerSyncOutbox{newOutboxRow("reconcile")},
+		tracker: tracker,
+		remoteLinks: map[int32]db.GitlabIssueLink{
+			7: {IssueID: pgtype.UUID{Bytes: [16]byte{5}, Valid: true}, RemoteIid: 7},
+		},
+	}
+	worker := testWorker(fq, cipher)
+	worker.IssueImporter = func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error { return nil }
+	worker.NoteImporter = func(context.Context, db.GitlabTrackerConnection, db.GitlabIssueLink, []gitlabtracker.Note) ([]gitlabtracker.ImportedNote, error) {
+		return nil, nil
+	}
+	var notified []db.GitlabTrackerConnection
+	worker.OnProjectIssuesImported = func(_ context.Context, got db.GitlabTrackerConnection) {
+		notified = append(notified, got)
+	}
+
+	res, err := worker.Tick(context.Background())
+	if err != nil || res.Success != 1 {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	if len(notified) != 1 || notified[0].ProjectID != tracker.ProjectID || notified[0].WorkspaceID != tracker.WorkspaceID {
+		t.Fatalf("project notifications = %+v, want one notification for project %v", notified, tracker.ProjectID)
+	}
+}
+
+func TestHandleReconcileDoesNotNotifyWhenIssueImportFails(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v4/projects/42/issues" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[{"id":901,"iid":7,"state":"opened","title":"imported"}]`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer upstream.Close()
+
+	cipher := newCipher(t)
+	tracker := newTracker(t, cipher, upstream.URL)
+	worker := testWorker(&fakeQueries{}, cipher)
+	worker.IssueImporter = func(context.Context, db.GitlabTrackerConnection, []gitlabtracker.Issue) error {
+		return errors.New("import failed")
+	}
+	called := false
+	worker.OnProjectIssuesImported = func(context.Context, db.GitlabTrackerConnection) { called = true }
+
+	clientTransport, err := gitlabtracker.NewClient(gitlabtracker.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := gitlabtracker.NewRestClient(clientTransport, tracker.InstanceUrl, "glpat-worker")
+	if err := worker.handleReconcile(context.Background(), client, tracker); err == nil {
+		t.Fatal("expected issue import error")
+	}
+	if called {
+		t.Fatal("project notification fired after failed issue import")
+	}
+}
+
+func TestHandleReconcileNotifiesProjectForEmptyIssueImport(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v4/projects/42/issues" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		t.Errorf("unexpected upstream request %s %s", r.Method, r.URL.Path)
+		http.NotFound(w, r)
+	}))
+	defer upstream.Close()
+
+	cipher := newCipher(t)
+	tracker := newTracker(t, cipher, upstream.URL)
+	fq := &fakeQueries{claim: []db.TrackerSyncOutbox{newOutboxRow("reconcile")}, tracker: tracker}
+	worker := testWorker(fq, cipher)
+	called := false
+	worker.OnProjectIssuesImported = func(_ context.Context, got db.GitlabTrackerConnection) {
+		called = got.ProjectID == tracker.ProjectID
+	}
+	res, err := worker.Tick(context.Background())
+	if err != nil || res.Success != 1 {
+		fq := worker.Queries.(*fakeQueries)
+		t.Fatalf("res=%+v err=%v retries=%+v", res, err, fq.retries)
+	}
+	if !called {
+		t.Fatal("project notification was not sent for empty issue import")
+	}
+}

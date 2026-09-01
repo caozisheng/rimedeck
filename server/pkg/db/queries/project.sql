@@ -38,6 +38,15 @@ RETURNING *;
 -- Defense-in-depth: workspace_id is a SQL-layer tenant guard. See DeleteIssue.
 DELETE FROM project WHERE id = $1 AND workspace_id = $2;
 
+-- name: DetachProjectGitlabIssues :exec
+-- Keep mirrored issues valid when deleting their project's tracker connection.
+UPDATE issue
+SET source_type = 'detached',
+    sync_state = 'detached',
+    tracker_connection_id = NULL
+WHERE project_id = $1
+  AND source_type = 'gitlab';
+
 -- name: CountIssuesByProject :one
 SELECT count(*) FROM issue
 WHERE project_id = $1;

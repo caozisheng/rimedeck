@@ -64,6 +64,7 @@
     "no_issues_yet": "目前还没有 issue",
     "toast_link_copied": "已复制链接",
     "toast_project_deleted": "已删除项目",
+    "toast_project_delete_failed": "删除项目失败",
     "toast_move_issue_failed": "移动 issue 失败",
     "gitlab_trackers_section": "GitLab tracker",
     "gitlab_trackers_last_pull": "{{when}} 已同步",
@@ -152,6 +153,7 @@
     "title": "删除项目",
     "description": "将删除这个项目。issue 不会被删除，只会从项目中解除关联。",
     "confirm": "删除",
+    "deleting": "删除中...",
     "cancel": "取消"
   },
   "picker": {

@@ -64,6 +64,7 @@
     "no_issues_yet": "イシューはまだありません",
     "toast_link_copied": "リンクをコピーしました",
     "toast_project_deleted": "プロジェクトを削除しました",
+    "toast_project_delete_failed": "プロジェクトを削除できませんでした",
     "toast_move_issue_failed": "イシューを移動できませんでした",
     "gitlab_trackers_section": "GitLab トラッカー",
     "gitlab_trackers_last_pull": "{{when}} に同期",
@@ -152,6 +153,7 @@
     "title": "プロジェクトを削除",
     "description": "プロジェクトが削除されます。イシューは削除されませんが、リンクが解除されます。",
     "confirm": "削除",
+    "deleting": "削除中...",
     "cancel": "キャンセル"
   },
   "picker": {
